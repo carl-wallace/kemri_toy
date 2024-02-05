@@ -1,0 +1,2 @@
+plaintext message for encryption
+This is the second line.
