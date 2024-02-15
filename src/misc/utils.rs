@@ -626,12 +626,25 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
     Ok(Certificate::from_der(&der)?)
 }
 
+pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
+    match oid {
+        ML_KEM_512_IPD => "ML-KEM-512-ipd".to_string(),
+        ML_KEM_768_IPD => "ML-KEM-768-ipd".to_string(),
+        ML_KEM_1024_IPD => "ML-KEM-1024-ipd".to_string(),
+        _ => "Unrecognized".to_string(),
+    }
+}
+
 #[cfg(test)]
 fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
+    use crate::KemAlgorithms;
     use std::collections::BTreeMap;
 
-    let expected_plaintext =
-        get_file_as_byte_vec(Path::new(&format!("{}/plaintext.txt", artifact_folder))).unwrap();
+    let expected_plaintext = get_file_as_byte_vec(Path::new(&format!(
+        "{}/expected_plaintext.txt",
+        artifact_folder
+    )))
+    .unwrap();
 
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
@@ -639,21 +652,24 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
         ML_KEM_512_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_512_IPD
+            key_folder,
+            KemAlgorithms::MlKem512.filename()
         )))?,
     );
     key_map.insert(
         ML_KEM_768_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_768_IPD
+            key_folder,
+            KemAlgorithms::MlKem768.filename()
         )))?,
     );
     key_map.insert(
         ML_KEM_1024_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_1024_IPD
+            key_folder,
+            KemAlgorithms::MlKem1024.filename()
         )))?,
     );
     let paths = std::fs::read_dir(artifact_folder).unwrap();
@@ -672,8 +688,13 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
                             if let Some(key) = key_map.get(&oid.to_string()) {
                                 if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
                                     println!("Processing {:?}", path.path());
-                                    let pt = process_content_info(&ci, key)?;
-                                    assert_eq!(pt, expected_plaintext);
+                                    match process_content_info(&ci, key) {
+                                        Ok(pt) => assert_eq!(pt, expected_plaintext),
+                                        Err(e) => {
+                                            println!("ERROR processing {:?}: {e:?}", path.path());
+                                            return Err(e);
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -687,8 +708,8 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
 }
 
 #[test]
-fn decrypt_daniel() {
-    assert!(test_decrypt("tests/artifacts/daniel", "tests/artifacts/daniel").is_ok());
+fn decrypt_cryptonext() {
+    assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/cryptonext").is_ok());
 }
 
 #[test]
@@ -712,21 +733,24 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         ML_KEM_512_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_512_IPD
+            key_folder,
+            KemAlgorithms::MlKem512.filename()
         )))?,
     );
     key_map.insert(
         ML_KEM_768_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_768_IPD
+            key_folder,
+            KemAlgorithms::MlKem768.filename()
         )))?,
     );
     key_map.insert(
         ML_KEM_1024_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
-            key_folder, ML_KEM_1024_IPD
+            key_folder,
+            KemAlgorithms::MlKem1024.filename()
         )))?,
     );
 
@@ -735,21 +759,24 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         ML_KEM_512_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
-            key_folder, ML_KEM_512_IPD
+            key_folder,
+            KemAlgorithms::MlKem512.filename()
         )))?,
     );
     cert_map.insert(
         ML_KEM_768_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
-            key_folder, ML_KEM_768_IPD
+            key_folder,
+            KemAlgorithms::MlKem768.filename()
         )))?,
     );
     cert_map.insert(
         ML_KEM_1024_IPD.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
-            key_folder, ML_KEM_1024_IPD
+            key_folder,
+            KemAlgorithms::MlKem1024.filename()
         )))?,
     );
 
@@ -858,10 +885,14 @@ fn rsa_auth_env_data_tests() {
 fn break_things() {
     use crate::asn1::kemri::KemRecipientInfo;
     use cms::enveloped_data::RecipientInfos;
-    let expected_plaintext = include_bytes!("../../tests/artifacts/daniel/plaintext.txt");
-    let ml_kem_512_key =
-        include_bytes!("../../tests/artifacts/daniel/1.3.6.1.4.1.22554.5.6.1_priv.der");
-    let auth_data_bytes = include_bytes!("../../tests/artifacts/daniel/1.3.6.1.4.1.22554.5.6.1_enveloped_aes-256-gcm_id-alg-hkdf-with-sha256.der");
+    let expected_plaintext =
+        include_bytes!("../../tests/artifacts/cryptonext/expected_plaintext.txt");
+    let ml_kem_512_key = include_bytes!(
+        "../../tests/artifacts/cryptonext/1.3.6.1.4.1.22554.5.6.1_ML-KEM-512-ipd_priv.der"
+    );
+    let auth_data_bytes = include_bytes!(
+        "../../tests/artifacts/cryptonext/1.3.6.1.4.1.22554.5.6.1_ML-KEM-512-ipd_kemri_auth.der"
+    );
 
     let pt = process_content_info(auth_data_bytes, ml_kem_512_key).unwrap();
     assert_eq!(pt, expected_plaintext);

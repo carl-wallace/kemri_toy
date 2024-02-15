@@ -36,7 +36,6 @@ use crate::{
     args::{
         KemAlgorithms,
         KemAlgorithms::{MlKem1024, MlKem512, MlKem768},
-        KemriToyArgs,
     },
     misc::signer::{Dilithium2KeyPair, DilithiumPublicKey},
     Error, ML_DSA_44_IPD, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
@@ -174,7 +173,7 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
 }
 
 /// Generate new dilithium TA and end-entity KEM certificate based on KemriToyArgs with files output to the given output folder
-pub fn generate_pki(args: &KemriToyArgs, output_folder: &Path) -> crate::Result<Certificate> {
+pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<Certificate> {
     let (signer, ta_cert) = match generate_ta() {
         Ok((signer, ta_cert)) => (signer, ta_cert),
         Err(e) => {
@@ -185,7 +184,7 @@ pub fn generate_pki(args: &KemriToyArgs, output_folder: &Path) -> crate::Result<
     let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
-    let (private_key_bytes, new_cert) = match &args.kem {
+    let (private_key_bytes, new_cert) = match kem {
         MlKem512 => {
             let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
                 signer,
@@ -260,13 +259,13 @@ pub fn generate_pki(args: &KemriToyArgs, output_folder: &Path) -> crate::Result<
         }
     };
 
-    let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", args.kem.filename())))?;
+    let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", kem.filename())))?;
     let _ = ee_file.write_all(&cert.to_der()?);
 
     let oak_leaf = OneAsymmetricKey {
         version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
-            oid: args.kem.oid(),
+            oid: kem.oid(),
             parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 6
         },
         private_key: OctetString::new(private_key)?,
@@ -277,8 +276,7 @@ pub fn generate_pki(args: &KemriToyArgs, output_folder: &Path) -> crate::Result<
         .to_der()
         .expect("Failed to encode private key as OneAsymmetricKey");
 
-    let mut ee_key_file =
-        File::create(output_folder.join(format!("{}_priv.der", args.kem.filename())))?;
+    let mut ee_key_file = File::create(output_folder.join(format!("{}_priv.der", kem.filename())))?;
     let _ = ee_key_file.write_all(&der_oak);
 
     Ok(cert)

@@ -47,7 +47,7 @@ pub enum Error {
     Builder(String),
     Pqc,
     CertBuilder,
-    IoError,
+    Io,
 }
 impl From<der::Error> for Error {
     fn from(err: der::Error) -> Error {
@@ -57,7 +57,7 @@ impl From<der::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
         error!("std::io::Error: {err:?}");
-        Error::CertBuilder
+        Error::Io
     }
 }
 impl From<x509_cert::builder::Error> for Error {
@@ -252,7 +252,7 @@ fn main() -> Result<()> {
 
         let cert = match &cert_arg {
             Some(cert) => cert.clone(),
-            None => generate_pki(&args, &output_folder)?,
+            None => generate_pki(&args.kem, &output_folder)?,
         };
 
         let plaintext = get_buffer_from_file_arg(&args.input_file)
@@ -263,12 +263,12 @@ fn main() -> Result<()> {
         if args.auth_env_data {
             let output_file_name = match &ukm {
                 Some(_) => format!(
-                    "{}_auth_enveloped_{}_ukm.der",
+                    "{}_kemri_auth_{}_ukm.der",
                     args.kem.filename(),
                     args.kdf.filename()
                 ),
                 None => format!(
-                    "{}_auth_enveloped_{}.der",
+                    "{}_kemri_auth_{}.der",
                     args.kem.filename(),
                     args.kdf.filename()
                 ),
@@ -288,15 +288,11 @@ fn main() -> Result<()> {
         } else {
             let output_file_name = match &ukm {
                 Some(_) => format!(
-                    "{}_enveloped_{}_ukm.der",
+                    "{}_kemri_{}_ukm.der",
                     args.kem.filename(),
                     args.kdf.filename()
                 ),
-                None => format!(
-                    "{}_enveloped_{}.der",
-                    args.kem.filename(),
-                    args.kdf.filename()
-                ),
+                None => format!("{}_kemri_{}.der", args.kem.filename(), args.kdf.filename()),
             };
 
             let enveloped_data = generate_enveloped_data(

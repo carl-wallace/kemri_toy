@@ -14,6 +14,7 @@ use const_oid::{
     ObjectIdentifier,
 };
 
+use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
     ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
@@ -60,9 +61,21 @@ impl KemAlgorithms {
     /// Get filename component for KemAlgorithms instance.
     pub fn filename(&self) -> String {
         match self {
-            KemAlgorithms::MlKem512 => ML_KEM_512_IPD.to_string(),
-            KemAlgorithms::MlKem768 => ML_KEM_768_IPD.to_string(),
-            KemAlgorithms::MlKem1024 => ML_KEM_1024_IPD.to_string(),
+            KemAlgorithms::MlKem512 => format!(
+                "{}_{}",
+                ML_KEM_512_IPD,
+                get_filename_from_oid(ML_KEM_512_IPD)
+            ),
+            KemAlgorithms::MlKem768 => format!(
+                "{}_{}",
+                ML_KEM_768_IPD,
+                get_filename_from_oid(ML_KEM_768_IPD)
+            ),
+            KemAlgorithms::MlKem1024 => format!(
+                "{}_{}",
+                ML_KEM_1024_IPD,
+                get_filename_from_oid(ML_KEM_1024_IPD)
+            ),
         }
     }
 }
