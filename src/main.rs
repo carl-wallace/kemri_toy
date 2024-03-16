@@ -125,6 +125,26 @@ pub const ID_ALG_HKDF_WITH_SHA384: ObjectIdentifier =
 pub const ID_ALG_HKDF_WITH_SHA512: ObjectIdentifier =
     ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.30");
 
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.3]
+/// ```text
+///    hashAlgs OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16)
+///        us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 2 }
+///
+///    id-kmac128 OBJECT IDENTIFIER ::= { hashAlgs 21 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
+pub const ID_KMAC128: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.21");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.3]
+/// ```text
+///    hashAlgs OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16)
+///        us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 2 }
+///
+///    id-kmac256 OBJECT IDENTIFIER ::= { hashAlgs 22 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
+pub const ID_KMAC256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.22");
+
 /// kemri_toy implementation
 fn main() -> Result<()> {
     let mut args = KemriToyArgs::parse();

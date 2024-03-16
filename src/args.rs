@@ -17,7 +17,7 @@ use const_oid::{
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
-    ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    ID_KMAC128, ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
 
 /// KEM algorithms available via command line argument
@@ -159,6 +159,8 @@ pub enum KdfAlgorithms {
     HkdfSha256,
     HkdfSha384,
     HkdfSha512,
+    Kmac128,
+    Kmac256,
 }
 impl fmt::Display for KdfAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -166,6 +168,8 @@ impl fmt::Display for KdfAlgorithms {
             KdfAlgorithms::HkdfSha256 => write!(f, "hkdf-sha256"),
             KdfAlgorithms::HkdfSha384 => write!(f, "hkdf-sha384"),
             KdfAlgorithms::HkdfSha512 => write!(f, "hkdf-sha512"),
+            KdfAlgorithms::Kmac128 => write!(f, "kmac128"),
+            KdfAlgorithms::Kmac256 => write!(f, "kmac256"),
         }
     }
 }
@@ -177,6 +181,8 @@ impl KdfAlgorithms {
             KdfAlgorithms::HkdfSha256 => ID_ALG_HKDF_WITH_SHA256,
             KdfAlgorithms::HkdfSha384 => ID_ALG_HKDF_WITH_SHA384,
             KdfAlgorithms::HkdfSha512 => ID_ALG_HKDF_WITH_SHA512,
+            KdfAlgorithms::Kmac128 => ID_KMAC128,
+            KdfAlgorithms::Kmac256 => ID_KMAC256,
         }
     }
     /// Get filename component from KdfAlgorithms instance.
@@ -185,6 +191,8 @@ impl KdfAlgorithms {
             KdfAlgorithms::HkdfSha256 => "id-alg-hkdf-with-sha256".to_string(),
             KdfAlgorithms::HkdfSha384 => "id-alg-hkdf-with-sha384".to_string(),
             KdfAlgorithms::HkdfSha512 => "id-alg-hkdf-with-sha512".to_string(),
+            KdfAlgorithms::Kmac128 => "id-kmac128".to_string(),
+            KdfAlgorithms::Kmac256 => "id-kmac256".to_string(),
         }
     }
 }
