@@ -23,12 +23,13 @@ use const_oid::{
 };
 use der::{asn1::OctetString, Any, Decode, Encode};
 use spki::AlgorithmIdentifier;
+use tari_tiny_keccak::{Hasher, Kmac};
 
 use crate::{
     asn1::kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
-    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_ORI_KEM,
-    ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ID_ORI_KEM, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
@@ -166,6 +167,18 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                 Hkdf::<Sha512>::new(None, &ss)
                     .expand(&der_kdf_input, &mut okm)
                     .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_KMAC128 => {
+                let custom = b"";
+                let mut kmac = Kmac::v128(&ss, custom);
+                kmac.update(&der_kdf_input);
+                kmac.finalize(&mut okm);
+            }
+            ID_KMAC256 => {
+                let custom = b"";
+                let mut kmac = Kmac::v256(&ss, custom);
+                kmac.update(&der_kdf_input);
+                kmac.finalize(&mut okm);
             }
             _ => {
                 return Err(Error::Builder(format!(

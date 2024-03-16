@@ -39,6 +39,8 @@ use const_oid::{
 };
 use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
 use pqckeys::oak::OneAsymmetricKey;
+use tari_tiny_keccak::Hasher;
+use tari_tiny_keccak::Kmac;
 use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
 
 use crate::{
@@ -49,8 +51,8 @@ use crate::{
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
     misc::gen_certs::buffer_to_hex,
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
-    ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
@@ -385,6 +387,18 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             let hk = Hkdf::<Sha512>::new(None, &ss);
             hk.expand(&der_kdf_input, &mut okm)
                 .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_KMAC128 => {
+            let custom = b"";
+            let mut kmac = Kmac::v128(&ss, custom);
+            kmac.update(&der_kdf_input);
+            kmac.finalize(&mut okm);
+        }
+        ID_KMAC256 => {
+            let custom = b"";
+            let mut kmac = Kmac::v256(&ss, custom);
+            kmac.update(&der_kdf_input);
+            kmac.finalize(&mut okm);
         }
         _ => {
             error!("Unrecognized KDF algorithm: {}", kemri.kdf.oid);
