@@ -19,6 +19,7 @@ use crate::{
     Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
     ID_KMAC128, ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
+use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
 
 /// KEM algorithms available via command line argument
 #[derive(Clone, Serialize, Deserialize, Debug, Default, clap::ValueEnum)]
@@ -27,6 +28,8 @@ pub enum KemAlgorithms {
     MlKem512,
     MlKem768,
     MlKem1024,
+    MlKem512Rsa2048,
+    MlKem512Rsa3072,
 }
 impl fmt::Display for KemAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -34,6 +37,8 @@ impl fmt::Display for KemAlgorithms {
             KemAlgorithms::MlKem512 => write!(f, "ml-kem512"),
             KemAlgorithms::MlKem768 => write!(f, "ml-kem768"),
             KemAlgorithms::MlKem1024 => write!(f, "ml-kem1024"),
+            KemAlgorithms::MlKem512Rsa2048 => write!(f, "ml-kem1024;rsa2048"),
+            KemAlgorithms::MlKem512Rsa3072 => write!(f, "ml-kem1024;rsa3072"),
         }
     }
 }
@@ -45,6 +50,8 @@ impl KemAlgorithms {
             ML_KEM_512_IPD => Ok(KemAlgorithms::MlKem512),
             ML_KEM_768_IPD => Ok(KemAlgorithms::MlKem768),
             ML_KEM_1024_IPD => Ok(KemAlgorithms::MlKem1024),
+            ML_KEM_512_RSA2048 => Ok(KemAlgorithms::MlKem512Rsa2048),
+            ML_KEM_512_RSA3072 => Ok(KemAlgorithms::MlKem512Rsa3072),
             _ => Err(Error::Unrecognized),
         }
     }
@@ -55,6 +62,8 @@ impl KemAlgorithms {
             KemAlgorithms::MlKem512 => ML_KEM_512_IPD,
             KemAlgorithms::MlKem768 => ML_KEM_768_IPD,
             KemAlgorithms::MlKem1024 => ML_KEM_1024_IPD,
+            KemAlgorithms::MlKem512Rsa2048 => ML_KEM_512_RSA2048,
+            KemAlgorithms::MlKem512Rsa3072 => ML_KEM_512_RSA3072,
         }
     }
 
@@ -75,6 +84,16 @@ impl KemAlgorithms {
                 "{}_{}",
                 ML_KEM_1024_IPD,
                 get_filename_from_oid(ML_KEM_1024_IPD)
+            ),
+            KemAlgorithms::MlKem512Rsa2048 => format!(
+                "{}_{}",
+                ML_KEM_512_RSA2048,
+                get_filename_from_oid(ML_KEM_512_RSA2048)
+            ),
+            KemAlgorithms::MlKem512Rsa3072 => format!(
+                "{}_{}",
+                ML_KEM_512_RSA3072,
+                get_filename_from_oid(ML_KEM_512_RSA3072)
             ),
         }
     }

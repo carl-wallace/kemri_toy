@@ -35,11 +35,12 @@ use x509_cert::{
 use crate::{
     args::{
         KemAlgorithms,
-        KemAlgorithms::{MlKem1024, MlKem512, MlKem768},
+        KemAlgorithms::{MlKem1024, MlKem512, MlKem768, MlKem512Rsa2048, MlKem512Rsa3072},
     },
     misc::signer::{Dilithium2KeyPair, DilithiumPublicKey},
     Error, ML_DSA_44_IPD, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
+use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -140,6 +141,8 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
         MlKem512 => ML_KEM_512_IPD,
         MlKem768 => ML_KEM_768_IPD,
         MlKem1024 => ML_KEM_1024_IPD,
+        MlKem512Rsa2048 => ML_KEM_512_RSA2048,
+        MlKem512Rsa3072 => ML_KEM_512_RSA3072,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -241,6 +244,12 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 }
             };
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert))
+        },
+        MlKem512Rsa2048 => {
+            todo!()
+        },
+        MlKem512Rsa3072 => {
+            todo!()
         }
     };
 

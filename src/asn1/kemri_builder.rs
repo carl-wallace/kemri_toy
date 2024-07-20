@@ -22,6 +22,7 @@ use const_oid::{
     ObjectIdentifier,
 };
 use der::{asn1::OctetString, Any, Decode, Encode};
+use rsa::RsaPublicKey;
 use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
 
@@ -38,6 +39,8 @@ pub enum KeyEncryptionInfoKem {
     MlKem512(Box<kyber512::PublicKey>),
     MlKem768(Box<kyber768::PublicKey>),
     MlKem1024(Box<kyber1024::PublicKey>),
+    MlKem512Rsa2048((Box<kyber512::PublicKey>, RsaPublicKey)),
+    MlKem512Rsa3072((Box<kyber512::PublicKey>, RsaPublicKey)),
 }
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
@@ -122,7 +125,13 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     ct.as_bytes().to_vec(),
                     ML_KEM_1024_IPD,
                 )
-            }
+            },
+            KeyEncryptionInfoKem::MlKem512Rsa2048(pk) => {
+                todo!()
+            },
+            KeyEncryptionInfoKem::MlKem512Rsa3072(pk) => {
+                todo!()
+            },
         };
 
         debug!("Shared Secret: {}", buffer_to_hex(&ss));

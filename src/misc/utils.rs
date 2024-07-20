@@ -47,6 +47,7 @@ use crate::{
     asn1::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
+        composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072},
         kemri::CmsOriForKemOtherInfo,
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
@@ -194,6 +195,12 @@ pub(crate) fn kemri_builder_from_cert(
                 wrap,
             )?
         }
+        ML_KEM_512_RSA2048 => {
+            todo!()
+        },
+        ML_KEM_512_RSA3072 => {
+            todo!()
+        },
         _ => return Err(Error::Unrecognized),
     };
     Ok(recipient_info_builder)
@@ -645,6 +652,8 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ML_KEM_512_IPD => "ML-KEM-512-ipd".to_string(),
         ML_KEM_768_IPD => "ML-KEM-768-ipd".to_string(),
         ML_KEM_1024_IPD => "ML-KEM-1024-ipd".to_string(),
+        ML_KEM_512_RSA2048 => "ML-KEM-512-RSA2048".to_string(),
+        ML_KEM_512_RSA3072 => "ML-KEM-512-RSA3072".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }
@@ -798,6 +807,8 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         KemAlgorithms::MlKem512,
         KemAlgorithms::MlKem768,
         KemAlgorithms::MlKem1024,
+        KemAlgorithms::MlKem512Rsa2048,
+        KemAlgorithms::MlKem512Rsa3072,
     ];
     let kdf_algs = [
         KdfAlgorithms::HkdfSha256,
