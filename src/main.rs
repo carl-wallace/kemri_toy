@@ -49,6 +49,18 @@ pub enum Error {
     Pqc,
     CertBuilder,
     Io,
+    Spki(spki::Error),
+    Pkcs8(rsa::pkcs8::Error)
+}
+impl From<rsa::pkcs8::Error> for Error {
+    fn from(err: rsa::pkcs8::Error) -> Error {
+        Error::Pkcs8(err)
+    }
+}
+impl From<spki::Error> for Error {
+    fn from(err: spki::Error) -> Error {
+        Error::Spki(err)
+    }
 }
 impl From<der::Error> for Error {
     fn from(err: der::Error) -> Error {

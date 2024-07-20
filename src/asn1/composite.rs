@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use der::asn1::{BitString, OctetString};
 use der::Sequence;
 use pqckeys::oak::OneAsymmetricKey;
@@ -5,7 +7,7 @@ use pqckeys::oak::OneAsymmetricKey;
 /// ```text
 /// CompositeKEMPublicKey ::= SEQUENCE SIZE (2) OF BIT STRING
 /// ```
-pub type CompositeKemPublicKey = [BitString;2];
+// pub type CompositeKemPublicKey = [BitString;2];
 
 /// ```text
 /// CompositeKEMPublicKeyOs ::= OCTET STRING (CONTAINING
@@ -38,8 +40,13 @@ pub type CompositeCiphertextValue = [OctetString;2];
 #[derive(Clone, Debug, Eq, PartialEq, Sequence)]
 #[allow(missing_docs)]
 pub struct RsaCompositeKemPublicKey {
-    first_public_key: BitString,
-    second_public_key: BitString
+    pub first_public_key: BitString,
+    pub second_public_key: BitString
+}
+
+pub enum CompositeKemPublicKey {
+    Rsa(RsaCompositeKemPublicKey),
+    Ecdsa(()) //todo
 }
 
 // --

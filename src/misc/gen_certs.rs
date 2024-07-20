@@ -7,6 +7,7 @@ use std::{
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use const_oid::db::rfc5912::RSA_ENCRYPTION;
 
 use log::error;
 use rand_core::{OsRng, RngCore};
@@ -22,8 +23,10 @@ use der::{
     asn1::{BitString, OctetString, UtcTime},
     Encode,
 };
-use pqckeys::oak::OneAsymmetricKey;
-use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey, Version};
+use rsa::{RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs8::EncodePrivateKey;
+use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, EncodePublicKey, SubjectPublicKeyInfoOwned};
 use x509_cert::{
     builder::{Builder, CertificateBuilder, Profile},
     name::Name,
@@ -40,7 +43,7 @@ use crate::{
     misc::signer::{Dilithium2KeyPair, DilithiumPublicKey},
     Error, ML_DSA_44_IPD, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
-use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
+use crate::asn1::composite::{CompositeKemPublicKey, ML_KEM_512_RSA2048, ML_KEM_512_RSA3072, RsaCompositeKemPublicKey};
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -126,6 +129,61 @@ macro_rules! generate_cert {
         let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk, $alg)?;
         Ok((ee_pk, ee_sk, cert))
     }};
+}
+
+pub fn generate_composite(
+    signer: &Dilithium2KeyPair,
+    cert: &Certificate,
+    ee_pk: &CompositeKemPublicKey,
+    alg: KemAlgorithms,
+) -> crate::Result<Certificate> {
+    let ee_pk_bytes = match ee_pk {
+        CompositeKemPublicKey::Rsa(rsa) => {
+            rsa.to_der()?.to_vec()
+        },
+        _ => {
+            error!("Composite certificate generation failed because public key type was not recognized");
+            return Err(Error::Unrecognized)
+        }
+    };
+
+    let oid = match alg {
+        MlKem512Rsa2048 => ML_KEM_512_RSA2048,
+        MlKem512Rsa3072 => ML_KEM_512_RSA3072,
+        _ => {
+            error!("Composite certificate generation failed because {alg} is not a recognized composite KEM algorithm");
+            return Err(Error::Unrecognized)
+        }
+    };
+
+    let spki_algorithm = AlgorithmIdentifierOwned {
+        oid,
+        parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 4
+    };
+    let ca_spki = SubjectPublicKeyInfoOwned {
+        algorithm: spki_algorithm,
+        subject_public_key: BitString::from_bytes(&ee_pk_bytes)?,
+    };
+    let dn_str = format!("cn={alg} EE,c=US");
+    let dn = Name::from_str(&dn_str)?;
+
+    let profile = Profile::Leaf {
+        issuer: cert.tbs_certificate.subject.clone(),
+        enable_key_agreement: false,
+        enable_key_encipherment: true,
+        include_subject_key_identifier: true,
+    };
+
+    let builder = CertificateBuilder::new(
+        profile,
+        get_random_serial()?,
+        get_validity(5)?,
+        dn.clone(),
+        ca_spki,
+        signer,
+    )?;
+
+    Ok(builder.build()?)
 }
 
 /// Generate an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
@@ -246,10 +304,82 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert))
         },
         MlKem512Rsa2048 => {
-            todo!()
+            let (ml_kem_pub, ml_kem_priv) = kyber512::keypair();
+            let ml_kem_pub_bytes = ml_kem_pub.as_bytes();
+            let ml_key_priv_bytes = ml_kem_priv.as_bytes();
+            let ml_kem_oak = OneAsymmetricKey{
+                version: Version::V1,
+                private_key_alg: AlgorithmIdentifier { oid: ML_KEM_512_IPD, parameters: None },
+                private_key: PrivateKey::new(ml_key_priv_bytes)?,
+                attributes: None,
+                public_key: None,
+            };
+
+            let mut rng = rand::thread_rng();
+            let rsa_priv_key = RsaPrivateKey::new(&mut rng, 2048).expect("failed to generate a key");
+            let rsa_pub = RsaPublicKey::from(&rsa_priv_key);
+            let rsa_pub_bytes = rsa_pub.to_public_key_der()?;
+            let rsa_priv_bytes = rsa_priv_key.to_pkcs8_der()?;
+            let rsa_oak = OneAsymmetricKey{
+                version: Version::V1,
+                private_key_alg: AlgorithmIdentifier { oid: RSA_ENCRYPTION, parameters: None },
+                private_key: PrivateKey::new(rsa_priv_bytes.as_bytes())?,
+                attributes: None,
+                public_key: None,
+            };
+
+            let rsa_composite_pub = RsaCompositeKemPublicKey{
+                first_public_key: BitString::from_bytes(ml_kem_pub_bytes)?,
+                second_public_key: BitString::from_bytes(rsa_pub_bytes.as_bytes())?
+            };
+
+            let composite_pub = CompositeKemPublicKey::Rsa(rsa_composite_pub);
+            let composite_priv = [ml_kem_oak, rsa_oak];
+
+            let certificate = generate_composite(&signer,
+                                                 &ta_cert,
+                                                 &composite_pub,
+                               MlKem512Rsa2048).unwrap();
+            (Some(composite_priv.to_der()?.to_vec()), Some(certificate))
         },
         MlKem512Rsa3072 => {
-            todo!()
+            let (ml_kem_pub, ml_kem_priv) = kyber512::keypair();
+            let ml_kem_pub_bytes = ml_kem_pub.as_bytes();
+            let ml_key_priv_bytes = ml_kem_priv.as_bytes();
+            let ml_kem_oak = OneAsymmetricKey{
+                version: Version::V1,
+                private_key_alg: AlgorithmIdentifier { oid: ML_KEM_512_IPD, parameters: None },
+                private_key: PrivateKey::new(ml_key_priv_bytes)?,
+                attributes: None,
+                public_key: None,
+            };
+
+            let mut rng = rand::thread_rng();
+            let rsa_priv_key = RsaPrivateKey::new(&mut rng, 3072).expect("failed to generate a key");
+            let rsa_pub = RsaPublicKey::from(&rsa_priv_key);
+            let rsa_pub_bytes = rsa_pub.to_public_key_der()?;
+            let rsa_priv_bytes = rsa_priv_key.to_pkcs8_der()?;
+            let rsa_oak = OneAsymmetricKey{
+                version: Version::V1,
+                private_key_alg: AlgorithmIdentifier { oid: RSA_ENCRYPTION, parameters: None },
+                private_key: PrivateKey::new(rsa_priv_bytes.as_bytes())?,
+                attributes: None,
+                public_key: None,
+            };
+
+            let rsa_composite_pub = RsaCompositeKemPublicKey{
+                first_public_key: BitString::from_bytes(ml_kem_pub_bytes)?,
+                second_public_key: BitString::from_bytes(rsa_pub_bytes.as_bytes())?
+            };
+
+            let composite_pub = CompositeKemPublicKey::Rsa(rsa_composite_pub);
+            let composite_priv = [ml_kem_oak, rsa_oak];
+
+            let certificate = generate_composite(&signer,
+                                                 &ta_cert,
+                                                 &composite_pub,
+                                                 MlKem512Rsa3072).unwrap();
+            (Some(composite_priv.to_der()?.to_vec()), Some(certificate))
         }
     };
 
@@ -272,7 +402,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     let _ = ee_file.write_all(&cert.to_der()?);
 
     let oak_leaf = OneAsymmetricKey {
-        version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
+        version: Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
             oid: kem.oid(),
             parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 6
