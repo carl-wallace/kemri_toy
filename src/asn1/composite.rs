@@ -24,29 +24,30 @@ pub type CompositeKEMPublicKeyBs = OctetString;
 /// ```text
 /// CompositeKEMPrivateKey ::= SEQUENCE SIZE (2) OF OneAsymmetricKey
 /// ```
-pub type CompositeKemPrivateKey = [OneAsymmetricKey;2];
+pub type CompositeKemPrivateKey = [OneAsymmetricKey; 2];
 
 /// ```text
 /// CompositeCiphertextValue ::= SEQUENCE SIZE (2) OF OCTET STRING
 /// ```
-pub type CompositeCiphertextValue = [OctetString;2];
+pub type CompositeCiphertextValue = [OctetString; 2];
 
 /// ```text
-///    RsaCompositeKemPublicKey ::= SEQUENCE {
-/// 		firstPublicKey BIT STRING (ENCODED BY id-raw-key),
-/// 		secondPublicKey BIT STRING (CONTAINING RSAPublicKey)
-/// 	  }
+/// RsaCompositeKemPublicKey ::= SEQUENCE {
+///     firstPublicKey BIT STRING (ENCODED BY id-raw-key),
+///     secondPublicKey BIT STRING (CONTAINING RSAPublicKey)
+/// }
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq, Sequence)]
 #[allow(missing_docs)]
 pub struct RsaCompositeKemPublicKey {
     pub first_public_key: BitString,
-    pub second_public_key: BitString
+    pub second_public_key: BitString,
 }
 
+#[derive(Clone, PartialEq)]
 pub enum CompositeKemPublicKey {
     Rsa(RsaCompositeKemPublicKey),
-    Ecdsa(()) //todo
+    Ecdsa(()), //todo
 }
 
 // --

@@ -14,12 +14,12 @@ use const_oid::{
     ObjectIdentifier,
 };
 
+use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
     ID_KMAC128, ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
 };
-use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
 
 /// KEM algorithms available via command line argument
 #[derive(Clone, Serialize, Deserialize, Debug, Default, clap::ValueEnum)]

@@ -2,6 +2,6 @@
 
 pub mod auth_env_data;
 pub mod auth_env_data_builder;
+pub mod composite;
 pub mod kemri;
 pub mod kemri_builder;
-pub mod composite;

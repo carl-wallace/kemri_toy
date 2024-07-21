@@ -12,7 +12,6 @@ mod asn1;
 #[macro_use]
 mod misc;
 
-
 use std::{fs::File, io::Write, path::PathBuf};
 
 use clap::Parser;
@@ -50,7 +49,14 @@ pub enum Error {
     CertBuilder,
     Io,
     Spki(spki::Error),
-    Pkcs8(rsa::pkcs8::Error)
+    Pkcs8(rsa::pkcs8::Error),
+    Rsa,
+}
+impl From<rsa::Error> for Error {
+    fn from(err: rsa::Error) -> Error {
+        error!("rsa::Error: {err:?}");
+        Error::Rsa
+    }
 }
 impl From<rsa::pkcs8::Error> for Error {
     fn from(err: rsa::pkcs8::Error) -> Error {
@@ -181,7 +187,7 @@ fn main() -> Result<()> {
             .build();
         match Config::builder()
             .appender(Appender::builder().build("stdout", Box::new(stdout)))
-            .build(Root::builder().appender("stdout").build(LevelFilter::Info))
+            .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
         {
             Ok(config) => {
                 let handle = log4rs::init_config(config);

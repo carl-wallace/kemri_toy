@@ -1,5 +1,6 @@
 //! Builder for `KemRecipientInfo` based on `RecipientInfoBuilder` trait from the cms crate
 
+use crate::misc::oaep_kem::oaep_encapsulate;
 use log::debug;
 
 use aes::{Aes128, Aes192, Aes256};
@@ -10,7 +11,7 @@ use hkdf::Hkdf;
 use sha2::{Sha256, Sha384, Sha512};
 
 use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
-use pqcrypto_traits::kem::{Ciphertext, SharedSecret};
+use pqcrypto_traits::kem::{Ciphertext, PublicKey, SharedSecret};
 
 use cms::{
     builder::{Error, RecipientInfoBuilder, RecipientInfoType},
@@ -23,9 +24,12 @@ use const_oid::{
 };
 use der::{asn1::OctetString, Any, Decode, Encode};
 use rsa::RsaPublicKey;
-use spki::AlgorithmIdentifier;
+use spki::{AlgorithmIdentifier, DecodePublicKey};
 use tari_tiny_keccak::{Hasher, Kmac};
 
+use crate::asn1::composite::{
+    CompositeCiphertextValue, CompositeKemPublicKey, ML_KEM_512_RSA2048, ML_KEM_512_RSA3072,
+};
 use crate::{
     asn1::kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
@@ -39,8 +43,20 @@ pub enum KeyEncryptionInfoKem {
     MlKem512(Box<kyber512::PublicKey>),
     MlKem768(Box<kyber768::PublicKey>),
     MlKem1024(Box<kyber1024::PublicKey>),
-    MlKem512Rsa2048((Box<kyber512::PublicKey>, RsaPublicKey)),
-    MlKem512Rsa3072((Box<kyber512::PublicKey>, RsaPublicKey)),
+    MlKem512Rsa2048(Box<CompositeKemPublicKey>),
+    MlKem512Rsa3072(Box<CompositeKemPublicKey>),
+}
+
+impl KeyEncryptionInfoKem {
+    pub fn oid(&self) -> ObjectIdentifier {
+        match self {
+            KeyEncryptionInfoKem::MlKem512(_) => ML_KEM_512_IPD,
+            KeyEncryptionInfoKem::MlKem768(_) => ML_KEM_768_IPD,
+            KeyEncryptionInfoKem::MlKem1024(_) => ML_KEM_1024_IPD,
+            KeyEncryptionInfoKem::MlKem512Rsa2048(_) => ML_KEM_512_RSA2048,
+            KeyEncryptionInfoKem::MlKem512Rsa3072(_) => ML_KEM_512_RSA3072,
+        }
+    }
 }
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
@@ -125,13 +141,87 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     ct.as_bytes().to_vec(),
                     ML_KEM_1024_IPD,
                 )
-            },
+            }
             KeyEncryptionInfoKem::MlKem512Rsa2048(pk) => {
-                todo!()
-            },
+                let rsa = match pk.as_ref() {
+                    CompositeKemPublicKey::Rsa(rsa) => rsa,
+                    _ => {
+                        return Err(Error::Builder(
+                            "Unrecognized composite public key type".to_string(),
+                        ))
+                    }
+                };
+
+                let rsa_pk = RsaPublicKey::from_public_key_der(
+                    rsa.second_public_key.as_bytes().unwrap_or_default(),
+                )?;
+                let ml_kem_pk = kyber512::PublicKey::from_bytes(
+                    rsa.first_public_key.as_bytes().unwrap_or_default(),
+                )
+                .map_err(|_| Error::Builder("Failed to parse ML-KEM public key".to_string()))?;
+
+                let (ss_ml_kem, ct_ml_kem) = kyber512::encapsulate(&ml_kem_pk);
+                let (mut ss_rsa, ct_rsa) = oaep_encapsulate(&rsa_pk)
+                    .map_err(|_| Error::Builder("OAEP encapsulation failed".to_string()))?;
+
+                let mut ct_rsa_clone = ct_rsa.clone();
+
+                // KEK <- Combiner(tradSS, mlkemSS, tradCT, tradPK, domSep) =
+                //   KDF(counter || tradSS || mlkemSS || tradCT || tradPK ||
+                //        domSep, outputBits)
+                let mut composite_ss: Vec<u8> = vec![0x00, 0x00, 0x00, 0x01];
+                let mut dom_sep = self.key_encryption_info.oid().to_der()?;
+                composite_ss.append(&mut ss_rsa);
+                composite_ss.append(&mut ss_ml_kem.as_bytes().to_vec());
+                composite_ss.append(&mut ct_rsa_clone);
+                composite_ss.append(&mut ct_ml_kem.as_bytes().to_vec());
+                composite_ss.append(&mut dom_sep);
+                let composite_ct: CompositeCiphertextValue = [
+                    OctetString::new(ct_ml_kem.as_bytes().to_vec())?,
+                    OctetString::new(ct_rsa)?,
+                ];
+                (composite_ss, composite_ct.to_der()?, ML_KEM_512_RSA2048)
+            }
             KeyEncryptionInfoKem::MlKem512Rsa3072(pk) => {
-                todo!()
-            },
+                let rsa = match pk.as_ref() {
+                    CompositeKemPublicKey::Rsa(rsa) => rsa,
+                    _ => {
+                        return Err(Error::Builder(
+                            "Unrecognized composite public key type".to_string(),
+                        ))
+                    }
+                };
+
+                let rsa_pk = RsaPublicKey::from_public_key_der(
+                    rsa.second_public_key.as_bytes().unwrap_or_default(),
+                )?;
+                let ml_kem_pk = kyber512::PublicKey::from_bytes(
+                    rsa.first_public_key.as_bytes().unwrap_or_default(),
+                )
+                .map_err(|_| Error::Builder("Failed to parse ML-KEM public key".to_string()))?;
+
+                let (ss_ml_kem, ct_ml_kem) = kyber512::encapsulate(&ml_kem_pk);
+                let (mut ss_rsa, ct_rsa) = oaep_encapsulate(&rsa_pk)
+                    .map_err(|_| Error::Builder("OAEP encapsulation failed".to_string()))?;
+
+                let mut ct_rsa_clone = ct_rsa.clone();
+
+                // KEK <- Combiner(tradSS, mlkemSS, tradCT, tradPK, domSep) =
+                //   KDF(counter || tradSS || mlkemSS || tradCT || tradPK ||
+                //        domSep, outputBits)
+                let mut composite_ss: Vec<u8> = vec![0x00, 0x00, 0x00, 0x01];
+                let mut dom_sep = self.key_encryption_info.oid().to_der()?;
+                composite_ss.append(&mut ss_rsa);
+                composite_ss.append(&mut ss_ml_kem.as_bytes().to_vec());
+                composite_ss.append(&mut ct_rsa_clone);
+                composite_ss.append(&mut ct_ml_kem.as_bytes().to_vec());
+                composite_ss.append(&mut dom_sep);
+                let composite_ct: CompositeCiphertextValue = [
+                    OctetString::new(ct_ml_kem.as_bytes().to_vec())?,
+                    OctetString::new(ct_rsa)?,
+                ];
+                (composite_ss, composite_ct.to_der()?, ML_KEM_512_RSA3072)
+            }
         };
 
         debug!("Shared Secret: {}", buffer_to_hex(&ss));

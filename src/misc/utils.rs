@@ -39,10 +39,17 @@ use const_oid::{
 };
 use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
 use pqckeys::oak::OneAsymmetricKey;
+use rsa::pkcs8::DecodePrivateKey;
+use rsa::RsaPrivateKey;
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
 
+use crate::asn1::composite::{
+    CompositeCiphertextValue, CompositeKemPrivateKey, CompositeKemPublicKey,
+    RsaCompositeKemPublicKey,
+};
+use crate::misc::oaep_kem::oaep_decapsulate;
 use crate::{
     asn1::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
@@ -196,11 +203,37 @@ pub(crate) fn kemri_builder_from_cert(
             )?
         }
         ML_KEM_512_RSA2048 => {
-            todo!()
-        },
+            let pk = RsaCompositeKemPublicKey::from_der(
+                ee_cert
+                    .tbs_certificate
+                    .subject_public_key_info
+                    .subject_public_key
+                    .raw_bytes(),
+            )?;
+            KemRecipientInfoBuilder::new(
+                recipient_identifier,
+                KeyEncryptionInfoKem::MlKem512Rsa2048(Box::new(CompositeKemPublicKey::Rsa(pk))),
+                kdf,
+                ukm,
+                wrap,
+            )?
+        }
         ML_KEM_512_RSA3072 => {
-            todo!()
-        },
+            let pk = RsaCompositeKemPublicKey::from_der(
+                ee_cert
+                    .tbs_certificate
+                    .subject_public_key_info
+                    .subject_public_key
+                    .raw_bytes(),
+            )?;
+            KemRecipientInfoBuilder::new(
+                recipient_identifier,
+                KeyEncryptionInfoKem::MlKem512Rsa3072(Box::new(CompositeKemPublicKey::Rsa(pk))),
+                kdf,
+                ukm,
+                wrap,
+            )?
+        }
         _ => return Err(Error::Unrecognized),
     };
     Ok(recipient_info_builder)
@@ -362,6 +395,48 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
                 kyber1024::decapsulate,
                 ee_sk
             )
+        }
+        ML_KEM_512_RSA2048 => {
+            let comp_ct = CompositeCiphertextValue::from_der(kem_ct)?;
+            let comp_priv = CompositeKemPrivateKey::from_der(ee_sk)?;
+
+            let ct_ml_kem = kyber512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
+            let priv_ml_kem = kyber512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
+            let ss_ml_kem = kyber512::decapsulate(&ct_ml_kem, &priv_ml_kem);
+
+            let ct_rsa = comp_ct[1].as_bytes();
+            let priv_rsa = RsaPrivateKey::from_pkcs8_der(comp_priv[1].private_key.as_bytes())?;
+            let mut ss_rsa = oaep_decapsulate(&priv_rsa, ct_rsa)?;
+
+            let mut composite_ss: Vec<u8> = vec![0x00, 0x00, 0x00, 0x01];
+            let mut dom_sep = ML_KEM_512_RSA2048.to_der()?;
+            composite_ss.append(&mut ss_rsa);
+            composite_ss.append(&mut ss_ml_kem.as_bytes().to_vec());
+            composite_ss.append(&mut ct_rsa.to_vec());
+            composite_ss.append(&mut ct_ml_kem.as_bytes().to_vec());
+            composite_ss.append(&mut dom_sep);
+            composite_ss
+        }
+        ML_KEM_512_RSA3072 => {
+            let comp_ct = CompositeCiphertextValue::from_der(kem_ct)?;
+            let comp_priv = CompositeKemPrivateKey::from_der(ee_sk)?;
+
+            let ct_ml_kem = kyber512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
+            let priv_ml_kem = kyber512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
+            let ss_ml_kem = kyber512::decapsulate(&ct_ml_kem, &priv_ml_kem);
+
+            let ct_rsa = comp_ct[1].as_bytes();
+            let priv_rsa = RsaPrivateKey::from_pkcs8_der(comp_priv[1].private_key.as_bytes())?;
+            let mut ss_rsa = oaep_decapsulate(&priv_rsa, ct_rsa)?;
+
+            let mut composite_ss: Vec<u8> = vec![0x00, 0x00, 0x00, 0x01];
+            let mut dom_sep = ML_KEM_512_RSA3072.to_der()?;
+            composite_ss.append(&mut ss_rsa);
+            composite_ss.append(&mut ss_ml_kem.as_bytes().to_vec());
+            composite_ss.append(&mut ct_rsa.to_vec());
+            composite_ss.append(&mut ct_ml_kem.as_bytes().to_vec());
+            composite_ss.append(&mut dom_sep);
+            composite_ss
         }
         _ => {
             error!("Unrecognized KEM algorithm: {}", kemri.kem.oid);
