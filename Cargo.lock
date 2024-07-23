@@ -630,6 +630,7 @@ dependencies = [
  "rsa",
  "serde",
  "sha2",
+ "sha3",
  "signature",
  "spki",
  "subtle-encoding",

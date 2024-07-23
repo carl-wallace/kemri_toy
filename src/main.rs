@@ -164,6 +164,70 @@ pub const ID_KMAC128: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.
 /// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
 pub const ID_KMAC256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.22");
 
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.1]
+/// ```text
+///    id-alg-hkdf-with-sha3-224 OBJECT IDENTIFIER ::= { id-alg TBD1 }
+// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.1]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-5.1
+pub const ID_ALG_HKDF_WITH_SHA3_224: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.96");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.1]
+/// ```text
+///    id-alg OBJECT IDENTIFIER ::= { iso(1) member-body(2)
+///        us(840) rsadsi(113549) pkcs(1) pkcs-9(9) smime(16) 3 }
+///    id-alg-hkdf-with-sha3-256 OBJECT IDENTIFIER ::= { id-alg TBD2 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.1]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-5.1
+pub const ID_ALG_HKDF_WITH_SHA3_256: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.97");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.1]
+/// ```text
+///    id-alg-hkdf-with-sha3-384 OBJECT IDENTIFIER ::= { id-alg TBD3 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.1]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-5.1
+pub const ID_ALG_HKDF_WITH_SHA3_384: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.98");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 5.1]
+/// ```text
+///    id-alg-hkdf-with-sha3-512 OBJECT IDENTIFIER ::= { id-alg TBD4 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 5.1]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-5.1
+pub const ID_ALG_HKDF_WITH_SHA3_512: ObjectIdentifier =
+    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.99");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 2]
+/// ```text
+///    id-sha3-224 OBJECT IDENTIFIER ::= { hashAlgs 7 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 2]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-2
+pub const ID_SHA3_224: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.7");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 2]
+/// ```text
+///    hashAlgs OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16)
+///        us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 2 }
+///    id-sha3-256 OBJECT IDENTIFIER ::= { hashAlgs 8 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 2]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-2
+pub const ID_SHA3_256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.8");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 2]
+/// ```text
+///    id-sha3-384 OBJECT IDENTIFIER ::= { hashAlgs 9 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 2]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-2
+pub const ID_SHA3_384: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.9");
+
+/// From [draft-ietf-lamps-cms-sha3-hash Section 2]
+/// ```text
+///    id-sha3-512 OBJECT IDENTIFIER ::= { hashAlgs 10 }
+/// ```
+/// [draft-ietf-lamps-cms-sha3-hash Section 2]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-04#section-2
+pub const ID_SHA3_512: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.10");
+
 /// kemri_toy implementation
 fn main() -> Result<()> {
     let mut args = KemriToyArgs::parse();
@@ -187,7 +251,7 @@ fn main() -> Result<()> {
             .build();
         match Config::builder()
             .appender(Appender::builder().build("stdout", Box::new(stdout)))
-            .build(Root::builder().appender("stdout").build(LevelFilter::Debug))
+            .build(Root::builder().appender("stdout").build(LevelFilter::Info))
         {
             Ok(config) => {
                 let handle = log4rs::init_config(config);

@@ -24,6 +24,7 @@ use const_oid::{
 };
 use der::{asn1::OctetString, Any, Decode, Encode};
 use rsa::RsaPublicKey;
+use sha3::{Digest, Sha3_256, Sha3_384, Sha3_512};
 use spki::{AlgorithmIdentifier, DecodePublicKey};
 use tari_tiny_keccak::{Hasher, Kmac};
 
@@ -33,8 +34,10 @@ use crate::asn1::composite::{
 use crate::{
     asn1::kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
-    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_ORI_KEM, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
+    ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ID_ORI_KEM, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
+    ML_KEM_768_IPD,
 };
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
@@ -278,6 +281,39 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                 let mut kmac = Kmac::v256(&ss, custom);
                 kmac.update(&der_kdf_input);
                 kmac.finalize(&mut okm);
+            }
+            ID_ALG_HKDF_WITH_SHA3_256 => {
+                Hkdf::<Sha3_256>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_ALG_HKDF_WITH_SHA3_384 => {
+                Hkdf::<Sha3_384>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_ALG_HKDF_WITH_SHA3_512 => {
+                Hkdf::<Sha3_512>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_SHA3_256 => {
+                let mut hasher = Sha3_256::new();
+                hasher.update(ss);
+                let result = hasher.finalize();
+                okm = result.to_vec();
+            }
+            ID_SHA3_384 => {
+                let mut hasher = Sha3_384::new();
+                hasher.update(ss);
+                let result = hasher.finalize();
+                okm = result.to_vec();
+            }
+            ID_SHA3_512 => {
+                let mut hasher = Sha3_512::new();
+                hasher.update(ss);
+                let result = hasher.finalize();
+                okm = result.to_vec();
             }
             _ => {
                 return Err(Error::Builder(format!(

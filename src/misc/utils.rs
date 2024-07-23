@@ -41,6 +41,7 @@ use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
 use pqckeys::oak::OneAsymmetricKey;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
+use sha3::{Sha3_256, Sha3_384, Sha3_512};
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
@@ -59,8 +60,10 @@ use crate::{
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
     misc::gen_certs::buffer_to_hex,
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
+    ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
+    ML_KEM_768_IPD,
 };
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
@@ -482,6 +485,39 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             kmac.update(&der_kdf_input);
             kmac.finalize(&mut okm);
         }
+        ID_ALG_HKDF_WITH_SHA3_256 => {
+            let hk = Hkdf::<Sha3_256>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_ALG_HKDF_WITH_SHA3_384 => {
+            let hk = Hkdf::<Sha3_384>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_ALG_HKDF_WITH_SHA3_512 => {
+            let hk = Hkdf::<Sha3_512>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_SHA3_256 => {
+            let mut hasher = Sha3_256::new();
+            hasher.update(ss);
+            let result = hasher.finalize();
+            okm = result.to_vec();
+        }
+        ID_SHA3_384 => {
+            let mut hasher = Sha3_384::new();
+            hasher.update(ss);
+            let result = hasher.finalize();
+            okm = result.to_vec();
+        }
+        ID_SHA3_512 => {
+            let mut hasher = Sha3_512::new();
+            hasher.update(ss);
+            let result = hasher.finalize();
+            okm = result.to_vec();
+        }
         _ => {
             error!("Unrecognized KDF algorithm: {}", kemri.kdf.oid);
             return Err(Error::Unrecognized);
@@ -886,9 +922,9 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         KemAlgorithms::MlKem512Rsa3072,
     ];
     let kdf_algs = [
-        KdfAlgorithms::HkdfSha256,
-        KdfAlgorithms::HkdfSha384,
-        KdfAlgorithms::HkdfSha512,
+        KdfAlgorithms::HkdfSha2_256,
+        KdfAlgorithms::HkdfSha2_384,
+        KdfAlgorithms::HkdfSha2_512,
     ];
     let enc_algs = [
         EncAlgorithms::Aes128,

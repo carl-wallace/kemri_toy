@@ -17,8 +17,10 @@ use const_oid::{
 use crate::asn1::composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072};
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
-    Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
-    ID_KMAC128, ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
+    ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
+    ML_KEM_768_IPD,
 };
 
 /// KEM algorithms available via command line argument
@@ -175,20 +177,32 @@ impl EncAlgorithms {
 #[derive(Clone, Serialize, Deserialize, Debug, Default, clap::ValueEnum)]
 pub enum KdfAlgorithms {
     #[default]
-    HkdfSha256,
-    HkdfSha384,
-    HkdfSha512,
+    HkdfSha2_256,
+    HkdfSha2_384,
+    HkdfSha2_512,
     Kmac128,
     Kmac256,
+    HkdfSha3_256,
+    HkdfSha3_384,
+    HkdfSha3_512,
+    Sha3_256,
+    Sha3_384,
+    Sha3_512,
 }
 impl fmt::Display for KdfAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            KdfAlgorithms::HkdfSha256 => write!(f, "hkdf-sha256"),
-            KdfAlgorithms::HkdfSha384 => write!(f, "hkdf-sha384"),
-            KdfAlgorithms::HkdfSha512 => write!(f, "hkdf-sha512"),
+            KdfAlgorithms::HkdfSha2_256 => write!(f, "hkdf-sha2-256"),
+            KdfAlgorithms::HkdfSha2_384 => write!(f, "hkdf-sha2-384"),
+            KdfAlgorithms::HkdfSha2_512 => write!(f, "hkdf-sha2-512"),
             KdfAlgorithms::Kmac128 => write!(f, "kmac128"),
             KdfAlgorithms::Kmac256 => write!(f, "kmac256"),
+            KdfAlgorithms::HkdfSha3_256 => write!(f, "hkdf-sha3-256"),
+            KdfAlgorithms::HkdfSha3_384 => write!(f, "hkdf-sha3-384"),
+            KdfAlgorithms::HkdfSha3_512 => write!(f, "hkdf-sha3-512"),
+            KdfAlgorithms::Sha3_256 => write!(f, "sha3-256"),
+            KdfAlgorithms::Sha3_384 => write!(f, "sha3-384"),
+            KdfAlgorithms::Sha3_512 => write!(f, "sha3-512"),
         }
     }
 }
@@ -197,21 +211,33 @@ impl KdfAlgorithms {
     /// Get object identifier from KdfAlgorithms instance.
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
-            KdfAlgorithms::HkdfSha256 => ID_ALG_HKDF_WITH_SHA256,
-            KdfAlgorithms::HkdfSha384 => ID_ALG_HKDF_WITH_SHA384,
-            KdfAlgorithms::HkdfSha512 => ID_ALG_HKDF_WITH_SHA512,
+            KdfAlgorithms::HkdfSha2_256 => ID_ALG_HKDF_WITH_SHA256,
+            KdfAlgorithms::HkdfSha2_384 => ID_ALG_HKDF_WITH_SHA384,
+            KdfAlgorithms::HkdfSha2_512 => ID_ALG_HKDF_WITH_SHA512,
             KdfAlgorithms::Kmac128 => ID_KMAC128,
             KdfAlgorithms::Kmac256 => ID_KMAC256,
+            KdfAlgorithms::HkdfSha3_256 => ID_ALG_HKDF_WITH_SHA3_256,
+            KdfAlgorithms::HkdfSha3_384 => ID_ALG_HKDF_WITH_SHA3_384,
+            KdfAlgorithms::HkdfSha3_512 => ID_ALG_HKDF_WITH_SHA3_512,
+            KdfAlgorithms::Sha3_256 => ID_SHA3_256,
+            KdfAlgorithms::Sha3_384 => ID_SHA3_384,
+            KdfAlgorithms::Sha3_512 => ID_SHA3_512,
         }
     }
     /// Get filename component from KdfAlgorithms instance.
     pub fn filename(&self) -> String {
         match self {
-            KdfAlgorithms::HkdfSha256 => "id-alg-hkdf-with-sha256".to_string(),
-            KdfAlgorithms::HkdfSha384 => "id-alg-hkdf-with-sha384".to_string(),
-            KdfAlgorithms::HkdfSha512 => "id-alg-hkdf-with-sha512".to_string(),
+            KdfAlgorithms::HkdfSha2_256 => "id-alg-hkdf-with-sha256".to_string(),
+            KdfAlgorithms::HkdfSha2_384 => "id-alg-hkdf-with-sha384".to_string(),
+            KdfAlgorithms::HkdfSha2_512 => "id-alg-hkdf-with-sha512".to_string(),
             KdfAlgorithms::Kmac128 => "id-kmac128".to_string(),
             KdfAlgorithms::Kmac256 => "id-kmac256".to_string(),
+            KdfAlgorithms::HkdfSha3_256 => "id-alg-hkdf-with-sha3-256".to_string(),
+            KdfAlgorithms::HkdfSha3_384 => "id-alg-hkdf-with-sha3-384".to_string(),
+            KdfAlgorithms::HkdfSha3_512 => "id-alg-hkdf-with-sha3-512".to_string(),
+            KdfAlgorithms::Sha3_256 => "id-sha3-256".to_string(),
+            KdfAlgorithms::Sha3_384 => "id-sha3-384".to_string(),
+            KdfAlgorithms::Sha3_512 => "id-sha3-512".to_string(),
         }
     }
 }

@@ -25,6 +25,7 @@ cipher = { version = "0.4.4", features = ["alloc", "block-padding", "rand_core"]
 hkdf = "0.12.4"
 rsa = { version = "0.9.6", features = ["sha2"] }
 sha2 = "0.10.8"
+sha3 = "0.10.8"
 signature = "2.2.0"
 
 pqcrypto-dilithium = "0.5.0"
