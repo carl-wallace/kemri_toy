@@ -456,7 +456,8 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
 
     debug!("Shared Secret: {}", buffer_to_hex(&ss));
     debug!("CMSORIforKEMOtherInfo: {}", buffer_to_hex(&der_kdf_input));
-    let mut okm = vec![0; get_block_size(&kemri.wrap.oid)?];
+    let kek_length = get_block_size(&kemri.wrap.oid)?;
+    let mut okm = vec![0; kek_length];
     match kemri.kdf.oid {
         ID_ALG_HKDF_WITH_SHA256 => {
             let hk = Hkdf::<Sha256>::new(None, &ss);
@@ -505,18 +506,21 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             hasher.update(ss);
             let result = hasher.finalize();
             okm = result.to_vec();
+            okm.truncate(kek_length);
         }
         ID_SHA3_384 => {
             let mut hasher = Sha3_384::new();
             hasher.update(ss);
             let result = hasher.finalize();
             okm = result.to_vec();
+            okm.truncate(kek_length);
         }
         ID_SHA3_512 => {
             let mut hasher = Sha3_512::new();
             hasher.update(ss);
             let result = hasher.finalize();
             okm = result.to_vec();
+            okm.truncate(kek_length);
         }
         _ => {
             error!("Unrecognized KDF algorithm: {}", kemri.kdf.oid);
@@ -841,6 +845,71 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(test)]
+fn test_decrypt_composite(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
+    use crate::KemAlgorithms;
+    use std::collections::BTreeMap;
+
+    let expected_plaintext = get_file_as_byte_vec(Path::new(&format!(
+        "{}/expected_plaintext.txt",
+        artifact_folder
+    )))
+    .unwrap();
+
+    // read in three private keys (not using include bytes so that when OID changes, files will be read)
+    let mut key_map = BTreeMap::new();
+    key_map.insert(
+        ML_KEM_512_RSA2048.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_priv.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa2048.filename()
+        )))?,
+    );
+    key_map.insert(
+        ML_KEM_512_RSA3072.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_priv.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa3072.filename()
+        )))?,
+    );
+
+    let paths = std::fs::read_dir(artifact_folder).unwrap();
+    for path in paths {
+        match path {
+            Ok(path) => {
+                if let Some(file_name) = path.file_name().to_str() {
+                    if file_name.contains("_priv")
+                        || file_name.contains("_ee")
+                        || file_name.contains(".txt")
+                    {
+                        continue;
+                    } else {
+                        let parts = file_name.split('_').collect::<Vec<&str>>();
+                        if let Some(oid) = parts.first() {
+                            if let Some(key) = key_map.get(&oid.to_string()) {
+                                if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
+                                    println!("Processing {:?}", path.path());
+                                    match process_content_info(&ci, key) {
+                                        Ok(pt) => assert_eq!(pt, expected_plaintext),
+                                        Err(e) => {
+                                            println!("ERROR processing {:?}: {e:?}", path.path());
+                                            return Err(e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn decrypt_cryptonext() {
     assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/cryptonext").is_ok());
@@ -849,6 +918,15 @@ fn decrypt_cryptonext() {
 #[test]
 fn decrypt_kemri_toy() {
     assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy").is_ok());
+}
+
+#[test]
+fn decrypt_kemri_toy_composite() {
+    assert!(test_decrypt_composite(
+        "tests/artifacts/kemri_toy_composite",
+        "tests/artifacts/kemri_toy_composite"
+    )
+    .is_ok());
 }
 
 #[test]
@@ -918,8 +996,6 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         KemAlgorithms::MlKem512,
         KemAlgorithms::MlKem768,
         KemAlgorithms::MlKem1024,
-        KemAlgorithms::MlKem512Rsa2048,
-        KemAlgorithms::MlKem512Rsa3072,
     ];
     let kdf_algs = [
         KdfAlgorithms::HkdfSha2_256,
@@ -995,9 +1071,127 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+fn test_encrypt_composite(key_folder: &str) -> Result<(), Error> {
+    use crate::args::{AeadAlgorithms, EncAlgorithms, KdfAlgorithms, KemAlgorithms};
+    use std::collections::BTreeMap;
+
+    // read in three private keys (not using include bytes so that when OID changes, files will be read)
+    let mut key_map = BTreeMap::new();
+    key_map.insert(
+        ML_KEM_512_RSA2048.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_priv.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa2048.filename()
+        )))?,
+    );
+    key_map.insert(
+        ML_KEM_512_RSA3072.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_priv.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa3072.filename()
+        )))?,
+    );
+
+    let mut cert_map = BTreeMap::new();
+    cert_map.insert(
+        ML_KEM_512_RSA2048.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_ee.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa2048.filename()
+        )))?,
+    );
+    cert_map.insert(
+        ML_KEM_512_RSA3072.to_string(),
+        get_file_as_byte_vec(Path::new(&format!(
+            "{}/{}_ee.der",
+            key_folder,
+            KemAlgorithms::MlKem512Rsa3072.filename()
+        )))?,
+    );
+    let kem_algs = [
+        KemAlgorithms::MlKem512Rsa2048,
+        KemAlgorithms::MlKem512Rsa3072,
+    ];
+    let kdf_algs = [KdfAlgorithms::Sha3_256, KdfAlgorithms::Sha3_384];
+    let enc_algs = [EncAlgorithms::Aes256];
+    let aead_algs = [AeadAlgorithms::Aes128Gcm, AeadAlgorithms::Aes256Gcm];
+
+    for kem_alg in &kem_algs {
+        let key = key_map.get(&kem_alg.oid().to_string()).unwrap();
+        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).unwrap();
+        let cert = Certificate::from_der(cert_bytes)?;
+        for kdf_alg in &kdf_algs {
+            for enc_alg in &enc_algs {
+                println!("EnvelopedData - {kem_alg} - {kdf_alg} - {enc_alg}");
+                let ci = generate_enveloped_data(
+                    "abc".as_bytes(),
+                    &cert,
+                    kdf_alg.oid(),
+                    None,
+                    enc_alg.wrap(),
+                    enc_alg.oid(),
+                )?;
+                let pt = process_content_info(&ci, key)?;
+                assert_eq!("abc".as_bytes(), pt);
+                let ci = generate_enveloped_data(
+                    "abc".as_bytes(),
+                    &cert,
+                    kdf_alg.oid(),
+                    Some("UKM".as_bytes().to_vec()),
+                    enc_alg.wrap(),
+                    enc_alg.oid(),
+                )?;
+                let pt = process_content_info(&ci, key)?;
+                assert_eq!("abc".as_bytes(), pt);
+            }
+        }
+    }
+    for kem_alg in &kem_algs {
+        let key = key_map.get(&kem_alg.oid().to_string()).unwrap();
+        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).unwrap();
+        let cert = Certificate::from_der(cert_bytes)?;
+        for kdf_alg in &kdf_algs {
+            for aead_alg in &aead_algs {
+                println!("AuthEnvelopedData - {kem_alg} - {kdf_alg} - {aead_alg}");
+                let ci = generate_auth_enveloped_data(
+                    "abc".as_bytes(),
+                    &cert,
+                    kdf_alg.oid(),
+                    None,
+                    aead_alg.wrap(),
+                    aead_alg.oid(),
+                )?;
+                let pt = process_content_info(&ci, key)?;
+                assert_eq!("abc".as_bytes(), pt);
+                let ci = generate_auth_enveloped_data(
+                    "abc".as_bytes(),
+                    &cert,
+                    kdf_alg.oid(),
+                    Some("UKM".as_bytes().to_vec()),
+                    aead_alg.wrap(),
+                    aead_alg.oid(),
+                )?;
+                let pt = process_content_info(&ci, key)?;
+                assert_eq!("abc".as_bytes(), pt);
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn generate_test() {
     assert!(test_encrypt("tests/artifacts/kemri_toy").is_ok());
+}
+
+#[test]
+fn generate_test_composite() {
+    assert!(test_encrypt_composite("tests/artifacts/kemri_toy_composite").is_ok());
 }
 
 #[test]

@@ -50,12 +50,18 @@ pub enum Error {
     Io,
     Spki(spki::Error),
     Pkcs8(rsa::pkcs8::Error),
+    Pkcs1(rsa::pkcs1::Error),
     Rsa,
 }
 impl From<rsa::Error> for Error {
     fn from(err: rsa::Error) -> Error {
         error!("rsa::Error: {err:?}");
         Error::Rsa
+    }
+}
+impl From<rsa::pkcs1::Error> for Error {
+    fn from(err: rsa::pkcs1::Error) -> Error {
+        Error::Pkcs1(err)
     }
 }
 impl From<rsa::pkcs8::Error> for Error {
@@ -321,7 +327,7 @@ fn main() -> Result<()> {
                 std::str::from_utf8(&recovered).unwrap_or_default()
             );
         } else {
-            let filename = format!("decrypted_{input_filename}.der");
+            let filename = format!("decrypted_{input_filename}.bin");
 
             let mut ee_key_file = File::create(output_folder.join(&filename))?;
             let _ = ee_key_file.write_all(&recovered);

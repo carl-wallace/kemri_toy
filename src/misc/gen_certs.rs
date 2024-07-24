@@ -24,11 +24,10 @@ use der::{
     Encode,
 };
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey, Version};
+use rsa::pkcs1::EncodeRsaPublicKey;
 use rsa::pkcs8::EncodePrivateKey;
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use spki::{
-    AlgorithmIdentifier, AlgorithmIdentifierOwned, EncodePublicKey, SubjectPublicKeyInfoOwned,
-};
+use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::{
     builder::{Builder, CertificateBuilder, Profile},
     name::Name,
@@ -324,7 +323,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let rsa_priv_key =
                 RsaPrivateKey::new(&mut rng, 2048).expect("failed to generate a key");
             let rsa_pub = RsaPublicKey::from(&rsa_priv_key);
-            let rsa_pub_bytes = rsa_pub.to_public_key_der()?;
+            let rsa_pub_bytes = rsa_pub
+                .to_pkcs1_der()
+                .map_err(|_| Error::Builder("Failed to parse RSA public key".to_string()))?;
             let rsa_priv_bytes = rsa_priv_key.to_pkcs8_der()?;
             let rsa_oak = OneAsymmetricKey {
                 version: Version::V1,
@@ -368,7 +369,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let rsa_priv_key =
                 RsaPrivateKey::new(&mut rng, 3072).expect("failed to generate a key");
             let rsa_pub = RsaPublicKey::from(&rsa_priv_key);
-            let rsa_pub_bytes = rsa_pub.to_public_key_der()?;
+            let rsa_pub_bytes = rsa_pub.to_pkcs1_der()?;
             let rsa_priv_bytes = rsa_priv_key.to_pkcs8_der()?;
             let rsa_oak = OneAsymmetricKey {
                 version: Version::V1,

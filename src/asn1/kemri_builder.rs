@@ -23,9 +23,10 @@ use const_oid::{
     ObjectIdentifier,
 };
 use der::{asn1::OctetString, Any, Decode, Encode};
+use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::RsaPublicKey;
 use sha3::{Digest, Sha3_256, Sha3_384, Sha3_512};
-use spki::{AlgorithmIdentifier, DecodePublicKey};
+use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
 
 use crate::asn1::composite::{
@@ -155,9 +156,10 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     }
                 };
 
-                let rsa_pk = RsaPublicKey::from_public_key_der(
+                let rsa_pk = RsaPublicKey::from_pkcs1_der(
                     rsa.second_public_key.as_bytes().unwrap_or_default(),
-                )?;
+                )
+                .map_err(|_| Error::Builder("Failed to parse RSA public key".to_string()))?;
                 let ml_kem_pk = kyber512::PublicKey::from_bytes(
                     rsa.first_public_key.as_bytes().unwrap_or_default(),
                 )
@@ -195,9 +197,10 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     }
                 };
 
-                let rsa_pk = RsaPublicKey::from_public_key_der(
+                let rsa_pk = RsaPublicKey::from_pkcs1_der(
                     rsa.second_public_key.as_bytes().unwrap_or_default(),
-                )?;
+                )
+                .map_err(|_| Error::Builder("Failed to parse RSA public key".to_string()))?;
                 let ml_kem_pk = kyber512::PublicKey::from_bytes(
                     rsa.first_public_key.as_bytes().unwrap_or_default(),
                 )
@@ -302,18 +305,21 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                 hasher.update(ss);
                 let result = hasher.finalize();
                 okm = result.to_vec();
+                okm.truncate(kek_length as usize);
             }
             ID_SHA3_384 => {
                 let mut hasher = Sha3_384::new();
                 hasher.update(ss);
                 let result = hasher.finalize();
                 okm = result.to_vec();
+                okm.truncate(kek_length as usize);
             }
             ID_SHA3_512 => {
                 let mut hasher = Sha3_512::new();
                 hasher.update(ss);
                 let result = hasher.finalize();
                 okm = result.to_vec();
+                okm.truncate(kek_length as usize);
             }
             _ => {
                 return Err(Error::Builder(format!(
