@@ -339,7 +339,7 @@ checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 [[package]]
 name = "cms"
 version = "0.3.0-pre"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/carl-wallace/formats.git?branch=kemri#a142b25326e33a04bd0c43b9ad96f157e08b1e51"
 dependencies = [
  "aes 0.9.0-pre.1",
  "cbc 0.2.0-pre.1",

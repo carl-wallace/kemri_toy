@@ -16,6 +16,7 @@ use cms::{
     builder::{Error, RecipientInfoBuilder, RecipientInfoType},
     content_info::CmsVersion,
     enveloped_data::{OtherRecipientInfo, RecipientIdentifier, RecipientInfo, UserKeyingMaterial},
+    kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
 };
 use const_oid::{
     db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
@@ -26,7 +27,6 @@ use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
 
 use crate::{
-    asn1::kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ID_ORI_KEM, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,

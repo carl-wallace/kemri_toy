@@ -18,20 +18,6 @@ use pqcrypto_traits::{
     sign::PublicKey,
 };
 
-use der::{
-    asn1::{BitString, UtcTime},
-    Encode,
-};
-use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
-use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
-use x509_cert::{
-    builder::{Builder, CertificateBuilder, profile},
-    name::Name,
-    serial_number::SerialNumber,
-    time::{Time, Validity},
-    Certificate,
-};
-use x509_cert::builder::profile::cabf::tls::CertificateType;
 use crate::{
     args::{
         KemAlgorithms,
@@ -39,6 +25,22 @@ use crate::{
     },
     misc::signer::{Dilithium2KeyPair, DilithiumPublicKey},
     Error, ML_DSA_44_IPD, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+};
+use der::{
+    asn1::{BitString, UtcTime},
+    Encode,
+};
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
+use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
+use x509_cert::{
+    builder::{
+        profile::cabf::tls::{CertificateType, Subscriber},
+        Builder, CertificateBuilder,
+    },
+    name::Name,
+    serial_number::SerialNumber,
+    time::{Time, Validity},
+    Certificate,
 };
 
 /// Buffer to hex conversion for logging
@@ -98,7 +100,7 @@ pub fn generate_ta() -> crate::Result<(Dilithium2KeyPair, Certificate)> {
     let dn = Name::from_str(&dn_str)?;
 
     // todo - make a profile a la old Leaf
-    let profile = profile::cabf::tls::Subscriber {
+    let profile = Subscriber {
         certificate_type: CertificateType::IndividualValidated,
         issuer: dn.clone(),
         client_auth: false,
@@ -158,7 +160,7 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
     // let dn = Name::from_str(&dn_str)?;
 
     // todo - make a profile a la old Leaf
-    let profile = profile::cabf::tls::Subscriber {
+    let profile = Subscriber {
         certificate_type: CertificateType::IndividualValidated,
         issuer: cert.tbs_certificate.subject.clone(),
         client_auth: false,

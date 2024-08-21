@@ -13,9 +13,9 @@ use aes::{Aes128, Aes192, Aes256};
 use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm};
 use aes_kw::Kek;
 use cipher::{generic_array, BlockDecryptMut, KeyInit, KeyIvInit};
+use generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use generic_array::GenericArray;
 
 use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
@@ -26,6 +26,7 @@ use cms::{
     builder::{ContentEncryptionAlgorithm, EnvelopedDataBuilder},
     content_info::ContentInfo,
     enveloped_data::{EnvelopedData, OtherRecipientInfo, RecipientIdentifier, RecipientInfo},
+    kemri::CmsOriForKemOtherInfo,
 };
 use const_oid::{
     db::{
@@ -47,7 +48,6 @@ use crate::{
     asn1::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
-        kemri::CmsOriForKemOtherInfo,
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
     misc::gen_certs::buffer_to_hex,
@@ -326,7 +326,7 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
-    let kemri = crate::asn1::kemri::KemRecipientInfo::from_der(&ori_value)?;
+    let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
         ML_KEM_512_IPD => {
@@ -897,8 +897,8 @@ fn rsa_auth_env_data_tests() {
 
 #[test]
 fn break_things() {
-    use crate::asn1::kemri::KemRecipientInfo;
     use cms::enveloped_data::RecipientInfos;
+    use cms::kemri::KemRecipientInfo;
     let expected_plaintext =
         include_bytes!("../../tests/artifacts/cryptonext/expected_plaintext.txt");
     let ml_kem_512_key = include_bytes!(

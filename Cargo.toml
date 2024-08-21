@@ -40,7 +40,7 @@ serde = { version = "1.0.196", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 
 [patch.crates-io]
-cms        = { git = "https://github.com/RustCrypto/formats.git" }
+cms        = { git = "https://github.com/carl-wallace/formats.git", branch = "kemri" }
 const-oid  = { git = "https://github.com/RustCrypto/formats.git" }
 der        = { git = "https://github.com/RustCrypto/formats.git" }
 der_derive = { git = "https://github.com/RustCrypto/formats.git" }
