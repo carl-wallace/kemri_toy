@@ -12,10 +12,10 @@ use std::{
 use aes::{Aes128, Aes192, Aes256};
 use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm};
 use aes_kw::Kek;
-use cipher::{BlockDecryptMut, KeyInit, KeyIvInit};
+use cipher::{generic_array, BlockDecryptMut, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use signature::digest::generic_array::GenericArray;
+use generic_array::GenericArray;
 
 use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};

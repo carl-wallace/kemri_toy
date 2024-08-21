@@ -19,19 +19,19 @@ use pqcrypto_traits::{
 };
 
 use der::{
-    asn1::{BitString, OctetString, UtcTime},
+    asn1::{BitString, UtcTime},
     Encode,
 };
-use pqckeys::oak::OneAsymmetricKey;
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::{
-    builder::{Builder, CertificateBuilder, Profile},
+    builder::{Builder, CertificateBuilder, profile},
     name::Name,
     serial_number::SerialNumber,
     time::{Time, Validity},
     Certificate,
 };
-
+use x509_cert::builder::profile::cabf::tls::CertificateType;
 use crate::{
     args::{
         KemAlgorithms,
@@ -97,23 +97,25 @@ pub fn generate_ta() -> crate::Result<(Dilithium2KeyPair, Certificate)> {
     let dn_str = "cn=Dilithium TA,c=US".to_string();
     let dn = Name::from_str(&dn_str)?;
 
-    let profile = Profile::Leaf {
+    // todo - make a profile a la old Leaf
+    let profile = profile::cabf::tls::Subscriber {
+        certificate_type: CertificateType::IndividualValidated,
         issuer: dn.clone(),
-        enable_key_agreement: false,
-        enable_key_encipherment: false,
-        include_subject_key_identifier: true,
+        client_auth: false,
+        tls12_options: Default::default(),
+        enable_data_encipherment: false,
     };
 
     let builder = CertificateBuilder::new(
         profile,
         get_random_serial()?,
         get_validity(10)?,
-        dn.clone(),
+        //dn.clone(),
         ee_spki,
-        &signer,
+        //&signer,
     )?;
 
-    let ca_cert = builder.build()?;
+    let ca_cert = builder.build(&signer)?;
 
     Ok((signer, ca_cert))
 }
@@ -150,26 +152,30 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
         algorithm: spki_algorithm,
         subject_public_key: BitString::from_bytes(&ee_pk_bytes)?,
     };
-    let dn_str = format!("cn={alg} EE,c=US");
-    let dn = Name::from_str(&dn_str)?;
 
-    let profile = Profile::Leaf {
+    // todo - affirm DN source
+    // let dn_str = format!("cn={alg} EE,c=US");
+    // let dn = Name::from_str(&dn_str)?;
+
+    // todo - make a profile a la old Leaf
+    let profile = profile::cabf::tls::Subscriber {
+        certificate_type: CertificateType::IndividualValidated,
         issuer: cert.tbs_certificate.subject.clone(),
-        enable_key_agreement: false,
-        enable_key_encipherment: true,
-        include_subject_key_identifier: true,
+        client_auth: false,
+        tls12_options: Default::default(),
+        enable_data_encipherment: false,
     };
 
     let builder = CertificateBuilder::new(
         profile,
         get_random_serial()?,
         get_validity(5)?,
-        dn.clone(),
+        //dn.clone(),
         ca_spki,
-        signer,
+        //signer,
     )?;
 
-    Ok(builder.build()?)
+    Ok(builder.build(signer)?)
 }
 
 /// Generate new dilithium TA and end-entity KEM certificate based on KemriToyArgs with files output to the given output folder
@@ -268,7 +274,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             oid: kem.oid(),
             parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 6
         },
-        private_key: OctetString::new(private_key)?,
+        private_key: PrivateKey::new(private_key)?,
         attributes: None,
         public_key: None,
     };
