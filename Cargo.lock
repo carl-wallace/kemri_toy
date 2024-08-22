@@ -339,7 +339,7 @@ checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 [[package]]
 name = "cms"
 version = "0.3.0-pre"
-source = "git+https://github.com/carl-wallace/formats.git?branch=kemri#a142b25326e33a04bd0c43b9ad96f157e08b1e51"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 dependencies = [
  "aes 0.9.0-pre.1",
  "cbc 0.2.0-pre.1",
@@ -365,7 +365,7 @@ checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 [[package]]
 name = "const-oid"
 version = "0.10.0-rc.0"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 
 [[package]]
 name = "core-foundation-sys"
@@ -884,7 +884,7 @@ dependencies = [
 [[package]]
 name = "pkcs1"
 version = "0.8.0-rc.0"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 dependencies = [
  "der",
  "pkcs8",
@@ -894,7 +894,7 @@ dependencies = [
 [[package]]
 name = "pkcs8"
 version = "0.11.0-rc.0"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 dependencies = [
  "der",
  "spki",
@@ -923,8 +923,8 @@ dependencies = [
 
 [[package]]
 name = "pqckeys"
-version = "0.1.0"
-source = "git+https://github.com/baloo/pqckeys.git?branch=baloo/pre-releases#9950d3574f2f4e31950babf674356f232a0286ee"
+version = "0.1.1"
+source = "git+https://github.com/carl-wallace/pqckeys?branch=kemri#565bce38678846f0d29e8a4d085ae53d2b78334b"
 dependencies = [
  "cms",
  "const-oid",
@@ -1216,7 +1216,7 @@ checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 [[package]]
 name = "spki"
 version = "0.8.0-rc.0"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 dependencies = [
  "base64ct",
  "der",
@@ -1587,7 +1587,7 @@ dependencies = [
 [[package]]
 name = "x509-cert"
 version = "0.3.0-pre"
-source = "git+https://github.com/RustCrypto/formats.git#8b960394baef6800a04d939ee88f279027862384"
+source = "git+https://github.com/RustCrypto/formats.git#e0c3e08bd5fb8ee9c30aed7de271e2a25db5d531"
 dependencies = [
  "async-signature",
  "const-oid",
