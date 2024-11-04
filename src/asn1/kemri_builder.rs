@@ -10,13 +10,14 @@ use cipher::KeySizeUser;
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384, Sha512};
 
-use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
+use pqcrypto_mlkem::{mlkem512, mlkem768, mlkem1024};
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SharedSecret};
 
 use cms::{
     builder::{Error, RecipientInfoBuilder, RecipientInfoType},
     content_info::CmsVersion,
     enveloped_data::{OtherRecipientInfo, RecipientIdentifier, RecipientInfo, UserKeyingMaterial},
+    kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
 };
 use const_oid::{
     db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
@@ -33,20 +34,18 @@ use crate::asn1::composite::{
     CompositeCiphertextValue, CompositeKemPublicKey, ML_KEM_512_RSA2048, ML_KEM_512_RSA3072,
 };
 use crate::{
-    asn1::kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
     ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_ORI_KEM, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
-    ML_KEM_768_IPD,
+    ID_KMAC256, ID_ORI_KEM, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
 pub enum KeyEncryptionInfoKem {
-    MlKem512(Box<kyber512::PublicKey>),
-    MlKem768(Box<kyber768::PublicKey>),
-    MlKem1024(Box<kyber1024::PublicKey>),
+    MlKem512(Box<mlkem512::PublicKey>),
+    MlKem768(Box<mlkem768::PublicKey>),
+    MlKem1024(Box<mlkem1024::PublicKey>),
     MlKem512Rsa2048(Box<CompositeKemPublicKey>),
     MlKem512Rsa3072(Box<CompositeKemPublicKey>),
 }
@@ -54,15 +53,14 @@ pub enum KeyEncryptionInfoKem {
 impl KeyEncryptionInfoKem {
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
-            KeyEncryptionInfoKem::MlKem512(_) => ML_KEM_512_IPD,
-            KeyEncryptionInfoKem::MlKem768(_) => ML_KEM_768_IPD,
-            KeyEncryptionInfoKem::MlKem1024(_) => ML_KEM_1024_IPD,
+            KeyEncryptionInfoKem::MlKem512(_) => ML_KEM_512,
+            KeyEncryptionInfoKem::MlKem768(_) => ML_KEM_768,
+            KeyEncryptionInfoKem::MlKem1024(_) => ML_KEM_1024,
             KeyEncryptionInfoKem::MlKem512Rsa2048(_) => ML_KEM_512_RSA2048,
             KeyEncryptionInfoKem::MlKem512Rsa3072(_) => ML_KEM_512_RSA3072,
         }
     }
 }
-
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
 /// This type uses the recipient's public key to encrypt the content-encryption key.
 pub struct KemRecipientInfoBuilder {
@@ -116,34 +114,34 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
 
     /// Build a `KemRecipientInfoBuilder`. See draft-ietf-lamps-cms-kemri-07 § 5.
     ///
-    /// Supports the following KEM public keys: ML_KEM_512_IPD, ML_KEM_768_IPD and ML_KEM_1024_IPD
+    /// Supports the following KEM public keys: ML_KEM_512, ML_KEM_768 and ML_KEM_1024
     /// Supports the following KDFs: ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384 and ID_ALG_HKDF_WITH_SHA512
     /// Supports the following key wrap algorithms: ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP
     fn build(&mut self, content_encryption_key: &[u8]) -> Result<RecipientInfo, Error> {
         // The recipient's public key is used with the KEM Encapsulate() function to obtain a pairwise shared secret (ss) and the ciphertext for the recipient.
         let (ss, ct, oid) = match &self.key_encryption_info {
             KeyEncryptionInfoKem::MlKem512(pk) => {
-                let (ss, ct) = kyber512::encapsulate(pk);
+                let (ss, ct) = mlkem512::encapsulate(pk);
                 (
                     ss.as_bytes().to_vec(),
                     ct.as_bytes().to_vec(),
-                    ML_KEM_512_IPD,
+                    ML_KEM_512,
                 )
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
-                let (ss, ct) = kyber768::encapsulate(pk);
+                let (ss, ct) = mlkem768::encapsulate(pk);
                 (
                     ss.as_bytes().to_vec(),
                     ct.as_bytes().to_vec(),
-                    ML_KEM_768_IPD,
+                    ML_KEM_768,
                 )
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
-                let (ss, ct) = kyber1024::encapsulate(pk);
+                let (ss, ct) = mlkem1024::encapsulate(pk);
                 (
                     ss.as_bytes().to_vec(),
                     ct.as_bytes().to_vec(),
-                    ML_KEM_1024_IPD,
+                    ML_KEM_1024,
                 )
             }
             KeyEncryptionInfoKem::MlKem512Rsa2048(pk) => {
@@ -160,12 +158,12 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     rsa.second_public_key.as_bytes().unwrap_or_default(),
                 )
                 .map_err(|_| Error::Builder("Failed to parse RSA public key".to_string()))?;
-                let ml_kem_pk = kyber512::PublicKey::from_bytes(
+                let ml_kem_pk = mlkem512::PublicKey::from_bytes(
                     rsa.first_public_key.as_bytes().unwrap_or_default(),
                 )
                 .map_err(|_| Error::Builder("Failed to parse ML-KEM public key".to_string()))?;
 
-                let (ss_ml_kem, ct_ml_kem) = kyber512::encapsulate(&ml_kem_pk);
+                let (ss_ml_kem, ct_ml_kem) = mlkem512::encapsulate(&ml_kem_pk);
                 let (mut ss_rsa, ct_rsa) = oaep_encapsulate(&rsa_pk)
                     .map_err(|_| Error::Builder("OAEP encapsulation failed".to_string()))?;
 
@@ -201,12 +199,12 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                     rsa.second_public_key.as_bytes().unwrap_or_default(),
                 )
                 .map_err(|_| Error::Builder("Failed to parse RSA public key".to_string()))?;
-                let ml_kem_pk = kyber512::PublicKey::from_bytes(
+                let ml_kem_pk = mlkem512::PublicKey::from_bytes(
                     rsa.first_public_key.as_bytes().unwrap_or_default(),
                 )
                 .map_err(|_| Error::Builder("Failed to parse ML-KEM public key".to_string()))?;
 
-                let (ss_ml_kem, ct_ml_kem) = kyber512::encapsulate(&ml_kem_pk);
+                let (ss_ml_kem, ct_ml_kem) = mlkem512::encapsulate(&ml_kem_pk);
                 let (mut ss_rsa, ct_rsa) = oaep_encapsulate(&rsa_pk)
                     .map_err(|_| Error::Builder("OAEP encapsulation failed".to_string()))?;
 
@@ -285,21 +283,21 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                 kmac.update(&der_kdf_input);
                 kmac.finalize(&mut okm);
             }
-            ID_ALG_HKDF_WITH_SHA3_256 => {
-                Hkdf::<Sha3_256>::new(None, &ss)
-                    .expand(&der_kdf_input, &mut okm)
-                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            }
-            ID_ALG_HKDF_WITH_SHA3_384 => {
-                Hkdf::<Sha3_384>::new(None, &ss)
-                    .expand(&der_kdf_input, &mut okm)
-                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            }
-            ID_ALG_HKDF_WITH_SHA3_512 => {
-                Hkdf::<Sha3_512>::new(None, &ss)
-                    .expand(&der_kdf_input, &mut okm)
-                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            }
+            // ID_ALG_HKDF_WITH_SHA3_256 => {
+            //     Hkdf::<Sha3_256>::new(None, &ss)
+            //         .expand(&der_kdf_input, &mut okm)
+            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            // }
+            // ID_ALG_HKDF_WITH_SHA3_384 => {
+            //     Hkdf::<Sha3_384>::new(None, &ss)
+            //         .expand(&der_kdf_input, &mut okm)
+            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            // }
+            // ID_ALG_HKDF_WITH_SHA3_512 => {
+            //     Hkdf::<Sha3_512>::new(None, &ss)
+            //         .expand(&der_kdf_input, &mut okm)
+            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            // }
             ID_SHA3_256 => {
                 let mut hasher = Sha3_256::new();
                 hasher.update(ss);
@@ -354,7 +352,7 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
             rid: self.rid.clone(),
             kem: AlgorithmIdentifier {
                 oid,
-                parameters: None, // Params are absent for ML-KEM algorithms per draft-ietf-lamps-cms-kyber-01 section 10.2.1
+                parameters: None, // Params are absent for ML-KEM algorithms per draft-ietf-lamps-cms-mlkem-01 section 10.2.1
             },
             kem_ct: OctetString::new(ct)?,
             kdf: AlgorithmIdentifier {

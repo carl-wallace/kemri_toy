@@ -15,9 +15,9 @@ use aes_kw::Kek;
 use cipher::{BlockDecryptMut, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use signature::digest::generic_array::GenericArray;
+use cipher::generic_array::GenericArray;
 
-use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
+use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 
 use cms::cert::IssuerAndSerialNumber;
@@ -26,6 +26,7 @@ use cms::{
     builder::{ContentEncryptionAlgorithm, EnvelopedDataBuilder},
     content_info::ContentInfo,
     enveloped_data::{EnvelopedData, OtherRecipientInfo, RecipientIdentifier, RecipientInfo},
+    kemri::CmsOriForKemOtherInfo,
 };
 use const_oid::{
     db::{
@@ -41,7 +42,7 @@ use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
 use pqckeys::oak::OneAsymmetricKey;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
-use sha3::{Sha3_256, Sha3_384, Sha3_512};
+use sha3::{Digest as OtherDigest, Sha3_256, Sha3_384, Sha3_512};
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
@@ -56,14 +57,13 @@ use crate::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
         composite::{ML_KEM_512_RSA2048, ML_KEM_512_RSA3072},
-        kemri::CmsOriForKemOtherInfo,
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
     misc::gen_certs::buffer_to_hex,
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
     ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
-    ML_KEM_768_IPD,
+    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024, ML_KEM_512,
+    ML_KEM_768,
 };
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
@@ -157,8 +157,8 @@ pub(crate) fn kemri_builder_from_cert(
         .algorithm
         .oid
     {
-        ML_KEM_512_IPD => {
-            let pk = kyber512::PublicKey::from_bytes(
+        ML_KEM_512 => {
+            let pk = mlkem512::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -173,8 +173,8 @@ pub(crate) fn kemri_builder_from_cert(
                 wrap,
             )?
         }
-        ML_KEM_768_IPD => {
-            let pk = kyber768::PublicKey::from_bytes(
+        ML_KEM_768 => {
+            let pk = mlkem768::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -189,8 +189,8 @@ pub(crate) fn kemri_builder_from_cert(
                 wrap,
             )?
         }
-        ML_KEM_1024_IPD => {
-            let pk = kyber1024::PublicKey::from_bytes(
+        ML_KEM_1024 => {
+            let pk = mlkem1024::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -369,33 +369,33 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
-    let kemri = crate::asn1::kemri::KemRecipientInfo::from_der(&ori_value)?;
+    let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
-        ML_KEM_512_IPD => {
+        ML_KEM_512 => {
             decrypt_kem!(
                 kem_ct,
-                kyber512::Ciphertext,
-                kyber512::SecretKey,
-                kyber512::decapsulate,
+                mlkem512::Ciphertext,
+                mlkem512::SecretKey,
+                mlkem512::decapsulate,
                 ee_sk
             )
         }
-        ML_KEM_768_IPD => {
+        ML_KEM_768 => {
             decrypt_kem!(
                 kem_ct,
-                kyber768::Ciphertext,
-                kyber768::SecretKey,
-                kyber768::decapsulate,
+                mlkem768::Ciphertext,
+                mlkem768::SecretKey,
+                mlkem768::decapsulate,
                 ee_sk
             )
         }
-        ML_KEM_1024_IPD => {
+        ML_KEM_1024 => {
             decrypt_kem!(
                 kem_ct,
-                kyber1024::Ciphertext,
-                kyber1024::SecretKey,
-                kyber1024::decapsulate,
+                mlkem1024::Ciphertext,
+                mlkem1024::SecretKey,
+                mlkem1024::decapsulate,
                 ee_sk
             )
         }
@@ -403,9 +403,9 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             let comp_ct = CompositeCiphertextValue::from_der(kem_ct)?;
             let comp_priv = CompositeKemPrivateKey::from_der(ee_sk)?;
 
-            let ct_ml_kem = kyber512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
-            let priv_ml_kem = kyber512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
-            let ss_ml_kem = kyber512::decapsulate(&ct_ml_kem, &priv_ml_kem);
+            let ct_ml_kem = mlkem512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
+            let priv_ml_kem = mlkem512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
+            let ss_ml_kem = mlkem512::decapsulate(&ct_ml_kem, &priv_ml_kem);
 
             let ct_rsa = comp_ct[1].as_bytes();
             let priv_rsa = RsaPrivateKey::from_pkcs8_der(comp_priv[1].private_key.as_bytes())?;
@@ -424,9 +424,9 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             let comp_ct = CompositeCiphertextValue::from_der(kem_ct)?;
             let comp_priv = CompositeKemPrivateKey::from_der(ee_sk)?;
 
-            let ct_ml_kem = kyber512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
-            let priv_ml_kem = kyber512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
-            let ss_ml_kem = kyber512::decapsulate(&ct_ml_kem, &priv_ml_kem);
+            let ct_ml_kem = mlkem512::Ciphertext::from_bytes(comp_ct[0].as_bytes())?;
+            let priv_ml_kem = mlkem512::SecretKey::from_bytes(comp_priv[0].private_key.as_bytes())?;
+            let ss_ml_kem = mlkem512::decapsulate(&ct_ml_kem, &priv_ml_kem);
 
             let ct_rsa = comp_ct[1].as_bytes();
             let priv_rsa = RsaPrivateKey::from_pkcs8_der(comp_priv[1].private_key.as_bytes())?;
@@ -486,21 +486,21 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             kmac.update(&der_kdf_input);
             kmac.finalize(&mut okm);
         }
-        ID_ALG_HKDF_WITH_SHA3_256 => {
-            let hk = Hkdf::<Sha3_256>::new(None, &ss);
-            hk.expand(&der_kdf_input, &mut okm)
-                .map_err(|_e| Error::Unrecognized)?;
-        }
-        ID_ALG_HKDF_WITH_SHA3_384 => {
-            let hk = Hkdf::<Sha3_384>::new(None, &ss);
-            hk.expand(&der_kdf_input, &mut okm)
-                .map_err(|_e| Error::Unrecognized)?;
-        }
-        ID_ALG_HKDF_WITH_SHA3_512 => {
-            let hk = Hkdf::<Sha3_512>::new(None, &ss);
-            hk.expand(&der_kdf_input, &mut okm)
-                .map_err(|_e| Error::Unrecognized)?;
-        }
+        // ID_ALG_HKDF_WITH_SHA3_256 => {
+        //     let hk = Hkdf::<Sha3_256>::new(None, &ss);
+        //     hk.expand(&der_kdf_input, &mut okm)
+        //         .map_err(|_e| Error::Unrecognized)?;
+        // }
+        // ID_ALG_HKDF_WITH_SHA3_384 => {
+        //     let hk = Hkdf::<Sha3_384>::new(None, &ss);
+        //     hk.expand(&der_kdf_input, &mut okm)
+        //         .map_err(|_e| Error::Unrecognized)?;
+        // }
+        // ID_ALG_HKDF_WITH_SHA3_512 => {
+        //     let hk = Hkdf::<Sha3_512>::new(None, &ss);
+        //     hk.expand(&der_kdf_input, &mut okm)
+        //         .map_err(|_e| Error::Unrecognized)?;
+        // }
         ID_SHA3_256 => {
             let mut hasher = Sha3_256::new();
             hasher.update(ss);
@@ -764,9 +764,9 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
 
 pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     match oid {
-        ML_KEM_512_IPD => "ML-KEM-512-ipd".to_string(),
-        ML_KEM_768_IPD => "ML-KEM-768-ipd".to_string(),
-        ML_KEM_1024_IPD => "ML-KEM-1024-ipd".to_string(),
+        ML_KEM_512 => "ML-KEM-512".to_string(),
+        ML_KEM_768 => "ML-KEM-768".to_string(),
+        ML_KEM_1024 => "ML-KEM-1024".to_string(),
         ML_KEM_512_RSA2048 => "ML-KEM-512-RSA2048".to_string(),
         ML_KEM_512_RSA3072 => "ML-KEM-512-RSA3072".to_string(),
         _ => "Unrecognized".to_string(),
@@ -787,7 +787,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -795,7 +795,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -803,7 +803,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -942,7 +942,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -950,7 +950,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -958,7 +958,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -968,7 +968,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
 
     let mut cert_map = BTreeMap::new();
     cert_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -976,7 +976,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -984,7 +984,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -1213,8 +1213,8 @@ fn rsa_auth_env_data_tests() {
 
 #[test]
 fn break_things() {
-    use crate::asn1::kemri::KemRecipientInfo;
     use cms::enveloped_data::RecipientInfos;
+    use cms::kemri::KemRecipientInfo;
     let expected_plaintext =
         include_bytes!("../../tests/artifacts/cryptonext/expected_plaintext.txt");
     let ml_kem_512_key = include_bytes!(

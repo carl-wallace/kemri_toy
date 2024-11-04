@@ -19,8 +19,7 @@ use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA3_256,
     ID_ALG_HKDF_WITH_SHA3_384, ID_ALG_HKDF_WITH_SHA3_512, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024_IPD, ML_KEM_512_IPD,
-    ML_KEM_768_IPD,
+    ID_KMAC256, ID_SHA3_256, ID_SHA3_384, ID_SHA3_512, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
 
 /// KEM algorithms available via command line argument
@@ -49,9 +48,9 @@ impl KemAlgorithms {
     /// Get KemAlgorithms instance from an object identifier.
     pub fn from_oid(oid: ObjectIdentifier) -> Result<KemAlgorithms> {
         match oid {
-            ML_KEM_512_IPD => Ok(KemAlgorithms::MlKem512),
-            ML_KEM_768_IPD => Ok(KemAlgorithms::MlKem768),
-            ML_KEM_1024_IPD => Ok(KemAlgorithms::MlKem1024),
+            ML_KEM_512 => Ok(KemAlgorithms::MlKem512),
+            ML_KEM_768 => Ok(KemAlgorithms::MlKem768),
+            ML_KEM_1024 => Ok(KemAlgorithms::MlKem1024),
             ML_KEM_512_RSA2048 => Ok(KemAlgorithms::MlKem512Rsa2048),
             ML_KEM_512_RSA3072 => Ok(KemAlgorithms::MlKem512Rsa3072),
             _ => Err(Error::Unrecognized),
@@ -61,9 +60,9 @@ impl KemAlgorithms {
     /// Get object identifier from KemAlgorithms instance.
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
-            KemAlgorithms::MlKem512 => ML_KEM_512_IPD,
-            KemAlgorithms::MlKem768 => ML_KEM_768_IPD,
-            KemAlgorithms::MlKem1024 => ML_KEM_1024_IPD,
+            KemAlgorithms::MlKem512 => ML_KEM_512,
+            KemAlgorithms::MlKem768 => ML_KEM_768,
+            KemAlgorithms::MlKem1024 => ML_KEM_1024,
             KemAlgorithms::MlKem512Rsa2048 => ML_KEM_512_RSA2048,
             KemAlgorithms::MlKem512Rsa3072 => ML_KEM_512_RSA3072,
         }
@@ -74,18 +73,18 @@ impl KemAlgorithms {
         match self {
             KemAlgorithms::MlKem512 => format!(
                 "{}_{}",
-                ML_KEM_512_IPD,
-                get_filename_from_oid(ML_KEM_512_IPD)
+                ML_KEM_512,
+                get_filename_from_oid(ML_KEM_512)
             ),
             KemAlgorithms::MlKem768 => format!(
                 "{}_{}",
-                ML_KEM_768_IPD,
-                get_filename_from_oid(ML_KEM_768_IPD)
+                ML_KEM_768,
+                get_filename_from_oid(ML_KEM_768)
             ),
             KemAlgorithms::MlKem1024 => format!(
                 "{}_{}",
-                ML_KEM_1024_IPD,
-                get_filename_from_oid(ML_KEM_1024_IPD)
+                ML_KEM_1024,
+                get_filename_from_oid(ML_KEM_1024)
             ),
             KemAlgorithms::MlKem512Rsa2048 => format!(
                 "{}_{}",
