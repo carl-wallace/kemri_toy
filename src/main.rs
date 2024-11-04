@@ -74,19 +74,33 @@ impl From<pqcrypto_traits::Error> for Error {
     }
 }
 
-/// From PQC Certificate hackathon's [OID mapping](https://github.com/IETF-Hackathon/pqc-certificates/blob/master/docs/oid_mapping.md)
-pub const ML_DSA_44_IPD: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.12.4.4");
+/// OID for the ML-DSA-44 parameter set as defined in [NIST CSOR].
+/// ```text
+/// id-ml-dsa-44 OBJECT IDENTIFIER ::= { sigAlgs 17 }
+/// ```
+/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#DSA
+pub const ML_DSA_44: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.3.17");
 
-/// From PQC Certificate hackathon's [OID mapping](https://github.com/IETF-Hackathon/pqc-certificates/blob/master/docs/oid_mapping.md)
-pub const ML_KEM_512_IPD: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.3.6.1.4.1.22554.5.6.1");
-/// From PQC Certificate hackathon's [OID mapping](https://github.com/IETF-Hackathon/pqc-certificates/blob/master/docs/oid_mapping.md)
-pub const ML_KEM_768_IPD: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.3.6.1.4.1.22554.5.6.2");
-/// From PQC Certificate hackathon's [OID mapping](https://github.com/IETF-Hackathon/pqc-certificates/blob/master/docs/oid_mapping.md)
-pub const ML_KEM_1024_IPD: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.3.6.1.4.1.22554.5.6.3");
+/// OID for the ML-KEM-512 parameter set as defined in [NIST CSOR].
+/// ```text
+/// id-alg-ml-kem-512 OBJECT IDENTIFIER ::= { sigAlgs 17 }
+/// ```
+/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
+pub const ML_KEM_512: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.1");
+
+/// OID for the ML-KEM-512 parameter set as defined in [NIST CSOR].
+/// ```text
+/// id-alg-ml-kem-768 OBJECT IDENTIFIER ::= { sigAlgs 17 }
+/// ```
+/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
+pub const ML_KEM_768: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.2");
+
+/// OID for the ML-KEM-1024 parameter set as defined in [NIST CSOR].
+/// ```text
+/// id-alg-ml-kem-1024 OBJECT IDENTIFIER ::= { sigAlgs 17 }
+/// ```
+/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
+pub const ML_KEM_1024: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.3");
 
 /// From [draft-ietf-lamps-cms-kemri-07 Section 3]
 /// ```text

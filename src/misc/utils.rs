@@ -17,7 +17,7 @@ use generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
-use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
+use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
 
 use cms::cert::IssuerAndSerialNumber;
@@ -52,7 +52,7 @@ use crate::{
     },
     misc::gen_certs::buffer_to_hex,
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    ID_KMAC256, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
@@ -146,8 +146,8 @@ pub(crate) fn kemri_builder_from_cert(
         .algorithm
         .oid
     {
-        ML_KEM_512_IPD => {
-            let pk = kyber512::PublicKey::from_bytes(
+        ML_KEM_512 => {
+            let pk = mlkem512::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -162,8 +162,8 @@ pub(crate) fn kemri_builder_from_cert(
                 wrap,
             )?
         }
-        ML_KEM_768_IPD => {
-            let pk = kyber768::PublicKey::from_bytes(
+        ML_KEM_768 => {
+            let pk = mlkem768::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -178,8 +178,8 @@ pub(crate) fn kemri_builder_from_cert(
                 wrap,
             )?
         }
-        ML_KEM_1024_IPD => {
-            let pk = kyber1024::PublicKey::from_bytes(
+        ML_KEM_1024 => {
+            let pk = mlkem1024::PublicKey::from_bytes(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -329,30 +329,30 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
     let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
-        ML_KEM_512_IPD => {
+        ML_KEM_512 => {
             decrypt_kem!(
                 kem_ct,
-                kyber512::Ciphertext,
-                kyber512::SecretKey,
-                kyber512::decapsulate,
+                mlkem512::Ciphertext,
+                mlkem512::SecretKey,
+                mlkem512::decapsulate,
                 ee_sk
             )
         }
-        ML_KEM_768_IPD => {
+        ML_KEM_768 => {
             decrypt_kem!(
                 kem_ct,
-                kyber768::Ciphertext,
-                kyber768::SecretKey,
-                kyber768::decapsulate,
+                mlkem768::Ciphertext,
+                mlkem768::SecretKey,
+                mlkem768::decapsulate,
                 ee_sk
             )
         }
-        ML_KEM_1024_IPD => {
+        ML_KEM_1024 => {
             decrypt_kem!(
                 kem_ct,
-                kyber1024::Ciphertext,
-                kyber1024::SecretKey,
-                kyber1024::decapsulate,
+                mlkem1024::Ciphertext,
+                mlkem1024::SecretKey,
+                mlkem1024::decapsulate,
                 ee_sk
             )
         }
@@ -642,9 +642,9 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
 
 pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     match oid {
-        ML_KEM_512_IPD => "ML-KEM-512-ipd".to_string(),
-        ML_KEM_768_IPD => "ML-KEM-768-ipd".to_string(),
-        ML_KEM_1024_IPD => "ML-KEM-1024-ipd".to_string(),
+        ML_KEM_512 => "ML-KEM-512".to_string(),
+        ML_KEM_768 => "ML-KEM-768".to_string(),
+        ML_KEM_1024 => "ML-KEM-1024".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }
