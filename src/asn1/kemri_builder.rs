@@ -283,21 +283,21 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
                 kmac.update(&der_kdf_input);
                 kmac.finalize(&mut okm);
             }
-            // ID_ALG_HKDF_WITH_SHA3_256 => {
-            //     Hkdf::<Sha3_256>::new(None, &ss)
-            //         .expand(&der_kdf_input, &mut okm)
-            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            // }
-            // ID_ALG_HKDF_WITH_SHA3_384 => {
-            //     Hkdf::<Sha3_384>::new(None, &ss)
-            //         .expand(&der_kdf_input, &mut okm)
-            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            // }
-            // ID_ALG_HKDF_WITH_SHA3_512 => {
-            //     Hkdf::<Sha3_512>::new(None, &ss)
-            //         .expand(&der_kdf_input, &mut okm)
-            //         .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            // }
+            ID_ALG_HKDF_WITH_SHA3_256 => {
+                Hkdf::<Sha3_256>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_ALG_HKDF_WITH_SHA3_384 => {
+                Hkdf::<Sha3_384>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
+            ID_ALG_HKDF_WITH_SHA3_512 => {
+                Hkdf::<Sha3_512>::new(None, &ss)
+                    .expand(&der_kdf_input, &mut okm)
+                    .map_err(|e| Error::Builder(format!("{e:?}")))?;
+            }
             ID_SHA3_256 => {
                 let mut hasher = Sha3_256::new();
                 hasher.update(ss);

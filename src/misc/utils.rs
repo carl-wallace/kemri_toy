@@ -42,7 +42,7 @@ use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
 use pqckeys::oak::OneAsymmetricKey;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
-use sha3::{Digest as OtherDigest, Sha3_256, Sha3_384, Sha3_512};
+use sha3::{Sha3_256, Sha3_384, Sha3_512};
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
@@ -486,21 +486,21 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
             kmac.update(&der_kdf_input);
             kmac.finalize(&mut okm);
         }
-        // ID_ALG_HKDF_WITH_SHA3_256 => {
-        //     let hk = Hkdf::<Sha3_256>::new(None, &ss);
-        //     hk.expand(&der_kdf_input, &mut okm)
-        //         .map_err(|_e| Error::Unrecognized)?;
-        // }
-        // ID_ALG_HKDF_WITH_SHA3_384 => {
-        //     let hk = Hkdf::<Sha3_384>::new(None, &ss);
-        //     hk.expand(&der_kdf_input, &mut okm)
-        //         .map_err(|_e| Error::Unrecognized)?;
-        // }
-        // ID_ALG_HKDF_WITH_SHA3_512 => {
-        //     let hk = Hkdf::<Sha3_512>::new(None, &ss);
-        //     hk.expand(&der_kdf_input, &mut okm)
-        //         .map_err(|_e| Error::Unrecognized)?;
-        // }
+        ID_ALG_HKDF_WITH_SHA3_256 => {
+            let hk = Hkdf::<Sha3_256>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_ALG_HKDF_WITH_SHA3_384 => {
+            let hk = Hkdf::<Sha3_384>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
+        ID_ALG_HKDF_WITH_SHA3_512 => {
+            let hk = Hkdf::<Sha3_512>::new(None, &ss);
+            hk.expand(&der_kdf_input, &mut okm)
+                .map_err(|_e| Error::Unrecognized)?;
+        }
         ID_SHA3_256 => {
             let mut hasher = Sha3_256::new();
             hasher.update(ss);
