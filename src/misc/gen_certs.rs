@@ -11,25 +11,11 @@ use std::{
 use log::error;
 use rand_core::{OsRng, RngCore};
 
-use pqcrypto_dilithium::dilithium2;
-use pqcrypto_kyber::{kyber1024, kyber512, kyber768};
+use pqcrypto_mldsa::mldsa44;
+use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 use pqcrypto_traits::{
     kem::{PublicKey as KemPublicKey, SecretKey},
     sign::PublicKey,
-};
-
-use der::{
-    asn1::{BitString, OctetString, UtcTime},
-    Encode,
-};
-use pqckeys::oak::OneAsymmetricKey;
-use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
-use x509_cert::{
-    builder::{Builder, CertificateBuilder, Profile},
-    name::Name,
-    serial_number::SerialNumber,
-    time::{Time, Validity},
-    Certificate,
 };
 
 use crate::{
@@ -37,9 +23,26 @@ use crate::{
         KemAlgorithms,
         KemAlgorithms::{MlKem1024, MlKem512, MlKem768},
     },
-    misc::signer::{Dilithium2KeyPair, DilithiumPublicKey},
-    Error, ML_DSA_44_IPD, ML_KEM_1024_IPD, ML_KEM_512_IPD, ML_KEM_768_IPD,
+    misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey},
+    Error, ML_DSA_44, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
+use der::{
+    asn1::{BitString, UtcTime},
+    Encode,
+};
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
+use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
+use x509_cert::{
+    builder::{
+        Builder, CertificateBuilder,
+    },
+    name::Name,
+    serial_number::SerialNumber,
+    time::{Time, Validity},
+    Certificate,
+};
+use x509_cert::builder::profile::cabf::Root;
+use crate::misc::builder_profiles::KemCert;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -77,16 +80,16 @@ fn get_random_serial() -> crate::Result<SerialNumber> {
 }
 
 /// Generate a new self-signed trust anchor certificate containing an ML_DSA_44_IPD key
-pub fn generate_ta() -> crate::Result<(Dilithium2KeyPair, Certificate)> {
-    let (ca_pk, ca_sk) = dilithium2::keypair();
-    let signer = Dilithium2KeyPair {
-        public_key: DilithiumPublicKey(ca_pk),
+pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
+    let (ca_pk, ca_sk) = mldsa44::keypair();
+    let signer = Mldsa44KeyPair {
+        public_key: Mldsa44PublicKey(ca_pk),
         secret_key: ca_sk,
     };
     let ca_pk_bytes = ca_pk.as_bytes().to_vec();
 
     let spki_algorithm = AlgorithmIdentifierOwned {
-        oid: ML_DSA_44_IPD,
+        oid: ML_DSA_44,
         parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
     };
     let ee_spki = SubjectPublicKeyInfoOwned {
@@ -94,26 +97,22 @@ pub fn generate_ta() -> crate::Result<(Dilithium2KeyPair, Certificate)> {
         subject_public_key: BitString::from_bytes(&ca_pk_bytes)?,
     };
 
-    let dn_str = "cn=Dilithium TA,c=US".to_string();
+    let dn_str = "cn=ML DSA 44 TA,o=Test,c=US".to_string();
     let dn = Name::from_str(&dn_str)?;
 
-    let profile = Profile::Leaf {
-        issuer: dn.clone(),
-        enable_key_agreement: false,
-        enable_key_encipherment: false,
-        include_subject_key_identifier: true,
-    };
+    // todo - make a profile a la old Leaf
+    let profile = Root::new(false, dn).unwrap();
 
     let builder = CertificateBuilder::new(
         profile,
         get_random_serial()?,
         get_validity(10)?,
-        dn.clone(),
+        //dn.clone(),
         ee_spki,
-        &signer,
+        //&signer,
     )?;
 
-    let ca_cert = builder.build()?;
+    let ca_cert = builder.build(&signer)?;
 
     Ok((signer, ca_cert))
 }
@@ -129,7 +128,7 @@ macro_rules! generate_cert {
 
 /// Generate an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
 pub fn generate_ml_kem_cert<PK: KemPublicKey>(
-    signer: &Dilithium2KeyPair,
+    signer: &Mldsa44KeyPair,
     cert: &Certificate,
     ee_pk: PK,
     alg: KemAlgorithms,
@@ -137,39 +136,36 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
     let ee_pk_bytes = ee_pk.as_bytes().to_vec();
 
     let oid = match alg {
-        MlKem512 => ML_KEM_512_IPD,
-        MlKem768 => ML_KEM_768_IPD,
-        MlKem1024 => ML_KEM_1024_IPD,
+        MlKem512 => ML_KEM_512,
+        MlKem768 => ML_KEM_768,
+        MlKem1024 => ML_KEM_1024,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
         oid,
-        parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 4
+        parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 4
     };
     let ca_spki = SubjectPublicKeyInfoOwned {
         algorithm: spki_algorithm,
         subject_public_key: BitString::from_bytes(&ee_pk_bytes)?,
     };
-    let dn_str = format!("cn={alg} EE,c=US");
+
+    // todo - affirm DN source
+    let dn_str = format!("cn={alg} EE,o=Test,c=US");
     let dn = Name::from_str(&dn_str)?;
 
-    let profile = Profile::Leaf {
-        issuer: cert.tbs_certificate.subject.clone(),
-        enable_key_agreement: false,
-        enable_key_encipherment: true,
-        include_subject_key_identifier: true,
-    };
+    let profile = KemCert{ issuer: cert.tbs_certificate.subject.clone(), subject: dn };
 
     let builder = CertificateBuilder::new(
         profile,
         get_random_serial()?,
         get_validity(5)?,
-        dn.clone(),
+        //dn.clone(),
         ca_spki,
-        signer,
+        //signer,
     )?;
 
-    Ok(builder.build()?)
+    Ok(builder.build(signer)?)
 }
 
 /// Generate new dilithium TA and end-entity KEM certificate based on KemriToyArgs with files output to the given output folder
@@ -189,9 +185,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
                 signer,
                 ta_cert,
-                kyber512::PublicKey,
-                kyber512::SecretKey,
-                kyber512::keypair,
+                mlkem512::PublicKey,
+                mlkem512::SecretKey,
+                mlkem512::keypair,
                 MlKem512
             ) {
                 Ok((ee_public_key, ee_secret_key, ee_cert)) => {
@@ -208,9 +204,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
                 signer,
                 ta_cert,
-                kyber768::PublicKey,
-                kyber768::SecretKey,
-                kyber768::keypair,
+                mlkem768::PublicKey,
+                mlkem768::SecretKey,
+                mlkem768::keypair,
                 MlKem768
             ) {
                 Ok((ee_public_key, ee_secret_key, ee_cert)) => {
@@ -227,9 +223,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
                 signer,
                 ta_cert,
-                kyber1024::PublicKey,
-                kyber1024::SecretKey,
-                kyber1024::keypair,
+                mlkem1024::PublicKey,
+                mlkem1024::SecretKey,
+                mlkem1024::keypair,
                 MlKem1024
             ) {
                 Ok((ee_public_key, ee_secret_key, ee_cert)) => {
@@ -266,9 +262,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
             oid: kem.oid(),
-            parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-kyber-certificates-02 section 6
+            parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
         },
-        private_key: OctetString::new(private_key)?,
+        private_key: PrivateKey::new(private_key)?,
         attributes: None,
         public_key: None,
     };
