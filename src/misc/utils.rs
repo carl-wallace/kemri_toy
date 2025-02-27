@@ -1,5 +1,6 @@
 //! Utility functions for `kemri_toy`
 
+use ml_kem::{MlKem1024, MlKem1024Params, MlKem512Params, MlKem768, MlKem768Params};
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
 use rand_core::OsRng;
@@ -18,7 +19,7 @@ use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-use pqcrypto_traits::kem::{Ciphertext, PublicKey, SecretKey, SharedSecret};
+use pqcrypto_traits::kem::PublicKey;
 
 use cms::cert::IssuerAndSerialNumber;
 use cms::enveloped_data::KeyTransRecipientInfo;
@@ -39,6 +40,8 @@ use const_oid::{
     ObjectIdentifier,
 };
 use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
+use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
+use ml_kem::kem::Decapsulate;
 use pqckeys::oak::OneAsymmetricKey;
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
@@ -74,13 +77,23 @@ macro_rules! decrypt_block_mode {
     }};
 }
 
+// macro_rules! decrypt_kem {
+//     ($kem_ct:expr, $ct_ty:ty, $sk_ty:ty, $decap:expr, $ee_sk:expr) => {{
+//         let ct = <$ct_ty>::from_bytes($kem_ct)?;
+//         let private_key = <$sk_ty>::from_bytes($ee_sk)?;
+//         let ss = $decap(&ct, &private_key);
+//         ss.as_bytes().to_vec()
+//     }};
+// }
+
 /// Macro to decrypt data using ML-KEM512, ML-KEM768 or ML-KEM1024
-macro_rules! decrypt_kem {
-    ($kem_ct:expr, $ct_ty:ty, $sk_ty:ty, $decap:expr, $ee_sk:expr) => {{
-        let ct = <$ct_ty>::from_bytes($kem_ct)?;
-        let private_key = <$sk_ty>::from_bytes($ee_sk)?;
-        let ss = $decap(&ct, &private_key);
-        ss.as_bytes().to_vec()
+macro_rules! decrypt_kem_rust_crypto {
+    ($kem_ct:expr, $ct_ty:ty, $params_ty:ty, $ee_sk:expr) => {{
+        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from($ee_sk).unwrap();
+        let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
+        let c = ml_kem::Ciphertext::<$ct_ty>::try_from($kem_ct).unwrap();
+        let k = dk.decapsulate(&c).unwrap();
+        k.to_vec()
     }};
 }
 
@@ -330,29 +343,26 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
         ML_KEM_512 => {
-            decrypt_kem!(
+            decrypt_kem_rust_crypto!(
                 kem_ct,
-                mlkem512::Ciphertext,
-                mlkem512::SecretKey,
-                mlkem512::decapsulate,
+                MlKem512,
+                MlKem512Params,
                 ee_sk
             )
         }
         ML_KEM_768 => {
-            decrypt_kem!(
+            decrypt_kem_rust_crypto!(
                 kem_ct,
-                mlkem768::Ciphertext,
-                mlkem768::SecretKey,
-                mlkem768::decapsulate,
+                MlKem768,
+                MlKem768Params,
                 ee_sk
             )
         }
         ML_KEM_1024 => {
-            decrypt_kem!(
+            decrypt_kem_rust_crypto!(
                 kem_ct,
-                mlkem1024::Ciphertext,
-                mlkem1024::SecretKey,
-                mlkem1024::decapsulate,
+                MlKem1024,
+                MlKem1024Params,
                 ee_sk
             )
         }
@@ -621,6 +631,7 @@ pub fn get_file_as_byte_vec(filename: &Path) -> crate::Result<Vec<u8>> {
 
 /// Read buffer from file identified in file_name param, if present
 pub fn get_buffer_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Vec<u8>> {
+    // todo: support new structure
     match file_name {
         Some(file_name) => {
             if !file_name.exists() {
@@ -663,7 +674,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -671,7 +682,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -679,7 +690,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -744,7 +755,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -752,7 +763,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -760,7 +771,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_priv.der",
             key_folder,
@@ -770,7 +781,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
 
     let mut cert_map = BTreeMap::new();
     cert_map.insert(
-        ML_KEM_512_IPD.to_string(),
+        ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -778,7 +789,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_768_IPD.to_string(),
+        ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -786,7 +797,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_1024_IPD.to_string(),
+        ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
