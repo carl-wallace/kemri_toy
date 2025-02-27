@@ -14,7 +14,7 @@ use cms::{
     content_info::CmsVersion,
     enveloped_data::{EncryptedContentInfo, OriginatorInfo, RecipientInfo, RecipientInfos},
 };
-use der::{asn1::OctetString, zeroize::Zeroize, Any, Decode, Encode};
+use der::{Any, Decode, Encode, asn1::OctetString, zeroize::Zeroize};
 use spki::AlgorithmIdentifierOwned;
 use x509_cert::attr::Attributes;
 

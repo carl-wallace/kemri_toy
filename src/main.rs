@@ -12,15 +12,15 @@ mod asn1;
 #[macro_use]
 mod misc;
 
-use std::{fs::File, io::Write, path::PathBuf};
-
 use clap::Parser;
-use log::{debug, error, LevelFilter};
+use log::{LevelFilter, debug, error};
 use log4rs::{
     append::console::ConsoleAppender,
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
+use std::array::TryFromSliceError;
+use std::{fs::File, io::Write, path::PathBuf};
 
 use const_oid::ObjectIdentifier;
 
@@ -48,7 +48,15 @@ pub enum Error {
     Pqc,
     CertBuilder,
     Io,
+    SliceError,
 }
+impl From<TryFromSliceError> for Error {
+    fn from(err: TryFromSliceError) -> Error {
+        error!("TryFromSliceError: {err:?}");
+        Error::SliceError
+    }
+}
+
 impl From<der::Error> for Error {
     fn from(err: der::Error) -> Error {
         Error::Asn1(err)
@@ -194,7 +202,10 @@ fn main() -> Result<()> {
                 }
             }
             Err(e) => {
-                println!("ERROR: failed to prepare default logging configuration with {:?}. Continuing without logging", e);
+                println!(
+                    "ERROR: failed to prepare default logging configuration with {:?}. Continuing without logging",
+                    e
+                );
             }
         }
     }

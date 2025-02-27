@@ -546,9 +546,9 @@ dependencies = [
 
 [[package]]
 name = "glob"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "hashbrown"
@@ -726,7 +726,6 @@ dependencies = [
  "ml-kem",
  "pqckeys",
  "pqcrypto-mldsa",
- "pqcrypto-mlkem",
  "pqcrypto-traits",
  "rand",
  "rand_core",
@@ -993,9 +992,9 @@ dependencies = [
 
 [[package]]
 name = "pqcrypto-internals"
-version = "0.2.6"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e10cdd9eee50fe65bbd4f40211f1a492f1ee52e97a51100950b6f1fa319ab7cd"
+checksum = "4ad4cd1b8413da8217c3bcb04b10fa728faa9bd77067e8314ca5d363ca0a37d4"
 dependencies = [
  "cc",
  "dunce",
@@ -1005,27 +1004,14 @@ dependencies = [
 
 [[package]]
 name = "pqcrypto-mldsa"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5439d511d79dcacbc91a11e9e78013aec955e399669bfae3955442d2f724b140"
+checksum = "6bd3ecb90717f6bda0ad327703be9e899cdfa88f7ce05563bfd7016f8742bad6"
 dependencies = [
  "cc",
  "glob",
  "libc",
  "paste",
- "pqcrypto-internals",
- "pqcrypto-traits",
-]
-
-[[package]]
-name = "pqcrypto-mlkem"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219656f3ee9d9892e8ee475e7d8c35612fcec0ac2a18f847cca12b1affddb540"
-dependencies = [
- "cc",
- "glob",
- "libc",
  "pqcrypto-internals",
  "pqcrypto-traits",
 ]

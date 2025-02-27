@@ -6,7 +6,7 @@ use pqcrypto_mldsa::mldsa44;
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey};
 
 use crate::ML_DSA_44;
-use der::{asn1::BitString, Decode, Document, Encode};
+use der::{Decode, Document, Encode, asn1::BitString};
 use spki::{
     AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
     EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,

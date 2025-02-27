@@ -7,17 +7,17 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 
 use const_oid::{
+    ObjectIdentifier,
     db::rfc5911::{
         ID_AES_128_CBC, ID_AES_128_GCM, ID_AES_128_WRAP, ID_AES_192_CBC, ID_AES_192_WRAP,
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
-    ObjectIdentifier,
 };
 
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
-    Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
-    ID_KMAC128, ID_KMAC256, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
 };
 
 /// KEM algorithms available via command line argument
@@ -61,21 +61,15 @@ impl KemAlgorithms {
     /// Get filename component for KemAlgorithms instance.
     pub fn filename(&self) -> String {
         match self {
-            KemAlgorithms::MlKem512 => format!(
-                "{}_{}",
-                ML_KEM_512,
-                get_filename_from_oid(ML_KEM_512)
-            ),
-            KemAlgorithms::MlKem768 => format!(
-                "{}_{}",
-                ML_KEM_768,
-                get_filename_from_oid(ML_KEM_768)
-            ),
-            KemAlgorithms::MlKem1024 => format!(
-                "{}_{}",
-                ML_KEM_1024,
-                get_filename_from_oid(ML_KEM_1024)
-            ),
+            KemAlgorithms::MlKem512 => {
+                format!("{}_{}", ML_KEM_512, get_filename_from_oid(ML_KEM_512))
+            }
+            KemAlgorithms::MlKem768 => {
+                format!("{}_{}", ML_KEM_768, get_filename_from_oid(ML_KEM_768))
+            }
+            KemAlgorithms::MlKem1024 => {
+                format!("{}_{}", ML_KEM_1024, get_filename_from_oid(ML_KEM_1024))
+            }
         }
     }
 }

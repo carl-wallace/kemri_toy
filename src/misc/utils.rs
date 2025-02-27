@@ -1,8 +1,8 @@
 //! Utility functions for `kemri_toy`
 
-use ml_kem::{MlKem1024, MlKem1024Params, MlKem512Params, MlKem768, MlKem768Params};
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
+use ml_kem::{MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params};
 use rand_core::OsRng;
 use std::{
     fs::File,
@@ -13,13 +13,13 @@ use std::{
 use aes::{Aes128, Aes192, Aes256};
 use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm};
 use aes_kw::Kek;
-use cipher::{generic_array, BlockDecryptMut, KeyInit, KeyIvInit};
+use cipher::{BlockDecryptMut, KeyInit, KeyIvInit, generic_array};
 use generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
-use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-use pqcrypto_traits::kem::PublicKey;
+//use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
+//use pqcrypto_traits::kem::PublicKey;
 
 use cms::cert::IssuerAndSerialNumber;
 use cms::enveloped_data::KeyTransRecipientInfo;
@@ -30,6 +30,7 @@ use cms::{
     kemri::CmsOriForKemOtherInfo,
 };
 use const_oid::{
+    ObjectIdentifier,
     db::{
         rfc5280::ID_CE_SUBJECT_KEY_IDENTIFIER,
         rfc5911::{
@@ -37,25 +38,24 @@ use const_oid::{
             ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
         },
     },
-    ObjectIdentifier,
 };
-use der::{asn1::OctetString, Any, AnyRef, Decode, Encode};
-use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
+use der::{Any, AnyRef, Decode, Encode, asn1::OctetString};
 use ml_kem::kem::Decapsulate;
+use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
 use pqckeys::oak::OneAsymmetricKey;
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
-use x509_cert::{ext::pkix::SubjectKeyIdentifier, Certificate};
+use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 
 use crate::{
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
     asn1::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
     },
     misc::gen_certs::buffer_to_hex,
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
@@ -105,7 +105,9 @@ pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::Result<Vec<u8>> {
                 match OctetString::from_der(ext.extn_value.as_bytes()) {
                     Ok(b) => return Ok(b.as_bytes().to_vec()),
                     Err(e) => {
-                        error!("Failed to parse SKID extension: {e:?}. Ignoring error and will use calculated value.");
+                        error!(
+                            "Failed to parse SKID extension: {e:?}. Ignoring error and will use calculated value."
+                        );
                     }
                 }
             }
@@ -160,7 +162,9 @@ pub(crate) fn kemri_builder_from_cert(
         .oid
     {
         ML_KEM_512 => {
-            let pk = mlkem512::PublicKey::from_bytes(
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey,
+            >::try_from(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -176,7 +180,9 @@ pub(crate) fn kemri_builder_from_cert(
             )?
         }
         ML_KEM_768 => {
-            let pk = mlkem768::PublicKey::from_bytes(
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey,
+            >::try_from(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -192,7 +198,9 @@ pub(crate) fn kemri_builder_from_cert(
             )?
         }
         ML_KEM_1024 => {
-            let pk = mlkem1024::PublicKey::from_bytes(
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey,
+            >::try_from(
                 ee_cert
                     .tbs_certificate
                     .subject_public_key_info
@@ -343,28 +351,13 @@ pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Ve
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
         ML_KEM_512 => {
-            decrypt_kem_rust_crypto!(
-                kem_ct,
-                MlKem512,
-                MlKem512Params,
-                ee_sk
-            )
+            decrypt_kem_rust_crypto!(kem_ct, MlKem512, MlKem512Params, ee_sk)
         }
         ML_KEM_768 => {
-            decrypt_kem_rust_crypto!(
-                kem_ct,
-                MlKem768,
-                MlKem768Params,
-                ee_sk
-            )
+            decrypt_kem_rust_crypto!(kem_ct, MlKem768, MlKem768Params, ee_sk)
         }
         ML_KEM_1024 => {
-            decrypt_kem_rust_crypto!(
-                kem_ct,
-                MlKem1024,
-                MlKem1024Params,
-                ee_sk
-            )
+            decrypt_kem_rust_crypto!(kem_ct, MlKem1024, MlKem1024Params, ee_sk)
         }
         _ => {
             error!("Unrecognized KEM algorithm: {}", kemri.kem.oid);

@@ -1,5 +1,9 @@
 //! Utilities to generate test certificates features ML_KEM_XXX_IPD keys signed with ML_DSA_44_IPD
 
+use ml_kem::KemCore;
+use ml_kem::MlKem512;
+use ml_kem::MlKem768;
+use ml_kem::MlKem1024;
 use std::{
     fs::File,
     io::Write,
@@ -12,37 +16,35 @@ use log::error;
 use rand_core::{OsRng, RngCore};
 
 use pqcrypto_mldsa::mldsa44;
-use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-use pqcrypto_traits::{
-    kem::{PublicKey as KemPublicKey, SecretKey},
-    sign::PublicKey,
-};
+//use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
+use pqcrypto_traits::sign::PublicKey;
 
+use crate::misc::builder_profiles::KemCert;
 use crate::{
+    Error, ML_DSA_44, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
     args::{
         KemAlgorithms,
-        KemAlgorithms::{MlKem1024, MlKem512, MlKem768},
+        KemAlgorithms::{
+            MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
+        },
     },
     misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey},
-    Error, ML_DSA_44, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
 };
 use der::{
-    asn1::{BitString, UtcTime},
     Encode,
+    asn1::{BitString, UtcTime},
 };
+use ml_kem::EncodedSizeUser;
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
+use x509_cert::builder::profile::cabf::Root;
 use x509_cert::{
-    builder::{
-        Builder, CertificateBuilder,
-    },
+    Certificate,
+    builder::{Builder, CertificateBuilder},
     name::Name,
     serial_number::SerialNumber,
     time::{Time, Validity},
-    Certificate,
 };
-use x509_cert::builder::profile::cabf::Root;
-use crate::misc::builder_profiles::KemCert;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -101,7 +103,7 @@ pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
     let dn = Name::from_str(&dn_str)?;
 
     // todo - make a profile a la old Leaf
-    let profile = Root::new(false, dn).unwrap();
+    let profile = Root::new(false, dn)?;
 
     let builder = CertificateBuilder::new(
         profile,
@@ -117,28 +119,35 @@ pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
     Ok((signer, ca_cert))
 }
 
+// macro_rules! generate_cert {
+//     ($signer:ident, $cert:ident, $pk:ty, $sk:ty, $keypair:expr, $alg:ident) => {{
+//         let (ee_pk, ee_sk) = $keypair();
+//         let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk, $alg)?;
+//         Ok((ee_pk, ee_sk, cert))
+//     }};
+// }
+
 /// Macro to generate a fresh KEM keypair and an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
 macro_rules! generate_cert {
-    ($signer:ident, $cert:ident, $pk:ty, $sk:ty, $keypair:expr, $alg:ident) => {{
-        let (ee_pk, ee_sk) = $keypair();
-        let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk, $alg)?;
+    ($signer:ident, $cert:ident, $keypair:expr, $alg:ident) => {{
+        let (ee_sk, ee_pk) = $keypair(&mut OsRng);
+        let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk.as_bytes().as_slice(), $alg)?;
         Ok((ee_pk, ee_sk, cert))
     }};
 }
 
-/// Generate an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
-pub fn generate_ml_kem_cert<PK: KemPublicKey>(
+pub fn generate_ml_kem_cert(
     signer: &Mldsa44KeyPair,
     cert: &Certificate,
-    ee_pk: PK,
+    ee_pk_bytes: &[u8],
     alg: KemAlgorithms,
 ) -> crate::Result<Certificate> {
-    let ee_pk_bytes = ee_pk.as_bytes().to_vec();
+    // let ee_pk_bytes = ee_pk.as_bytes().to_vec();
 
     let oid = match alg {
-        MlKem512 => ML_KEM_512,
-        MlKem768 => ML_KEM_768,
-        MlKem1024 => ML_KEM_1024,
+        OtherMlKem512 => ML_KEM_512,
+        OtherMlKem768 => ML_KEM_768,
+        OtherMlKem1024 => ML_KEM_1024,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -147,14 +156,17 @@ pub fn generate_ml_kem_cert<PK: KemPublicKey>(
     };
     let ca_spki = SubjectPublicKeyInfoOwned {
         algorithm: spki_algorithm,
-        subject_public_key: BitString::from_bytes(&ee_pk_bytes)?,
+        subject_public_key: BitString::from_bytes(ee_pk_bytes)?,
     };
 
     // todo - affirm DN source
     let dn_str = format!("cn={alg} EE,o=Test,c=US");
     let dn = Name::from_str(&dn_str)?;
 
-    let profile = KemCert{ issuer: cert.tbs_certificate.subject.clone(), subject: dn };
+    let profile = KemCert {
+        issuer: cert.tbs_certificate.subject.clone(),
+        subject: dn,
+    };
 
     let builder = CertificateBuilder::new(
         profile,
@@ -181,61 +193,43 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
     let (private_key_bytes, new_cert) = match kem {
-        MlKem512 => {
-            let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
-                signer,
-                ta_cert,
-                mlkem512::PublicKey,
-                mlkem512::SecretKey,
-                mlkem512::keypair,
-                MlKem512
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert)) => {
-                    (ee_public_key, ee_secret_key, ee_cert)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
+        OtherMlKem512 => {
+            let (_ee_public_key, ee_secret_key, ee_cert) =
+                match generate_cert!(signer, ta_cert, MlKem512::generate, OtherMlKem512) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert)) => {
+                        (ee_public_key, ee_secret_key, ee_cert)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert))
         }
-        MlKem768 => {
-            let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
-                signer,
-                ta_cert,
-                mlkem768::PublicKey,
-                mlkem768::SecretKey,
-                mlkem768::keypair,
-                MlKem768
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert)) => {
-                    (ee_public_key, ee_secret_key, ee_cert)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
+        OtherMlKem768 => {
+            let (_ee_public_key, ee_secret_key, ee_cert) =
+                match generate_cert!(signer, ta_cert, MlKem768::generate, OtherMlKem768) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert)) => {
+                        (ee_public_key, ee_secret_key, ee_cert)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert))
         }
-        MlKem1024 => {
-            let (_ee_public_key, ee_secret_key, ee_cert) = match generate_cert!(
-                signer,
-                ta_cert,
-                mlkem1024::PublicKey,
-                mlkem1024::SecretKey,
-                mlkem1024::keypair,
-                MlKem1024
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert)) => {
-                    (ee_public_key, ee_secret_key, ee_cert)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
+        OtherMlKem1024 => {
+            let (_ee_public_key, ee_secret_key, ee_cert) =
+                match generate_cert!(signer, ta_cert, MlKem1024::generate, OtherMlKem1024) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert)) => {
+                        (ee_public_key, ee_secret_key, ee_cert)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert))
         }
     };

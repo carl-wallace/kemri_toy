@@ -4,14 +4,19 @@ use log::debug;
 
 use aes::{Aes128, Aes192, Aes256};
 use aes_kw::Kek;
-use cipher::generic_array::GenericArray;
 use cipher::KeySizeUser;
+use cipher::generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384, Sha512};
 
-use pqcrypto_mlkem::{mlkem512, mlkem768, mlkem1024};
-use pqcrypto_traits::kem::{Ciphertext, SharedSecret};
+// use pqcrypto_mlkem::{mlkem512, mlkem768, mlkem1024};
+// use pqcrypto_traits::kem::{Ciphertext, SharedSecret};
 
+use crate::{
+    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ID_ORI_KEM, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    misc::{gen_certs::buffer_to_hex, utils::get_block_size},
+};
 use cms::{
     builder::{Error, RecipientInfoBuilder, RecipientInfoType},
     content_info::CmsVersion,
@@ -19,25 +24,25 @@ use cms::{
     kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
 };
 use const_oid::{
-    db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
     ObjectIdentifier,
+    db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
 };
-use der::{asn1::OctetString, Any, Decode, Encode};
+use der::{Any, Decode, Encode, asn1::OctetString};
+use ml_kem::EncodedSizeUser;
+use ml_kem::kem::Encapsulate;
+use ml_kem::{Encoded, MlKem512Params, MlKem768Params, MlKem1024Params};
+use rand_core::OsRng;
 use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
-
-use crate::{
-    misc::{gen_certs::buffer_to_hex, utils::get_block_size},
-    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_ORI_KEM, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
-};
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
 pub enum KeyEncryptionInfoKem {
-    MlKem512(Box<mlkem512::PublicKey>),
-    MlKem768(Box<mlkem768::PublicKey>),
-    MlKem1024(Box<mlkem1024::PublicKey>),
+    MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey>>),
+    MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey>>),
+    MlKem1024(
+        Box<Encoded<<ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey>>,
+    ),
 }
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
@@ -100,28 +105,28 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
         // The recipient's public key is used with the KEM Encapsulate() function to obtain a pairwise shared secret (ss) and the ciphertext for the recipient.
         let (ss, ct, oid) = match &self.key_encryption_info {
             KeyEncryptionInfoKem::MlKem512(pk) => {
-                let (ss, ct) = mlkem512::encapsulate(pk);
-                (
-                    ss.as_bytes().to_vec(),
-                    ct.as_bytes().to_vec(),
-                    ML_KEM_512,
-                )
+                let ek = <ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                    Ok((ct, ss)) => (ct, ss),
+                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                };
+                (ss.to_vec(), ct.to_vec(), ML_KEM_512)
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
-                let (ss, ct) = mlkem768::encapsulate(pk);
-                (
-                    ss.as_bytes().to_vec(),
-                    ct.as_bytes().to_vec(),
-                    ML_KEM_768,
-                )
+                let ek = <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                    Ok((ct, ss)) => (ct, ss),
+                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                };
+                (ss.to_vec(), ct.to_vec(), ML_KEM_768)
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
-                let (ss, ct) = mlkem1024::encapsulate(pk);
-                (
-                    ss.as_bytes().to_vec(),
-                    ct.as_bytes().to_vec(),
-                    ML_KEM_1024,
-                )
+                let ek = <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                    Ok((ct, ss)) => (ct, ss),
+                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                };
+                (ss.to_vec(), ct.to_vec(), ML_KEM_1024)
             }
         };
 
