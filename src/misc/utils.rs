@@ -351,36 +351,57 @@ fn extract_private_key(oid: ObjectIdentifier, private_key_bytes: &[u8]) -> crate
             let key = MlKem512PrivateKey:: from_der(private_key_bytes)?;
             match key {
                 MlKem512PrivateKey::Seed(seed) => {
-                    let (d, z) = seed.split_at(32);
-                    MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
-                    Ok(seed.to_vec())
+                    let (d, z) = seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(dk.as_bytes().to_vec())
                 },
                 MlKem512PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
-                MlKem512PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec()),
+                MlKem512PrivateKey::Both(both) => {
+                    let (d, z) = both.seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                },
             }
         }
         ML_KEM_768 => {
             let key = MlKem768PrivateKey:: from_der(private_key_bytes)?;
             match key {
                 MlKem768PrivateKey::Seed(seed) => {
-                    let (d, z) = seed.split_at(32);
-                    MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
-                    Ok(seed.to_vec())
+                    let (d, z) = seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(dk.as_bytes().to_vec())
                 },
                 MlKem768PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
-                MlKem768PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec())
+                MlKem768PrivateKey::Both(both) => {
+                    let (d, z) = both.seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                }
             }
         }
         ML_KEM_1024 => {
             let key = MlKem1024PrivateKey:: from_der(private_key_bytes)?;
             match key {
                 MlKem1024PrivateKey::Seed(seed) => {
-                    let (d, z) = seed.split_at(32);
-                    MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
-                    Ok(seed.to_vec())
+                    let (d, z) = seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(dk.as_bytes().to_vec())
                 },
                 MlKem1024PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
-                MlKem1024PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec())
+                MlKem1024PrivateKey::Both(both) => {
+                    let (d, z) = both.seed.as_bytes().split_at(32);
+                    let (dk, _) = MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                }
             }
         }
         _ => {
@@ -702,8 +723,9 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     }
 }
 
+// key_type_part is empty for expanded, _seed for seed only, _both for both
 #[cfg(test)]
-fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
+fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) -> Result<(), Error> {
     use crate::KemAlgorithms;
     use std::collections::BTreeMap;
 
@@ -718,25 +740,25 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
     key_map.insert(
         ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem512.filename()
+            KemAlgorithms::MlKem512.filename(), key_type_part
         )))?,
     );
     key_map.insert(
         ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem768.filename()
+            KemAlgorithms::MlKem768.filename(), key_type_part
         )))?,
     );
     key_map.insert(
         ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem1024.filename()
+            KemAlgorithms::MlKem1024.filename(), key_type_part
         )))?,
     );
     let paths = std::fs::read_dir(artifact_folder).unwrap();
@@ -777,17 +799,25 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str) -> Result<(), Error> {
 // todo: add updated artifacts then uncomment
 // #[test]
 // fn decrypt_cryptonext() {
-//     assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/cryptonext").is_ok());
+//     assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/cryptonext", "").is_ok());
 // }
 
 #[test]
-fn decrypt_kemri_toy() {
-    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy").is_ok());
+fn decrypt_kemri_toy_expanded() {
+    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "").is_ok());
+}
+#[test]
+fn decrypt_kemri_toy_seed() {
+    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_seed").is_ok());
+}
+#[test]
+fn decrypt_kemri_toy_both() {
+    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_both").is_ok());
 }
 
 #[test]
 fn decrypt_wrong_keys() {
-    assert!(test_decrypt("tests/artifacts/daniel", "tests/artifacts/kemri_toy").is_err());
+    assert!(test_decrypt("tests/artifacts/daniel", "tests/artifacts/kemri_toy", "").is_err());
 }
 
 #[cfg(test)]

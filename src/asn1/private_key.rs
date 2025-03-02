@@ -10,7 +10,7 @@
 use der::{Choice, Sequence};
 use der::asn1::OctetString;
 
-pub type MlKemSeed = [u8; 64];
+pub type MlKemSeed = OctetString; //[u8; 64];
 
 pub type MlKem512Expanded = OctetString; //[u8; 1632];
 pub type MlKem768Expanded = OctetString; //[u8; 2400];
@@ -27,7 +27,7 @@ pub struct MlKem512Both {
 #[allow(missing_docs)]
 #[allow(clippy::large_enum_variant)]
 pub enum MlKem512PrivateKey {
-    #[asn1(context_specific = "0", tag_mode = "IMPLICIT", constructed = "true")]
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
     Seed(MlKemSeed),
     ExpandedKey(MlKem512Expanded),
     Both(MlKem512Both),
@@ -43,7 +43,7 @@ pub struct MlKem768Both {
 #[allow(missing_docs)]
 #[allow(clippy::large_enum_variant)]
 pub enum MlKem768PrivateKey {
-    #[asn1(context_specific = "0", tag_mode = "IMPLICIT", constructed = "true")]
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
     Seed(MlKemSeed),
     ExpandedKey(MlKem768Expanded),
     Both(MlKem768Both),
@@ -59,7 +59,7 @@ pub struct MlKem1024Both {
 #[allow(missing_docs)]
 #[allow(clippy::large_enum_variant)]
 pub enum MlKem1024PrivateKey {
-    #[asn1(context_specific = "0", tag_mode = "IMPLICIT", constructed = "true")]
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
     Seed(MlKemSeed),
     ExpandedKey(MlKem1024Expanded),
     Both(MlKem1024Both),
