@@ -49,7 +49,9 @@ pub enum Error {
     CertBuilder,
     Io,
     SliceError,
+    MlKem(String)
 }
+
 impl From<TryFromSliceError> for Error {
     fn from(err: TryFromSliceError) -> Error {
         error!("TryFromSliceError: {err:?}");
