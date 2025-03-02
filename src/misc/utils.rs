@@ -89,10 +89,10 @@ macro_rules! decrypt_block_mode {
 /// Macro to decrypt data using ML-KEM512, ML-KEM768 or ML-KEM1024
 macro_rules! decrypt_kem_rust_crypto {
     ($kem_ct:expr, $ct_ty:ty, $params_ty:ty, $ee_sk:expr) => {{
-        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from($ee_sk).map_err(|_| Error::MlKem(format!("{}", "{e:?}")))?;
+        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from($ee_sk).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
-        let c = ml_kem::Ciphertext::<$ct_ty>::try_from($kem_ct).map_err(|_| Error::MlKem(format!("{}", "{e:?}")))?;
-        let k = dk.decapsulate(&c).map_err(|_| Error::MlKem(format!("{}", "{e:?}")))?;
+        let c = ml_kem::Ciphertext::<$ct_ty>::try_from($kem_ct).map_err(|e| Error::MlKem(format!("{e:?}")))?;
+        let k = dk.decapsulate(&c).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         k.to_vec()
     }};
 }
