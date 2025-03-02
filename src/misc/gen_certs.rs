@@ -45,6 +45,7 @@ use x509_cert::{
     serial_number::SerialNumber,
     time::{Time, Validity},
 };
+use crate::asn1::private_key::{MlKem1024Expanded, MlKem1024PrivateKey, MlKem512Expanded, MlKem512PrivateKey, MlKem768Expanded, MlKem768PrivateKey};
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -252,13 +253,28 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", kem.filename())))?;
     let _ = ee_file.write_all(&cert.to_der()?);
 
+    let private_key_bytes = match kem {
+        KemAlgorithms::MlKem512 => {
+            let pk = MlKem512PrivateKey::ExpandedKey(MlKem512Expanded::new(private_key).map_err(|e| Error::MlKem(format!("{e:?}")))?);
+            pk.to_der()?
+        },
+        KemAlgorithms::MlKem768 => {
+            let pk = MlKem768PrivateKey::ExpandedKey(MlKem768Expanded::new(private_key).map_err(|e| Error::MlKem(format!("{e:?}")))?);
+            pk.to_der()?
+        },
+        KemAlgorithms::MlKem1024 => {
+            let pk = MlKem1024PrivateKey::ExpandedKey(MlKem1024Expanded::new(private_key).map_err(|e| Error::MlKem(format!("{e:?}")))?);
+            pk.to_der()?
+        }
+    };
+    
     let oak_leaf = OneAsymmetricKey {
         version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
             oid: kem.oid(),
             parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
         },
-        private_key: PrivateKey::new(private_key)?,
+        private_key: PrivateKey::new(private_key_bytes)?,
         attributes: None,
         public_key: None,
     };

@@ -2,7 +2,7 @@
 
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
-use ml_kem::{MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params};
+use ml_kem::{MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params, KemCore, B32};
 use rand_core::OsRng;
 use std::{
     fs::File,
@@ -57,6 +57,7 @@ use crate::{
     },
     misc::gen_certs::buffer_to_hex,
 };
+use crate::asn1::private_key::{MlKem1024PrivateKey, MlKem512PrivateKey, MlKem768PrivateKey};
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -89,7 +90,7 @@ macro_rules! decrypt_block_mode {
 /// Macro to decrypt data using ML-KEM512, ML-KEM768 or ML-KEM1024
 macro_rules! decrypt_kem_rust_crypto {
     ($kem_ct:expr, $ct_ty:ty, $params_ty:ty, $ee_sk:expr) => {{
-        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from($ee_sk).map_err(|e| Error::MlKem(format!("{e:?}")))?;
+        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from($ee_sk.as_slice()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
         let c = ml_kem::Ciphertext::<$ct_ty>::try_from($kem_ct).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let k = dk.decapsulate(&c).map_err(|e| Error::MlKem(format!("{e:?}")))?;
@@ -163,7 +164,7 @@ pub(crate) fn kemri_builder_from_cert(
     {
         ML_KEM_512 => {
             let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey,
+                <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
                     .tbs_certificate
@@ -181,7 +182,7 @@ pub(crate) fn kemri_builder_from_cert(
         }
         ML_KEM_768 => {
             let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey,
+                <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
                     .tbs_certificate
@@ -199,7 +200,7 @@ pub(crate) fn kemri_builder_from_cert(
         }
         ML_KEM_1024 => {
             let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey,
+                <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
                     .tbs_certificate
@@ -344,19 +345,67 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
     Ok(content_encryption_key)
 }
 
+fn extract_private_key(oid: ObjectIdentifier, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
+    match oid {
+        ML_KEM_512 => {
+            let key = MlKem512PrivateKey:: from_der(private_key_bytes)?;
+            match key {
+                MlKem512PrivateKey::Seed(seed) => {
+                    let (d, z) = seed.split_at(32);
+                    MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(seed.to_vec())
+                },
+                MlKem512PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlKem512PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec()),
+            }
+        }
+        ML_KEM_768 => {
+            let key = MlKem768PrivateKey:: from_der(private_key_bytes)?;
+            match key {
+                MlKem768PrivateKey::Seed(seed) => {
+                    let (d, z) = seed.split_at(32);
+                    MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(seed.to_vec())
+                },
+                MlKem768PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlKem768PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec())
+            }
+        }
+        ML_KEM_1024 => {
+            let key = MlKem1024PrivateKey:: from_der(private_key_bytes)?;
+            match key {
+                MlKem1024PrivateKey::Seed(seed) => {
+                    let (d, z) = seed.split_at(32);
+                    MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    Ok(seed.to_vec())
+                },
+                MlKem1024PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlKem1024PrivateKey::Both(both) => Ok(both.expanded_key.as_bytes().to_vec())
+            }
+        }
+        _ => {
+            error!("Unrecognized KEM algorithm: {}", oid);
+            Err(Error::Unrecognized)
+        }
+    }
+}
+
 /// Process KemRecipientInfo using the provided private key
-pub fn process_kemri(ori: &OtherRecipientInfo, ee_sk: &[u8]) -> crate::Result<Vec<u8>> {
+pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
     let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
         ML_KEM_512 => {
+            let ee_sk = extract_private_key(ML_KEM_512, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem512, MlKem512Params, ee_sk)
         }
         ML_KEM_768 => {
+            let ee_sk = extract_private_key(ML_KEM_768, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem768, MlKem768Params, ee_sk)
         }
         ML_KEM_1024 => {
+            let ee_sk = extract_private_key(ML_KEM_1024, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem1024, MlKem1024Params, ee_sk)
         }
         _ => {

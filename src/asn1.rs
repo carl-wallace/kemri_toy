@@ -3,3 +3,4 @@
 pub mod auth_env_data;
 pub mod auth_env_data_builder;
 pub mod kemri_builder;
+pub mod private_key;
