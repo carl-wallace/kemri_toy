@@ -293,4 +293,31 @@ pub struct KemriToyArgs {
         help_heading = "Decryption"
     )]
     pub ee_key_file: Option<PathBuf>,
+
+    /// File that contains a DER-encoded OneAsymmetricKey private key to use when generating a certificate
+    #[clap(
+        long,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        help_heading = "Certificate Generation"
+    )]
+    pub pub_key_file: Option<PathBuf>,
+    
+    /// Generate a certificate from a public key (so all the other stuff can work)
+    #[clap(
+        action,
+        long,
+        short,
+        requires = "pub_key_file",
+        requires = "kem",
+        help_heading = "Certificate Generation"
+    )]
+    pub generate_cert: bool,
 }

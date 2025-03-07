@@ -11,10 +11,11 @@ base64ct = { version="1.6.0", features = ["alloc"] }
 # EnvelopedDataBuilder is not yet released, hence use of private branch
 cms = { version = "0.3.0-pre", features = ["builder"] }
 const-oid = { version = "0.10.0-pre.2", default-features = false, features = ["db"] }
-der = { version="0.8.0-pre.0", features = ["alloc", "derive", "flagset", "oid"] }
-spki = { version = "0.8.0-pre.0", default-features = false, features = ["alloc"] }
+der = { version="0.8.0-rc.1", features = ["alloc", "derive", "flagset", "oid"] }
+spki = { version = "0.8.0-rc.1", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.3.0-pre", default-features = false, features = ["hazmat", "builder"] }
-pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "kemri" }
+pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "kemri", features = ["pem"] }
+# pqckeys = { path = "/Users/cwallace/devel/carl-wallace/pqckeys", features = ["pem"] }
 
 tari-tiny-keccak = { version = "2.0.2", features = ["kmac"] }
 
@@ -42,15 +43,15 @@ serde = { version = "1.0.196", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 zerocopy = "0.7.35"
 
-[patch.crates-io]
-cms        = { git = "https://github.com/RustCrypto/formats.git" }
-const-oid  = { git = "https://github.com/RustCrypto/formats.git" }
-der        = { git = "https://github.com/RustCrypto/formats.git" }
-der_derive = { git = "https://github.com/RustCrypto/formats.git" }
-pkcs1      = { git = "https://github.com/RustCrypto/formats.git" }
-pkcs8      = { git = "https://github.com/RustCrypto/formats.git" }
-spki       = { git = "https://github.com/RustCrypto/formats.git" }
-x509-cert  = { git = "https://github.com/RustCrypto/formats.git" }
-
-rsa = { git = "https://github.com/RustCrypto/RSA.git" }
-sha2 = { git = "https://github.com/RustCrypto/hashes.git" }
+#[patch.crates-io]
+#cms        = { git = "https://github.com/RustCrypto/formats.git" }
+#const-oid  = { git = "https://github.com/RustCrypto/formats.git" }
+#der        = { git = "https://github.com/RustCrypto/formats.git" }
+#der_derive = { git = "https://github.com/RustCrypto/formats.git" }
+#pkcs1      = { git = "https://github.com/RustCrypto/formats.git" }
+#pkcs8      = { git = "https://github.com/RustCrypto/formats.git" }
+#spki       = { git = "https://github.com/RustCrypto/formats.git" }
+#x509-cert  = { git = "https://github.com/RustCrypto/formats.git" }
+#
+#rsa = { git = "https://github.com/RustCrypto/RSA.git" }
+#sha2 = { git = "https://github.com/RustCrypto/hashes.git" }

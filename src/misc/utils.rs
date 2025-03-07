@@ -39,7 +39,7 @@ use const_oid::{
         },
     },
 };
-use der::{Any, AnyRef, Decode, Encode, asn1::OctetString};
+use der::{Any, AnyRef, Decode, Encode, asn1::OctetString, DecodePem};
 use ml_kem::kem::Decapsulate;
 use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
 use pqckeys::oak::OneAsymmetricKey;
@@ -100,7 +100,7 @@ macro_rules! decrypt_kem_rust_crypto {
 
 /// Extract subject key identifier value from a certificate
 pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::Result<Vec<u8>> {
-    if let Some(exts) = &cert.tbs_certificate.extensions {
+    if let Some(exts) = cert.tbs_certificate().extensions() {
         for ext in exts {
             if ext.extn_id == ID_CE_SUBJECT_KEY_IDENTIFIER {
                 match OctetString::from_der(ext.extn_value.as_bytes()) {
@@ -115,7 +115,7 @@ pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::Result<Vec<u8>> {
         }
     }
 
-    let working_spki = &cert.tbs_certificate.subject_public_key_info;
+    let working_spki = &cert.tbs_certificate().subject_public_key_info();
     match working_spki.subject_public_key.as_bytes() {
         Some(spki) => Ok(Sha256::digest(spki).to_vec()),
         None => {
@@ -141,8 +141,8 @@ pub(crate) fn recipient_identifier_from_cert(
         }
         Err(_) => Ok(RecipientIdentifier::IssuerAndSerialNumber(
             IssuerAndSerialNumber {
-                issuer: cert.tbs_certificate.issuer.clone(),
-                serial_number: cert.tbs_certificate.serial_number.clone(),
+                issuer: cert.tbs_certificate().issuer().clone(),
+                serial_number: cert.tbs_certificate().serial_number().clone(),
             },
         )),
     }
@@ -157,8 +157,8 @@ pub(crate) fn kemri_builder_from_cert(
 ) -> crate::Result<KemRecipientInfoBuilder> {
     let recipient_identifier = recipient_identifier_from_cert(ee_cert)?;
     let recipient_info_builder = match ee_cert
-        .tbs_certificate
-        .subject_public_key_info
+        .tbs_certificate()
+        .subject_public_key_info()
         .algorithm
         .oid
     {
@@ -167,8 +167,8 @@ pub(crate) fn kemri_builder_from_cert(
                 <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
-                    .tbs_certificate
-                    .subject_public_key_info
+                    .tbs_certificate()
+                    .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
             )?;
@@ -185,8 +185,8 @@ pub(crate) fn kemri_builder_from_cert(
                 <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
-                    .tbs_certificate
-                    .subject_public_key_info
+                    .tbs_certificate()
+                    .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
             )?;
@@ -203,8 +203,8 @@ pub(crate) fn kemri_builder_from_cert(
                 <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
             >::try_from(
                 ee_cert
-                    .tbs_certificate
-                    .subject_public_key_info
+                    .tbs_certificate()
+                    .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
             )?;
@@ -518,7 +518,11 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
 
 /// Process a ContentInfo as an EnvelopedData or AuthEnvelopedData using the provided private key
 pub fn process_content_info(enveloped_data: &[u8], ee_oak: &[u8]) -> crate::Result<Vec<u8>> {
-    let oak = OneAsymmetricKey::from_der(ee_oak)?;
+    let oak = if 0x30 == ee_oak[0] {
+        OneAsymmetricKey::from_der(ee_oak)?
+    } else {
+        OneAsymmetricKey::from_pem(ee_oak)?
+    };
     let ci = ContentInfo::from_der(enveloped_data)?;
     if ci.content_type == ID_ENVELOPED_DATA {
         process_enveloped_data(&ci.content.to_der()?, oak.private_key.as_bytes())

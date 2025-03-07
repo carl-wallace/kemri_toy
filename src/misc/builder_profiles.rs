@@ -1,6 +1,6 @@
 use spki::SubjectPublicKeyInfoRef;
 use x509_cert::TbsCertificate;
-use x509_cert::builder::profile::Profile;
+use x509_cert::builder::Profile;
 use x509_cert::ext::pkix::{AuthorityKeyIdentifier, KeyUsage, KeyUsages, SubjectKeyIdentifier};
 use x509_cert::ext::{AsExtension, Extension};
 use x509_cert::name::Name;
@@ -33,15 +33,15 @@ impl Profile for KemCert {
 
         extensions.push(
             AuthorityKeyIdentifier::try_from(issuer_spk.clone())?
-                .to_extension(&tbs.subject, &extensions)?,
+                .to_extension(&tbs.subject(), &extensions)?,
         );
 
         let ski = SubjectKeyIdentifier::try_from(spk)?;
-        extensions.push(ski.to_extension(&tbs.subject, &extensions)?);
+        extensions.push(ski.to_extension(&tbs.subject(), &extensions)?);
 
         // ## keyUsage SHOULD
         let key_usage = KeyUsages::KeyEncipherment.into();
-        extensions.push(KeyUsage(key_usage).to_extension(&tbs.subject, &extensions)?);
+        extensions.push(KeyUsage(key_usage).to_extension(&tbs.subject(), &extensions)?);
 
         Ok(extensions)
     }

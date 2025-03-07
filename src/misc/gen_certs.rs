@@ -17,7 +17,7 @@ use rand_core::{CryptoRngCore, OsRng, RngCore};
 
 use pqcrypto_mldsa::mldsa44;
 //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-use pqcrypto_traits::sign::PublicKey;
+use pqcrypto_traits::sign::{PublicKey, SecretKey};
 
 use crate::misc::builder_profiles::KemCert;
 use crate::{
@@ -64,16 +64,13 @@ fn get_validity(years: i8) -> crate::Result<Validity> {
         None => return Err(Error::Unrecognized),
     };
 
-    Ok(Validity {
-        not_before: Time::UtcTime(UtcTime::from_unix_duration(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default(),
-        )?),
-        not_after: Time::UtcTime(UtcTime::from_unix_duration(
-            years_time.duration_since(UNIX_EPOCH).unwrap_or_default(),
-        )?),
-    })
+    Ok(Validity::new(Time::UtcTime(UtcTime::from_unix_duration(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default(),
+    )?), Time::UtcTime(UtcTime::from_unix_duration(
+        years_time.duration_since(UNIX_EPOCH).unwrap_or_default(),
+    )?)))
 }
 
 /// Return a random SerialNumber value
@@ -153,7 +150,6 @@ macro_rules! generate_cert {
         Ok((ee_pk, ee_sk, cert, get_seed(&d, &z)))
     }};
 }
-
 pub fn generate_ml_kem_cert(
     signer: &Mldsa44KeyPair,
     cert: &Certificate,
@@ -182,7 +178,7 @@ pub fn generate_ml_kem_cert(
     let dn = Name::from_str(&dn_str)?;
 
     let profile = KemCert {
-        issuer: cert.tbs_certificate.subject.clone(),
+        issuer: cert.tbs_certificate().subject().clone(),
         subject: dn,
     };
 
@@ -207,6 +203,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             return Err(e);
         }
     };
+    let mut ta_file = File::create(output_folder.join("ta.key"))?;
+    let _ = ta_file.write_all(&signer.secret_key.as_bytes());
+
     let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
