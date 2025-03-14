@@ -40,9 +40,9 @@ rsa = { version = "=0.10.0-pre.4", features = ["sha2"] }
 sha2 = "0.11.0-pre.5"
 signature = { version = "=2.3.0-pre.6", features = ["digest", "alloc"]}
 
-pqcrypto-mldsa = "0.1.0"
-#pqcrypto-mlkem = "0.1.0"
-pqcrypto-traits = "0.3.5"
+#pqcrypto-mldsa = "0.1.0"
+##pqcrypto-mlkem = "0.1.0"
+#pqcrypto-traits = "0.3.5"
 
 clap = {version = "4.4.18", features = ["std", "derive"] }
 log = "0.4.20"
@@ -52,6 +52,7 @@ rand = "0.9"
 serde = { version = "1.0.196", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 zerocopy = "0.7.35"
+hybrid-array = "0.3.0"
 
 [patch.crates-io]
 base64ct        = { git = "https://github.com/baloo/formats/", branch="baloo/reunite-workspace" }
@@ -73,13 +74,13 @@ digest  = { git = "https://github.com/RustCrypto/traits.git" }
 
 sha2 = { git = "https://github.com/RustCrypto/hashes.git" }
 
-ecdsa   = { git = "https://github.com/RustCrypto/signatures.git" }
-rfc6979 = { git = "https://github.com/RustCrypto/signatures.git" }
+# ecdsa   = { git = "https://github.com/RustCrypto/signatures.git" }
+# rfc6979 = { git = "https://github.com/RustCrypto/signatures.git" }
 
 # https://github.com/RustCrypto/traits/pull/1777
 crypto-common = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
 cipher = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
-elliptic-curve = { git = "https://github.com/RustCrypto/traits.git" }
+# elliptic-curve = { git = "https://github.com/RustCrypto/traits.git" }
 signature      = { git = "https://github.com/RustCrypto/traits.git" }
 
 # https://github.com/RustCrypto/RSA/pull/478
@@ -87,28 +88,28 @@ rsa = { git = "https://github.com/RustCrypto/RSA.git" }
 
 # https://github.com/RustCrypto/password-hashes/pull/577
 # https://github.com/RustCrypto/password-hashes/pull/578
-pbkdf2 = { git = "https://github.com/RustCrypto/password-hashes.git" }
-scrypt = { git = "https://github.com/RustCrypto/password-hashes.git" }
+# pbkdf2 = { git = "https://github.com/RustCrypto/password-hashes.git" }
+# scrypt = { git = "https://github.com/RustCrypto/password-hashes.git" }
 
 # https://github.com/zkcrypto/ff/pull/122
-ff = { git = "https://github.com/zkcrypto/ff.git", branch = "release-0.14.0" }
+# ff = { git = "https://github.com/zkcrypto/ff.git", branch = "release-0.14.0" }
 
 # https://github.com/zkcrypto/group/pull/56
 # https://github.com/zkcrypto/group/pull/57
 # https://github.com/zkcrypto/group/pull/58
 # https://github.com/zkcrypto/group/pull/59
-group = { git = "https://github.com/baloo/group.git", branch = "baloo/try_from_rng" }
+# group = { git = "https://github.com/baloo/group.git", branch = "baloo/try_from_rng" }
 
 crypto-bigint = { git = "https://github.com/RustCrypto/crypto-bigint.git" }
 crypto-primes = { git = "https://github.com/entropyxyz/crypto-primes.git" }
 
 # https://github.com/RustCrypto/elliptic-curves/pull/1125
 # https://github.com/RustCrypto/elliptic-curves/pull/1131
-p256 = { git = "https://github.com/baloo/elliptic-curves.git", branch = "baloo/group/try-from-rng" }
+# p256 = { git = "https://github.com/baloo/elliptic-curves.git", branch = "baloo/group/try-from-rng" }
 kem = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
 
 ctr = { git = "https://github.com/RustCrypto/block-modes.git" }
-salsa20 = { git = "https://github.com/RustCrypto/stream-ciphers.git" }
+# salsa20 = { git = "https://github.com/RustCrypto/stream-ciphers.git" }
 
 aead = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
 

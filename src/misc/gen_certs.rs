@@ -18,9 +18,9 @@ use cipher::rand_core::CryptoRng;
 use rand::RngCore;
 use rand::rngs::OsRng;
 
-use pqcrypto_mldsa::mldsa44;
-//use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-use pqcrypto_traits::sign::{PublicKey, SecretKey};
+// use pqcrypto_mldsa::mldsa44;
+// //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
+// use pqcrypto_traits::sign::{PublicKey, SecretKey};
 
 use crate::asn1::private_key::{
     MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded,
@@ -35,12 +35,13 @@ use crate::{
             MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
         },
     },
-    misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey},
+    // misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey},
 };
 use der::{
     Encode,
     asn1::{BitString, UtcTime},
 };
+use ml_dsa::{KeyGen, MlDsa44, MlDsa65};
 use ml_kem::B32;
 use ml_kem::EncodedSizeUser;
 use ml_kem::array::Array;
@@ -55,6 +56,8 @@ use x509_cert::{
     serial_number::SerialNumber,
     time::{Time, Validity},
 };
+use crate::Error::Pqc;
+use crate::misc::signer::PqcSigner;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -92,16 +95,16 @@ fn get_random_serial() -> crate::Result<SerialNumber> {
 }
 
 /// Generate a new self-signed trust anchor certificate containing an ML_DSA_44_IPD key
-pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
-    let (ca_pk, ca_sk) = mldsa44::keypair();
-    let signer = Mldsa44KeyPair {
-        public_key: Mldsa44PublicKey(ca_pk),
-        secret_key: ca_sk,
-    };
-    let ca_pk_bytes = ca_pk.as_bytes().to_vec();
+pub fn generate_ta() -> crate::Result<(PqcSigner, Certificate)> {
+    let mut rng = rand::rng();
+    let xi: ml_dsa::B32 = rand(&mut rng);
+    let kp = MlDsa44::key_gen_internal(&xi);
+
+    let signer = PqcSigner::MlDsa44(Box::new(kp));
+    let ca_pk_bytes = signer.public_key();
 
     let spki_algorithm = AlgorithmIdentifierOwned {
-        oid: ML_DSA_44,
+        oid: signer.oid(),
         parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
     };
     let ee_spki = SubjectPublicKeyInfoOwned {
@@ -137,7 +140,7 @@ pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
 //     }};
 // }
 
-fn rand<L: ArraySize>(rng: &mut (impl CryptoRng + RngCore)) -> Array<u8, L> {
+pub fn rand<L: ArraySize>(rng: &mut (impl CryptoRng + RngCore)) -> Array<u8, L> {
     let mut val = Array::default();
     rng.fill_bytes(&mut val);
     val
@@ -151,7 +154,7 @@ fn get_seed(d: &B32, z: &B32) -> Vec<u8> {
 }
 
 /// Macro to generate a fresh KEM keypair and an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
-macro_rules! generate_cert {
+macro_rules! generate_kem_cert {
     ($signer:ident, $cert:ident, $keypair:expr, $alg:ident) => {{
         let mut rng = OsRng.unwrap_err();
         let d: B32 = rand(&mut rng);
@@ -162,7 +165,7 @@ macro_rules! generate_cert {
     }};
 }
 pub fn generate_ml_kem_cert(
-    signer: &Mldsa44KeyPair,
+    signer: &PqcSigner,
     cert: &Certificate,
     ee_pk_bytes: &[u8],
     alg: KemAlgorithms,
@@ -215,14 +218,14 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         }
     };
     let mut ta_file = File::create(output_folder.join("ta.key"))?;
-    let _ = ta_file.write_all(&signer.secret_key.as_bytes());
+    let _ = ta_file.write_all(&signer.private_key());
 
     let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
     let (private_key_bytes, new_cert, seed) = match kem {
         OtherMlKem512 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_cert!(
+            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem512::generate_deterministic,
@@ -239,7 +242,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert), seed)
         }
         OtherMlKem768 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_cert!(
+            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem768::generate_deterministic,
@@ -256,7 +259,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert), seed)
         }
         OtherMlKem1024 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_cert!(
+            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem1024::generate_deterministic,
