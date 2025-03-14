@@ -11,8 +11,9 @@ use std::{
 
 use aes::{Aes128, Aes192, Aes256};
 use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm};
-use aes_kw::Kek;
-use cipher::{BlockDecryptMut, KeyInit, KeyIvInit, generic_array};
+use aes_kw::AesKw;
+use generic_array;
+use cipher::{BlockDecryptMut, KeyInit, KeyIvInit};
 use generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
@@ -304,7 +305,7 @@ pub fn generate_auth_enveloped_data(
     )
     .map_err(|_| Error::Unrecognized)?;
 
-    let mut rng = rand_core::OsRng.unwrap_err();
+    let mut rng = OsRng.unwrap_err();
     let enveloped_data = enveloped_data_builder
         .add_recipient_info(recipient_info_builder)
         .map_err(|_| Error::Unrecognized)?
@@ -488,25 +489,22 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
     let mut wrapped_key = vec![0; kemri.kek_length as usize];
     match kemri.wrap.oid {
         ID_AES_128_WRAP => {
-            let kek_buf = GenericArray::from_slice(okm.as_slice());
-            let kek = Kek::<Aes128>::from(*kek_buf);
-            if let Err(e) = kek.unwrap(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
+            let kek : AesKw::<Aes128> = AesKw::<Aes128>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
             wrapped_key.to_vec()
         }
         ID_AES_192_WRAP => {
-            let kek_buf = GenericArray::from_slice(okm.as_slice());
-            let kek = Kek::<Aes192>::from(*kek_buf);
-            if let Err(e) = kek.unwrap(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
+            let kek : AesKw::<Aes192> = AesKw::<Aes192>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
             wrapped_key.to_vec()
         }
         ID_AES_256_WRAP => {
-            let kek_buf = GenericArray::from_slice(okm.as_slice());
-            let kek = Kek::<Aes256>::from(*kek_buf);
-            if let Err(e) = kek.unwrap(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
+            let kek : AesKw::<Aes256> = AesKw::<Aes256>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
             wrapped_key.to_vec()

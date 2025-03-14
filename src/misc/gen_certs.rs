@@ -51,6 +51,7 @@ use x509_cert::{
 };
 use crate::asn1::private_key::{MlKem1024Both, MlKem1024Expanded, MlKem1024PrivateKey, MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded, MlKem768PrivateKey, MlKemSeed};
 use ml_kem::B32;
+use rand_core::TryRngCore;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -79,7 +80,7 @@ fn get_validity(years: i8) -> crate::Result<Validity> {
 /// Return a random SerialNumber value
 fn get_random_serial() -> crate::Result<SerialNumber> {
     let mut serial = [0u8; 20];
-    OsRng.fill_bytes(&mut serial);
+    OsRng.unwrap_err().fill_bytes(&mut serial);
     serial[0] = 0x01;
     Ok(SerialNumber::new(&serial)?)
 }
@@ -146,8 +147,9 @@ fn get_seed(d: &B32, z: &B32) -> Vec<u8> {
 /// Macro to generate a fresh KEM keypair and an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
 macro_rules! generate_cert {
     ($signer:ident, $cert:ident, $keypair:expr, $alg:ident) => {{
-        let d: B32 = rand(&mut OsRng);
-        let z: B32 = rand(&mut OsRng);
+        let mut rng = OsRng.unwrap_err();
+        let d: B32 = rand(&mut rng);
+        let z: B32 = rand(&mut rng);
         let (ee_sk, ee_pk) = $keypair(&d,&z);
         let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk.as_bytes().as_slice(), $alg)?;
         Ok((ee_pk, ee_sk, cert, get_seed(&d, &z)))

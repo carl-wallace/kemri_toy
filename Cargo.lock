@@ -13,6 +13,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes-kw"
+version = "0.3.0-pre"
+source = "git+https://github.com/baloo/key-wraps.git?branch=baloo%2Fedition-2024#eedb7df6ddda44099cd70f052d3a4983a2b1f8a3"
+dependencies = [
+ "aes",
+ "const-oid",
+]
+
+[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -422,6 +431,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "generic-array"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8c8444bc9d71b935156cc0ccab7f622180808af7867b1daae6547d773591703"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -592,6 +610,7 @@ name = "kemri_toy"
 version = "0.1.0"
 dependencies = [
  "aes",
+ "aes-kw",
  "base64ct",
  "cbc",
  "cipher",
@@ -599,6 +618,7 @@ dependencies = [
  "cms",
  "const-oid",
  "der",
+ "generic-array",
  "hkdf",
  "log",
  "log4rs",
@@ -1548,11 +1568,6 @@ source = "git+https://github.com/RustCrypto/traits.git#204a4e030fa98863429ccd379
 name = "aes-gcm"
 version = "0.11.0-pre.2"
 source = "git+https://github.com/baloo/AEADs.git?branch=inout#60c669de84afec419692997fa283a5bd0e40aad5"
-
-[[patch.unused]]
-name = "aes-kw"
-version = "0.3.0-pre"
-source = "git+https://github.com/baloo/key-wraps.git?branch=baloo%2Fedition-2024#eedb7df6ddda44099cd70f052d3a4983a2b1f8a3"
 
 [[patch.unused]]
 name = "ctr"

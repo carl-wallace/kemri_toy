@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use log::debug;
 
 use aes::{Aes128, Aes192, Aes256};
-use aes_kw::Kek;
+use aes_kw::AesKw;
+use cipher::KeyInit;
 use cipher::KeySizeUser;
-use cipher::generic_array::GenericArray;
+use generic_array::GenericArray;
 use hkdf::Hkdf;
 use sha2::{Sha256, Sha384, Sha512};
 
@@ -36,6 +37,7 @@ use rand::rngs::OsRng;
 use cipher::rand_core::CryptoRng;
 use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
+use x509_cert::builder::AsyncBuilder;
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
@@ -80,10 +82,9 @@ impl<R> KemRecipientInfoBuilder<R> {
 /// Macro for encrypting data using Aes128Wrap, Aes192Wrap or Aes256Wrap
 macro_rules! encrypt_wrap {
     ($cek:expr, $alg:ty, $key:ident) => {{
-        let kek_buf = GenericArray::from_slice($key.as_slice());
-        let kek = Kek::<$alg>::from(*kek_buf);
+        let kek : AesKw<$alg> = AesKw::new_from_slice($key.as_slice()).map_err(|e| cms::builder::Error::Builder(format!("Wrap failed: {e:?}")))?;
         let mut wrapped_key = vec![0u8; <$alg>::key_size() + 8];
-        kek.wrap($cek, &mut wrapped_key)
+        kek.wrap_key($cek, &mut wrapped_key)
             .map_err(|e| cms::builder::Error::Builder(format!("Wrap failed: {e:?}")))?;
         wrapped_key.to_vec()
     }};
@@ -130,7 +131,7 @@ impl<R: ?Sized> RecipientInfoBuilder for KemRecipientInfoBuilder<R> where
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
                 let ek = <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
-                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
