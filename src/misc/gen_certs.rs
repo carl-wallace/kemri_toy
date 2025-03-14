@@ -13,7 +13,10 @@ use std::{
 };
 
 use log::error;
-use rand_core::{CryptoRngCore, OsRng, RngCore};
+//use rand_core::{CryptoRngCore, OsRng, RngCore};
+use cipher::rand_core::CryptoRng;
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 use pqcrypto_mldsa::mldsa44;
 //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
@@ -127,7 +130,7 @@ pub fn generate_ta() -> crate::Result<(Mldsa44KeyPair, Certificate)> {
 //     }};
 // }
 
-fn rand<L: ArraySize>(rng: &mut impl CryptoRngCore) -> Array<u8, L> {
+fn rand<L: ArraySize>(rng: &mut (impl CryptoRng + RngCore)) -> Array<u8, L> {
     let mut val = Array::default();
     rng.fill_bytes(&mut val);
     val

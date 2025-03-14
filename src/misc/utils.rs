@@ -3,7 +3,6 @@
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
 use ml_kem::{MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params, KemCore, B32};
-use rand_core::OsRng;
 use std::{
     fs::File,
     io::Read,
@@ -43,10 +42,12 @@ use der::{Any, AnyRef, Decode, Encode, asn1::OctetString, DecodePem};
 use ml_kem::kem::Decapsulate;
 use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
 use pqckeys::oak::OneAsymmetricKey;
+use pqckeys::pqc_oids::{ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F, SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F, SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F, SLH_DSA_SHAKE_256S};
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
-
+use rand::rngs::OsRng;
+use rsa::rand_core::{TryRngCore};
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
@@ -149,12 +150,12 @@ pub(crate) fn recipient_identifier_from_cert(
 }
 
 /// Create a KemRecipientInfoBuilder for a given certificate, KDF algorithm, UKM and wrap algorithm
-pub(crate) fn kemri_builder_from_cert(
+pub(crate) fn kemri_builder_from_cert<R>(
     ee_cert: &Certificate,
     kdf: ObjectIdentifier,
     ukm: Option<Vec<u8>>,
     wrap: ObjectIdentifier,
-) -> crate::Result<KemRecipientInfoBuilder> {
+) -> crate::Result<KemRecipientInfoBuilder<R>> {
     let recipient_identifier = recipient_identifier_from_cert(ee_cert)?;
     let recipient_info_builder = match ee_cert
         .tbs_certificate()
@@ -246,11 +247,10 @@ pub fn generate_enveloped_data(
     )
     .map_err(|_| Error::Unrecognized)?;
 
-    let mut rng = OsRng;
     let enveloped_data = enveloped_data_builder
         .add_recipient_info(recipient_info_builder)
         .map_err(|_| Error::Unrecognized)?
-        .build_with_rng(&mut rng)
+        .build_with_rng(&mut OsRng.unwrap_err())
         .map_err(|_| Error::Unrecognized)?;
 
     let enveloped_data_der = enveloped_data.to_der()?;
@@ -304,7 +304,7 @@ pub fn generate_auth_enveloped_data(
     )
     .map_err(|_| Error::Unrecognized)?;
 
-    let mut rng = OsRng;
+    let mut rng = rand_core::OsRng.unwrap_err();
     let enveloped_data = enveloped_data_builder
         .add_recipient_info(recipient_info_builder)
         .map_err(|_| Error::Unrecognized)?
@@ -723,6 +723,21 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ML_KEM_512 => "ML-KEM-512".to_string(),
         ML_KEM_768 => "ML-KEM-768".to_string(),
         ML_KEM_1024 => "ML-KEM-1024".to_string(),
+        ML_DSA_44 => "ML-DSA-44".to_string(),
+        ML_DSA_65 => "ML-DSA-65".to_string(),
+        ML_DSA_87 => "ML-DSA-87".to_string(),
+        SLH_DSA_SHA2_128S => "SLH-DSA-SHA2-128S".to_string(),
+        SLH_DSA_SHA2_128F => "SLH-DSA-SHA2-128F".to_string(),
+        SLH_DSA_SHA2_192S => "SLH-DSA-SHA2-192S".to_string(),
+        SLH_DSA_SHA2_192F => "SLH-DSA-SHA2-192F".to_string(),
+        SLH_DSA_SHA2_256S => "SLH-DSA-SHA2-256S".to_string(),
+        SLH_DSA_SHA2_256F => "SLH-DSA-SHA2-256F".to_string(),
+        SLH_DSA_SHAKE_128S => "SLH-DSA-SHAKE-128S".to_string(),
+        SLH_DSA_SHAKE_128F => "SLH-DSA-SHAKE-128F".to_string(),
+        SLH_DSA_SHAKE_192S => "SLH-DSA-SHAKE-192S".to_string(),
+        SLH_DSA_SHAKE_192F => "SLH-DSA-SHAKE-192F".to_string(),
+        SLH_DSA_SHAKE_256S => "SLH-DSA-SHAKE-256S".to_string(),
+        SLH_DSA_SHAKE_256F => "SLH-DSA-SHAKE-256F".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }

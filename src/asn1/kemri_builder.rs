@@ -1,5 +1,6 @@
 //! Builder for `KemRecipientInfo` based on `RecipientInfoBuilder` trait from the cms crate
 
+use std::marker::PhantomData;
 use log::debug;
 
 use aes::{Aes128, Aes192, Aes256};
@@ -31,7 +32,8 @@ use der::{Any, Decode, Encode, asn1::OctetString};
 use ml_kem::EncodedSizeUser;
 use ml_kem::kem::Encapsulate;
 use ml_kem::{Encoded, MlKem512Params, MlKem768Params, MlKem1024Params};
-use rand_core::OsRng;
+use rand::rngs::OsRng;
+use cipher::rand_core::CryptoRng;
 use spki::AlgorithmIdentifier;
 use tari_tiny_keccak::{Hasher, Kmac};
 
@@ -47,28 +49,30 @@ pub enum KeyEncryptionInfoKem {
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
 /// This type uses the recipient's public key to encrypt the content-encryption key.
-pub struct KemRecipientInfoBuilder {
+pub struct KemRecipientInfoBuilder<R: ?Sized> {
     pub rid: RecipientIdentifier,
     pub key_encryption_info: KeyEncryptionInfoKem,
     pub kdf: ObjectIdentifier,
     pub ukm: Option<Vec<u8>>,
     pub wrap: ObjectIdentifier,
+    _rng: PhantomData<R>,
 }
 
-impl KemRecipientInfoBuilder {
+impl<R> KemRecipientInfoBuilder<R> {
     pub fn new(
         rid: RecipientIdentifier,
         key_encryption_info: KeyEncryptionInfoKem,
         kdf: ObjectIdentifier,
         ukm: Option<Vec<u8>>,
         wrap: ObjectIdentifier,
-    ) -> crate::Result<KemRecipientInfoBuilder> {
+    ) -> crate::Result<Self> {
         Ok(KemRecipientInfoBuilder {
             rid,
             key_encryption_info,
             kdf,
             ukm,
             wrap,
+            _rng: PhantomData,
         })
     }
 }
@@ -85,7 +89,10 @@ macro_rules! encrypt_wrap {
     }};
 }
 
-impl RecipientInfoBuilder for KemRecipientInfoBuilder {
+impl<R: ?Sized> RecipientInfoBuilder for KemRecipientInfoBuilder<R> where
+    R: CryptoRng,
+{
+    type Rng = R;
     /// Returns the RecipientInfoType
     fn recipient_info_type(&self) -> RecipientInfoType {
         RecipientInfoType::Ori
@@ -101,12 +108,13 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
     /// Supports the following KEM public keys: ML_KEM_512, ML_KEM_768 and ML_KEM_1024
     /// Supports the following KDFs: ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384 and ID_ALG_HKDF_WITH_SHA512
     /// Supports the following key wrap algorithms: ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP
-    fn build(&mut self, content_encryption_key: &[u8]) -> Result<RecipientInfo, Error> {
+    fn build_with_rng(&mut self, content_encryption_key: &[u8], rng: &mut R) -> Result<RecipientInfo, Error>
+    {
         // The recipient's public key is used with the KEM Encapsulate() function to obtain a pairwise shared secret (ss) and the ciphertext for the recipient.
         let (ss, ct, oid) = match &self.key_encryption_info {
             KeyEncryptionInfoKem::MlKem512(pk) => {
                 let ek = <ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
-                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
@@ -114,7 +122,7 @@ impl RecipientInfoBuilder for KemRecipientInfoBuilder {
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
                 let ek = <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
-                let (ct, ss) = match ek.encapsulate(&mut OsRng) {
+                let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };

@@ -1,9 +1,9 @@
 //! Builder for `AuthEnvelopedData` with parts copied and adapted from `EnvelopedDataBuilder` in the cms crate
 
 use log::debug;
-use rand_core::{
-    OsRng, {CryptoRng, CryptoRngCore, RngCore},
-};
+use rand::rngs::OsRng;
+use cipher::rand_core::CryptoRng;
+//use rand_core::{CryptoRng, CryptoRngCore, RngCore};
 
 use aes_gcm::aead::AeadMutInPlace;
 use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm};
@@ -30,7 +30,7 @@ type Result<T> = core::result::Result<T, Error>;
 /// Builds CMS `AuthEnvelopedData` according to RFC 5083 § 2.1.
 pub struct AuthEnvelopedDataBuilder<'c> {
     originator_info: Option<OriginatorInfo>,
-    recipient_infos: Vec<Box<dyn RecipientInfoBuilder + 'c>>,
+    recipient_infos: Vec<Box<dyn RecipientInfoBuilder<Rng = OsRng> + 'c>>,
     unencrypted_content: &'c [u8],
     // TODO bk Not good to offer both, `content_encryptor` and `content_encryption_algorithm`.
     // We should
@@ -109,7 +109,7 @@ fn encrypt_data<R>(
     rng: &mut R,
 ) -> Result<(Vec<u8>, Vec<u8>, AlgorithmIdentifierOwned, Option<Vec<u8>>)>
 where
-    R: CryptoRng + RngCore,
+    R: cipher::rand_core::CryptoRng + ?Sized,
 {
     match encryption_algorithm_identifier {
         ContentEncryptionAlgorithmAead::Aes128Gcm => encrypt_gcm_mode!(
@@ -153,7 +153,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
     /// RFC 5652 § 6.2, when `AuthEnvelopedData` is built.
     pub fn add_recipient_info(
         &mut self,
-        recipient_info_builder: impl RecipientInfoBuilder + 'c,
+        recipient_info_builder: impl RecipientInfoBuilder<Rng = OsRng> + 'c,
     ) -> Result<&mut Self> {
         self.recipient_infos.push(Box::new(recipient_info_builder));
         Ok(self)
@@ -161,7 +161,10 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
 
     /// Generate an `AuthEnvelopedData` object according to RFC 5083 § 2.2 using a provided
     /// random number generator.
-    pub fn build_with_rng(&mut self, rng: &mut impl CryptoRngCore) -> Result<AuthEnvelopedData> {
+    pub fn build_with_rng<R>(&mut self, rng: &mut R) -> Result<AuthEnvelopedData> 
+    where
+    R: cipher::rand_core::CryptoRng + ?Sized,
+    {
         // DER encode authenticated attributes, if any
         // Generate content encryption key
         // Encrypt content and capture authentication tag
@@ -189,7 +192,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
         let recipient_infos_vec = self
             .recipient_infos
             .iter_mut()
-            .map(|ri| ri.build(&content_encryption_key))
+            .map(|ri| ri.build_with_rng(&content_encryption_key, &rng))
             .collect::<Result<Vec<RecipientInfo>>>()?;
         content_encryption_key.zeroize();
         let recip_infos = RecipientInfos::try_from(recipient_infos_vec)?;
