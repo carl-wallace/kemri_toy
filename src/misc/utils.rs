@@ -10,8 +10,8 @@ use std::{
 };
 
 use aes::{Aes128, Aes192, Aes256};
-use aes_gcm::{Aes128Gcm, Key};
 use aes_gcm::aead::{AeadInPlace, Nonce};
+use aes_gcm::{Aes128Gcm, Aes256Gcm, Key};
 use aes_kw::AesKw;
 use cipher::{BlockModeDecrypt, Iv, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
@@ -68,19 +68,26 @@ use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
     ($data:expr, $aead:ty, $key:expr, $aad:ident, $nonce:ident, $mac:ident) => {{
-        let key = GenericArray::from_slice($key);
-        let cipher = <$aead>::new(key);
+        #[allow(deprecated)]
+        let aes_key = Key::<$aead>::from_slice($key.as_slice());
+        let cipher = <$aead>::new(aes_key);
         $data.extend_from_slice($mac);
-        cipher.decrypt_in_place($nonce.into(), $aad.as_slice(), $data)
+        #[allow(deprecated)]
+        let aes_nonce = Nonce::<$aead>::from_slice($nonce);
+        cipher.decrypt_in_place(aes_nonce, $aad.as_slice(), $data)
     }};
 }
 
 /// Macro to decrypt data using Aes128, Aes192 or Aes256
 macro_rules! decrypt_block_mode {
     ($ct:expr, $alg:ty, $key:expr, $iv:ident) => {{
-        let key = GenericArray::from_slice(&$key);
-        let cipher = <$alg>::new(key, $iv.into());
-        cipher.decrypt_padded_vec_mut::<cipher::block_padding::Pkcs7>($ct)
+        type AesType = cbc::Decryptor<$alg>;
+        #[allow(deprecated)]
+        let aes_key: &Key<AesType> = Key::<AesType>::from_slice($key);
+        #[allow(deprecated)]
+        let aes_nonce: &Iv<AesType> = Iv::<AesType>::from_slice($iv);
+        let cipher = <AesType>::new(aes_key, aes_nonce);
+        cipher.decrypt_padded_vec::<cipher::block_padding::Pkcs7>($ct)
     }};
 }
 
@@ -608,23 +615,15 @@ pub fn process_auth_enveloped_data(
         let mac = ed.mac.as_bytes();
         match ed.auth_encrypted_content.content_enc_alg.oid {
             ID_AES_128_GCM => {
-                //($data:expr, $aead:ty, $key:expr, $aad:ident, $nonce:ident, $mac:ident) => {{
-                let aes_key = Key::<Aes128Gcm>::from_slice(key.as_slice());
-                let cipher = <Aes128Gcm>::new(aes_key);
-                ct.extend_from_slice(mac);
-                let aes_nonce = Nonce::<Aes128Gcm>::from_slice(nonce);
-                cipher.decrypt_in_place(aes_nonce, aad.as_slice(), &mut ct);
-                //}};
-
-                // if decrypt_gcm_mode!(&mut ct, Aes128Gcm, &key, aad, nonce, mac).is_ok() {
-                //     return Ok(ct);
-                // }
+                if decrypt_gcm_mode!(&mut ct, Aes128Gcm, &key, aad, nonce, mac).is_ok() {
+                    return Ok(ct);
+                }
             }
-            // ID_AES_256_GCM => {
-            //     if decrypt_gcm_mode!(&mut ct, Aes256Gcm, &key, aad, nonce, mac).is_ok() {
-            //         return Ok(ct);
-            //     }
-            // }
+            ID_AES_256_GCM => {
+                if decrypt_gcm_mode!(&mut ct, Aes256Gcm, &key, aad, nonce, mac).is_ok() {
+                    return Ok(ct);
+                }
+            }
             _ => {
                 error!(
                     "Unrecognized content encryption algorithm: {}",
@@ -672,25 +671,17 @@ pub fn process_enveloped_data(enveloped_data_bytes: &[u8], ee_sk: &[u8]) -> crat
 
         match ed.encrypted_content.content_enc_alg.oid {
             ID_AES_128_CBC => {
-                type Aes128CbcDec = cbc::Decryptor<Aes128>;
-//                ($ct:expr, $alg:ty, $key:expr, $iv:ident) => {{
-                let key = Key::<Aes128CbcDec>::from_slice(&key);
-                let aes_nonce = Iv::<Aes128CbcDec>::from_slice(iv);
-                let cipher = <Aes128CbcDec>::new(key, aes_nonce);
-                return cipher.decrypt_padded_vec::<cipher::block_padding::Pkcs7>(&ct).map_err(|_e| Error::Unrecognized)
-                // return decrypt_block_mode!(&ct, Aes128CbcDec, &key, iv)
-                //     .map_err(|_e| Error::Unrecognized);
+                return decrypt_block_mode!(&ct, Aes128, &key, iv)
+                    .map_err(|_e| Error::Unrecognized);
             }
-            // ID_AES_192_CBC => {
-            //     type Aes192CbcDec = cbc::Decryptor<Aes192>;
-            //     return decrypt_block_mode!(&ct, Aes192CbcDec, &key, iv)
-            //         .map_err(|_e| Error::Unrecognized);
-            // }
-            // ID_AES_256_CBC => {
-            //     type Aes256CbcDec = cbc::Decryptor<Aes256>;
-            //     return decrypt_block_mode!(&ct, Aes256CbcDec, &key, iv)
-            //         .map_err(|_e| Error::Unrecognized);
-            // }
+            ID_AES_192_CBC => {
+                return decrypt_block_mode!(&ct, Aes192, &key, iv)
+                    .map_err(|_e| Error::Unrecognized);
+            }
+            ID_AES_256_CBC => {
+                return decrypt_block_mode!(&ct, Aes256, &key, iv)
+                    .map_err(|_e| Error::Unrecognized);
+            }
             _ => {
                 error!(
                     "Unrecognized content encryption algorithm: {}",

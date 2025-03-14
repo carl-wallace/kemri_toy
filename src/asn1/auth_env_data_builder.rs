@@ -1,10 +1,9 @@
 //! Builder for `AuthEnvelopedData` with parts copied and adapted from `EnvelopedDataBuilder` in the cms crate
 
 use log::debug;
-use rand::rngs::OsRng;
 
-use aes_gcm::aead::{AeadInPlace};
-use aes_gcm::{AeadCore, Aes128Gcm};
+use aes_gcm::aead::AeadInPlace;
+use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm};
 use cipher::KeyInit;
 use cms::{
     authenticated_data::MessageAuthenticationCode,
@@ -48,13 +47,13 @@ pub struct AuthEnvelopedDataBuilder<'c, R: ?Sized> {
 
 /// Macro for encrypting data using Aes128Gcm or Aes256Gcm
 macro_rules! encrypt_gcm_mode {
-    ($data:expr, $aead:ty, $key:expr, $aad:ident, $rng:expr, $oid:expr) => {{
+    ($data:expr, $aead:ty, $key:expr, $aad:ident, $oid:expr) => {{
         let (key, nonce) = match $key {
             None => {
-                let key = <$aead>::generate_key($rng);
+                let key = <$aead>::generate_key();
                 // todo use rng parameter or something simliar to encrypt_block_mode to generate nonce and key
-                let nonce = <$aead>::generate_nonce(&mut OsRng);
-                (key, nonce)
+                let nonce = <$aead>::generate_nonce();
+                (key.unwrap().to_vec(), nonce.unwrap().as_slice().to_vec())
             }
             Some(key) => {
                 if key.len() != <$aead>::key_size() {
@@ -63,20 +62,22 @@ macro_rules! encrypt_gcm_mode {
                     )));
                 }
                 (
-                    Key::<$aead>::from_slice(key).to_owned(),
-                    <$aead>::generate_nonce($rng)
+                    #[allow(deprecated)]
+                    Key::<$aead>::from_slice(key).to_owned().to_vec(),
+                    <$aead>::generate_nonce().unwrap().to_vec(),
                 )
             }
         };
         debug!("CEK: {}", buffer_to_hex(&key));
         debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
 
-        let mut cipher = <$aead>::new(&key);
+        let cipher = <$aead>::new_from_slice(&key).unwrap();
         let mut buffer = vec![0u8; 0];
         buffer.extend_from_slice($data);
         let aad = $aad.unwrap_or("".as_bytes().to_vec());
-
-        match cipher.encrypt_in_place(&nonce, &aad, &mut buffer) {
+        #[allow(deprecated)]
+        let aead_nonce = aes_gcm::Nonce::from_slice(&nonce);
+        match cipher.encrypt_in_place(&aead_nonce, &aad, &mut buffer) {
             Ok(_) => {
                 let (ct, tag) = buffer.split_at(buffer.len() - 16);
                 let gcm_params = GcmParameters {
@@ -89,7 +90,9 @@ macro_rules! encrypt_gcm_mode {
                 };
                 Ok((ct.to_vec(), key.to_vec(), alg, Some(tag.to_vec())))
             }
-            Err(_e) => Err(Error::Builder("Failed to encrypt with AAD: {:e}".to_string())),
+            Err(_e) => Err(Error::Builder(
+                "Failed to encrypt with AAD: {:e}".to_string(),
+            )),
         }
     }};
 }
@@ -109,75 +112,26 @@ fn encrypt_data<R>(
     _rng: &mut R,
 ) -> Result<(Vec<u8>, Vec<u8>, AlgorithmIdentifierOwned, Option<Vec<u8>>)>
 where
-    R: rand_core::CryptoRng + ?Sized,
+    R: CryptoRng + ?Sized,
 {
     match encryption_algorithm_identifier {
         ContentEncryptionAlgorithmAead::Aes128Gcm => {
-            //($data:expr, $aead:ty, $key:expr, $aad:ident, $rng:expr, $oid:expr) => {{
-            let (key, nonce) = match &key {
-                None => {
-                    let key = <Aes128Gcm>::generate_key();
-                    // todo use rng parameter or something simliar to encrypt_block_mode to generate nonce and key
-                    let nonce = <Aes128Gcm>::generate_nonce();
-                    (key.unwrap().to_vec(), nonce.unwrap().as_slice().to_vec())
-                }
-                Some(key) => {
-                    if key.len() != <Aes128Gcm>::key_size() {
-                        return Err(Error::Builder(String::from(
-                            "Invalid key size for chosen algorithm",
-                        )));
-                    }
-                    (
-                        Key::<Aes128Gcm>::from_slice(key).to_owned().to_vec(),
-                        <Aes128Gcm>::generate_nonce().unwrap().to_vec(),
-                    )
-                }
-            };
-            debug!("CEK: {}", buffer_to_hex(&key));
-            debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
-
-            let cipher = <Aes128Gcm>::new_from_slice(&key).unwrap();
-            let mut buffer = vec![0u8; 0];
-            buffer.extend_from_slice(&data);
-            let aad = aad.unwrap_or("".as_bytes().to_vec());
-            let aead_nonce = aes_gcm::Nonce::from_slice(&nonce);
-            match cipher.encrypt_in_place(&aead_nonce, &aad, &mut buffer) {
-                Ok(_) => {
-                    let (ct, tag) = buffer.split_at(buffer.len() - 16);
-                    let gcm_params = GcmParameters {
-                        nonce: OctetString::new(nonce.as_slice())?,
-                        icv_len: 16,
-                    };
-                    let alg = AlgorithmIdentifierOwned {
-                        oid: encryption_algorithm_identifier.oid(),
-                        parameters: Some(Any::from_der(&gcm_params.to_der()?)?),
-                    };
-                    Ok((ct.to_vec(), key.to_vec(), alg, Some(tag.to_vec())))
-                }
-                Err(_e) => Err(Error::Builder(
-                    "Failed to encrypt with AAD: {:e}".to_string(),
-                )),
-            }
-
-            //     encrypt_gcm_mode!(
-            //     data,
-            //     Aes128Gcm,
-            //     key,
-            //     aad,
-            //     rng,
-            //     encryption_algorithm_identifier.oid()
-            // )
+            encrypt_gcm_mode!(
+                data,
+                Aes128Gcm,
+                key,
+                aad,
+                encryption_algorithm_identifier.oid()
+            )
         }
         ContentEncryptionAlgorithmAead::Aes256Gcm => {
-            todo!()
-            // encrypt_gcm_mode!(
-            //     data,
-            //     Aes256Gcm,
-            //     key,
-            //     aad,
-            //     rng,
-            //     encryption_algorithm_identifier.oid()
-            // )
+            encrypt_gcm_mode!(
+                data,
+                Aes256Gcm,
+                key,
+                aad,
+                encryption_algorithm_identifier.oid()
+            )
         }
     }
 }
@@ -215,8 +169,7 @@ where
 
     /// Generate an `AuthEnvelopedData` object according to RFC 5083 § 2.2 using a provided
     /// random number generator.
-    pub fn build_with_rng(&mut self, rng: &mut R) -> Result<AuthEnvelopedData>
-    {
+    pub fn build_with_rng(&mut self, rng: &mut R) -> Result<AuthEnvelopedData> {
         // DER encode authenticated attributes, if any
         // Generate content encryption key
         // Encrypt content and capture authentication tag
