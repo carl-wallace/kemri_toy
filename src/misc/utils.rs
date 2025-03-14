@@ -2,7 +2,7 @@
 
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
-use ml_kem::{MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params, KemCore, B32};
+use ml_kem::{B32, KemCore, MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params};
 use std::{
     fs::File,
     io::Read,
@@ -10,17 +10,27 @@ use std::{
 };
 
 use aes::{Aes128, Aes192, Aes256};
-use aes_gcm::{AeadInPlace, Aes128Gcm, Aes256Gcm};
+use aes_gcm::{Aes128Gcm, Key};
+use aes_gcm::aead::{AeadInPlace, Nonce};
 use aes_kw::AesKw;
-use generic_array;
-use cipher::{BlockDecryptMut, KeyInit, KeyIvInit};
-use generic_array::GenericArray;
+use cipher::{BlockModeDecrypt, Iv, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 //use pqcrypto_traits::kem::PublicKey;
 
+use crate::asn1::private_key::{MlKem512PrivateKey, MlKem768PrivateKey, MlKem1024PrivateKey};
+use crate::{
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    asn1::{
+        auth_env_data::{AuthEnvelopedData, GcmParameters},
+        auth_env_data_builder::AuthEnvelopedDataBuilder,
+        kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
+    },
+    misc::gen_certs::buffer_to_hex,
+};
 use cms::cert::IssuerAndSerialNumber;
 use cms::enveloped_data::KeyTransRecipientInfo;
 use cms::{
@@ -39,27 +49,21 @@ use const_oid::{
         },
     },
 };
-use der::{Any, AnyRef, Decode, Encode, asn1::OctetString, DecodePem};
+use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
 use ml_kem::kem::Decapsulate;
 use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
 use pqckeys::oak::OneAsymmetricKey;
-use pqckeys::pqc_oids::{ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F, SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F, SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F, SLH_DSA_SHAKE_256S};
+use pqckeys::pqc_oids::{
+    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
+    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
+    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
+    SLH_DSA_SHAKE_256S,
+};
+use rand::rngs::OsRng;
+use rsa::rand_core::TryRngCore;
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
-use rand::rngs::OsRng;
-use rsa::rand_core::{TryRngCore};
-use crate::{
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
-    asn1::{
-        auth_env_data::{AuthEnvelopedData, GcmParameters},
-        auth_env_data_builder::AuthEnvelopedDataBuilder,
-        kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
-    },
-    misc::gen_certs::buffer_to_hex,
-};
-use crate::asn1::private_key::{MlKem1024PrivateKey, MlKem512PrivateKey, MlKem768PrivateKey};
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -349,57 +353,81 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
 fn extract_private_key(oid: ObjectIdentifier, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
     match oid {
         ML_KEM_512 => {
-            let key = MlKem512PrivateKey:: from_der(private_key_bytes)?;
+            let key = MlKem512PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem512PrivateKey::Seed(seed) => {
                     let (d, z) = seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem512::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     Ok(dk.as_bytes().to_vec())
-                },
+                }
                 MlKem512PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem512PrivateKey::Both(both) => {
                     let (d, z) = both.seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem512::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem512::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
-                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
                     }
                     Ok(both.expanded_key.as_bytes().to_vec())
-                },
+                }
             }
         }
         ML_KEM_768 => {
-            let key = MlKem768PrivateKey:: from_der(private_key_bytes)?;
+            let key = MlKem768PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem768PrivateKey::Seed(seed) => {
                     let (d, z) = seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem768::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     Ok(dk.as_bytes().to_vec())
-                },
+                }
                 MlKem768PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem768PrivateKey::Both(both) => {
                     let (d, z) = both.seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem768::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
-                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
                     }
                     Ok(both.expanded_key.as_bytes().to_vec())
                 }
             }
         }
         ML_KEM_1024 => {
-            let key = MlKem1024PrivateKey:: from_der(private_key_bytes)?;
+            let key = MlKem1024PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem1024PrivateKey::Seed(seed) => {
                     let (d, z) = seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem1024::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     Ok(dk.as_bytes().to_vec())
-                },
+                }
                 MlKem1024PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem1024PrivateKey::Both(both) => {
                     let (d, z) = both.seed.as_bytes().split_at(32);
-                    let (dk, _) = MlKem1024::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+                    let (dk, _) = MlKem1024::generate_deterministic(
+                        <&B32>::try_from(d)?,
+                        <&B32>::try_from(z)?,
+                    );
                     if dk.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
-                        return Err(Error::MlKem("Inconsistent values in both option".to_string()));
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
                     }
                     Ok(both.expanded_key.as_bytes().to_vec())
                 }
@@ -489,21 +517,24 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
     let mut wrapped_key = vec![0; kemri.kek_length as usize];
     match kemri.wrap.oid {
         ID_AES_128_WRAP => {
-            let kek : AesKw::<Aes128> = AesKw::<Aes128>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            let kek: AesKw<Aes128> = AesKw::<Aes128>::new_from_slice(okm.as_slice())
+                .map_err(|_e| Error::Unrecognized)?;
             if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
             wrapped_key.to_vec()
         }
         ID_AES_192_WRAP => {
-            let kek : AesKw::<Aes192> = AesKw::<Aes192>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            let kek: AesKw<Aes192> = AesKw::<Aes192>::new_from_slice(okm.as_slice())
+                .map_err(|_e| Error::Unrecognized)?;
             if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
             wrapped_key.to_vec()
         }
         ID_AES_256_WRAP => {
-            let kek : AesKw::<Aes256> = AesKw::<Aes256>::new_from_slice(okm.as_slice()).map_err(|_e| Error::Unrecognized)?;
+            let kek: AesKw<Aes256> = AesKw::<Aes256>::new_from_slice(okm.as_slice())
+                .map_err(|_e| Error::Unrecognized)?;
             if let Err(e) = kek.unwrap_key(kemri.encrypted_key.as_bytes(), &mut wrapped_key) {
                 error!("Unwrap failed: {e:?}");
             }
@@ -577,15 +608,23 @@ pub fn process_auth_enveloped_data(
         let mac = ed.mac.as_bytes();
         match ed.auth_encrypted_content.content_enc_alg.oid {
             ID_AES_128_GCM => {
-                if decrypt_gcm_mode!(&mut ct, Aes128Gcm, &key, aad, nonce, mac).is_ok() {
-                    return Ok(ct);
-                }
+                //($data:expr, $aead:ty, $key:expr, $aad:ident, $nonce:ident, $mac:ident) => {{
+                let aes_key = Key::<Aes128Gcm>::from_slice(key.as_slice());
+                let cipher = <Aes128Gcm>::new(aes_key);
+                ct.extend_from_slice(mac);
+                let aes_nonce = Nonce::<Aes128Gcm>::from_slice(nonce);
+                cipher.decrypt_in_place(aes_nonce, aad.as_slice(), &mut ct);
+                //}};
+
+                // if decrypt_gcm_mode!(&mut ct, Aes128Gcm, &key, aad, nonce, mac).is_ok() {
+                //     return Ok(ct);
+                // }
             }
-            ID_AES_256_GCM => {
-                if decrypt_gcm_mode!(&mut ct, Aes256Gcm, &key, aad, nonce, mac).is_ok() {
-                    return Ok(ct);
-                }
-            }
+            // ID_AES_256_GCM => {
+            //     if decrypt_gcm_mode!(&mut ct, Aes256Gcm, &key, aad, nonce, mac).is_ok() {
+            //         return Ok(ct);
+            //     }
+            // }
             _ => {
                 error!(
                     "Unrecognized content encryption algorithm: {}",
@@ -634,19 +673,24 @@ pub fn process_enveloped_data(enveloped_data_bytes: &[u8], ee_sk: &[u8]) -> crat
         match ed.encrypted_content.content_enc_alg.oid {
             ID_AES_128_CBC => {
                 type Aes128CbcDec = cbc::Decryptor<Aes128>;
-                return decrypt_block_mode!(&ct, Aes128CbcDec, &key, iv)
-                    .map_err(|_e| Error::Unrecognized);
+//                ($ct:expr, $alg:ty, $key:expr, $iv:ident) => {{
+                let key = Key::<Aes128CbcDec>::from_slice(&key);
+                let aes_nonce = Iv::<Aes128CbcDec>::from_slice(iv);
+                let cipher = <Aes128CbcDec>::new(key, aes_nonce);
+                return cipher.decrypt_padded_vec::<cipher::block_padding::Pkcs7>(&ct).map_err(|_e| Error::Unrecognized)
+                // return decrypt_block_mode!(&ct, Aes128CbcDec, &key, iv)
+                //     .map_err(|_e| Error::Unrecognized);
             }
-            ID_AES_192_CBC => {
-                type Aes192CbcDec = cbc::Decryptor<Aes192>;
-                return decrypt_block_mode!(&ct, Aes192CbcDec, &key, iv)
-                    .map_err(|_e| Error::Unrecognized);
-            }
-            ID_AES_256_CBC => {
-                type Aes256CbcDec = cbc::Decryptor<Aes256>;
-                return decrypt_block_mode!(&ct, Aes256CbcDec, &key, iv)
-                    .map_err(|_e| Error::Unrecognized);
-            }
+            // ID_AES_192_CBC => {
+            //     type Aes192CbcDec = cbc::Decryptor<Aes192>;
+            //     return decrypt_block_mode!(&ct, Aes192CbcDec, &key, iv)
+            //         .map_err(|_e| Error::Unrecognized);
+            // }
+            // ID_AES_256_CBC => {
+            //     type Aes256CbcDec = cbc::Decryptor<Aes256>;
+            //     return decrypt_block_mode!(&ct, Aes256CbcDec, &key, iv)
+            //         .map_err(|_e| Error::Unrecognized);
+            // }
             _ => {
                 error!(
                     "Unrecognized content encryption algorithm: {}",
@@ -759,7 +803,8 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem512.filename(), key_type_part
+            KemAlgorithms::MlKem512.filename(),
+            key_type_part
         )))?,
     );
     key_map.insert(
@@ -767,7 +812,8 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem768.filename(), key_type_part
+            KemAlgorithms::MlKem768.filename(),
+            key_type_part
         )))?,
     );
     key_map.insert(
@@ -775,7 +821,8 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
-            KemAlgorithms::MlKem1024.filename(), key_type_part
+            KemAlgorithms::MlKem1024.filename(),
+            key_type_part
         )))?,
     );
     let paths = std::fs::read_dir(artifact_folder).unwrap();
@@ -825,11 +872,25 @@ fn decrypt_kemri_toy_expanded() {
 }
 #[test]
 fn decrypt_kemri_toy_seed() {
-    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_seed").is_ok());
+    assert!(
+        test_decrypt(
+            "tests/artifacts/kemri_toy",
+            "tests/artifacts/kemri_toy",
+            "_seed"
+        )
+        .is_ok()
+    );
 }
 #[test]
 fn decrypt_kemri_toy_both() {
-    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_both").is_ok());
+    assert!(
+        test_decrypt(
+            "tests/artifacts/kemri_toy",
+            "tests/artifacts/kemri_toy",
+            "_both"
+        )
+        .is_ok()
+    );
 }
 
 #[test]

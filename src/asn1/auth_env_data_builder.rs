@@ -2,11 +2,9 @@
 
 use log::debug;
 use rand::rngs::OsRng;
-use cipher::rand_core::CryptoRng;
-//use rand_core::{CryptoRng, CryptoRngCore, RngCore};
 
-use aes_gcm::aead::AeadMutInPlace;
-use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm};
+use aes_gcm::aead::{AeadInPlace};
+use aes_gcm::{AeadCore, Aes128Gcm};
 use cipher::KeyInit;
 use cms::{
     authenticated_data::MessageAuthenticationCode,
@@ -24,13 +22,15 @@ use crate::{
 };
 use cipher::Key;
 use cipher::KeySizeUser;
+use rand_core::CryptoRng;
+
 /// Result type with cms::builder::Error
 type Result<T> = core::result::Result<T, Error>;
 
 /// Builds CMS `AuthEnvelopedData` according to RFC 5083 § 2.1.
-pub struct AuthEnvelopedDataBuilder<'c> {
+pub struct AuthEnvelopedDataBuilder<'c, R: ?Sized> {
     originator_info: Option<OriginatorInfo>,
-    recipient_infos: Vec<Box<dyn RecipientInfoBuilder<Rng = OsRng> + 'c>>,
+    recipient_infos: Vec<Box<dyn RecipientInfoBuilder<Rng = R> + 'c>>,
     unencrypted_content: &'c [u8],
     // TODO bk Not good to offer both, `content_encryptor` and `content_encryption_algorithm`.
     // We should
@@ -106,31 +106,85 @@ fn encrypt_data<R>(
     encryption_algorithm_identifier: &ContentEncryptionAlgorithmAead,
     key: Option<&[u8]>,
     aad: Option<Vec<u8>>,
-    rng: &mut R,
+    _rng: &mut R,
 ) -> Result<(Vec<u8>, Vec<u8>, AlgorithmIdentifierOwned, Option<Vec<u8>>)>
 where
-    R: cipher::rand_core::CryptoRng + ?Sized,
+    R: rand_core::CryptoRng + ?Sized,
 {
     match encryption_algorithm_identifier {
-        ContentEncryptionAlgorithmAead::Aes128Gcm => encrypt_gcm_mode!(
-            data,
-            Aes128Gcm,
-            key,
-            aad,
-            rng,
-            encryption_algorithm_identifier.oid()
-        ),
-        ContentEncryptionAlgorithmAead::Aes256Gcm => encrypt_gcm_mode!(
-            data,
-            Aes256Gcm,
-            key,
-            aad,
-            rng,
-            encryption_algorithm_identifier.oid()
-        ),
+        ContentEncryptionAlgorithmAead::Aes128Gcm => {
+            //($data:expr, $aead:ty, $key:expr, $aad:ident, $rng:expr, $oid:expr) => {{
+            let (key, nonce) = match &key {
+                None => {
+                    let key = <Aes128Gcm>::generate_key();
+                    // todo use rng parameter or something simliar to encrypt_block_mode to generate nonce and key
+                    let nonce = <Aes128Gcm>::generate_nonce();
+                    (key.unwrap().to_vec(), nonce.unwrap().as_slice().to_vec())
+                }
+                Some(key) => {
+                    if key.len() != <Aes128Gcm>::key_size() {
+                        return Err(Error::Builder(String::from(
+                            "Invalid key size for chosen algorithm",
+                        )));
+                    }
+                    (
+                        Key::<Aes128Gcm>::from_slice(key).to_owned().to_vec(),
+                        <Aes128Gcm>::generate_nonce().unwrap().to_vec(),
+                    )
+                }
+            };
+            debug!("CEK: {}", buffer_to_hex(&key));
+            debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
+
+            let cipher = <Aes128Gcm>::new_from_slice(&key).unwrap();
+            let mut buffer = vec![0u8; 0];
+            buffer.extend_from_slice(&data);
+            let aad = aad.unwrap_or("".as_bytes().to_vec());
+            let aead_nonce = aes_gcm::Nonce::from_slice(&nonce);
+            match cipher.encrypt_in_place(&aead_nonce, &aad, &mut buffer) {
+                Ok(_) => {
+                    let (ct, tag) = buffer.split_at(buffer.len() - 16);
+                    let gcm_params = GcmParameters {
+                        nonce: OctetString::new(nonce.as_slice())?,
+                        icv_len: 16,
+                    };
+                    let alg = AlgorithmIdentifierOwned {
+                        oid: encryption_algorithm_identifier.oid(),
+                        parameters: Some(Any::from_der(&gcm_params.to_der()?)?),
+                    };
+                    Ok((ct.to_vec(), key.to_vec(), alg, Some(tag.to_vec())))
+                }
+                Err(_e) => Err(Error::Builder(
+                    "Failed to encrypt with AAD: {:e}".to_string(),
+                )),
+            }
+
+            //     encrypt_gcm_mode!(
+            //     data,
+            //     Aes128Gcm,
+            //     key,
+            //     aad,
+            //     rng,
+            //     encryption_algorithm_identifier.oid()
+            // )
+        }
+        ContentEncryptionAlgorithmAead::Aes256Gcm => {
+            todo!()
+            // encrypt_gcm_mode!(
+            //     data,
+            //     Aes256Gcm,
+            //     key,
+            //     aad,
+            //     rng,
+            //     encryption_algorithm_identifier.oid()
+            // )
+        }
     }
 }
-impl<'c> AuthEnvelopedDataBuilder<'c> {
+impl<'c, R> AuthEnvelopedDataBuilder<'c, R>
+where
+    R: CryptoRng + ?Sized,
+{
     /// Create a new builder for `AuthEnvelopedData`
     pub fn new(
         originator_info: Option<OriginatorInfo>,
@@ -138,7 +192,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
         content_encryption_algorithm: ContentEncryptionAlgorithmAead,
         auth_attributes: Option<Attributes>,
         unauth_attributes: Option<Attributes>,
-    ) -> Result<AuthEnvelopedDataBuilder<'c>> {
+    ) -> Result<Self> {
         Ok(AuthEnvelopedDataBuilder {
             originator_info,
             recipient_infos: Vec::new(),
@@ -153,7 +207,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
     /// RFC 5652 § 6.2, when `AuthEnvelopedData` is built.
     pub fn add_recipient_info(
         &mut self,
-        recipient_info_builder: impl RecipientInfoBuilder<Rng = OsRng> + 'c,
+        recipient_info_builder: impl RecipientInfoBuilder<Rng = R> + 'c,
     ) -> Result<&mut Self> {
         self.recipient_infos.push(Box::new(recipient_info_builder));
         Ok(self)
@@ -161,9 +215,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
 
     /// Generate an `AuthEnvelopedData` object according to RFC 5083 § 2.2 using a provided
     /// random number generator.
-    pub fn build_with_rng<R>(&mut self, rng: &mut R) -> Result<AuthEnvelopedData> 
-    where
-    R: cipher::rand_core::CryptoRng + ?Sized,
+    pub fn build_with_rng(&mut self, rng: &mut R) -> Result<AuthEnvelopedData>
     {
         // DER encode authenticated attributes, if any
         // Generate content encryption key
@@ -192,7 +244,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
         let recipient_infos_vec = self
             .recipient_infos
             .iter_mut()
-            .map(|ri| ri.build_with_rng(&content_encryption_key, &rng))
+            .map(|ri| ri.build_with_rng(&content_encryption_key, rng))
             .collect::<Result<Vec<RecipientInfo>>>()?;
         content_encryption_key.zeroize();
         let recip_infos = RecipientInfos::try_from(recipient_infos_vec)?;

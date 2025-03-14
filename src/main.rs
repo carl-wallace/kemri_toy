@@ -12,21 +12,8 @@ mod asn1;
 #[macro_use]
 mod misc;
 
-use clap::Parser;
-use log::{LevelFilter, debug, error};
-use log4rs::{
-    append::console::ConsoleAppender,
-    config::{Appender, Config, Root},
-    encode::pattern::PatternEncoder,
-};
-use std::array::TryFromSliceError;
-use std::{fs::File, io::Write, path::PathBuf};
-use std::path::Path;
-use const_oid::ObjectIdentifier;
-use der::{Decode, DecodePem, Encode};
-use pqcrypto_mldsa::mldsa44;
-use pqcrypto_traits::sign::{PublicKey, SecretKey};
-use spki::SubjectPublicKeyInfoOwned;
+use crate::misc::gen_certs::{generate_ml_kem_cert, generate_ta};
+use crate::misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey};
 use crate::{
     args::{KemAlgorithms, KemriToyArgs},
     misc::{
@@ -37,8 +24,21 @@ use crate::{
         },
     },
 };
-use crate::misc::gen_certs::{generate_ml_kem_cert, generate_ta};
-use crate::misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey};
+use clap::Parser;
+use const_oid::ObjectIdentifier;
+use der::{Decode, DecodePem, Encode};
+use log::{LevelFilter, debug, error};
+use log4rs::{
+    append::console::ConsoleAppender,
+    config::{Appender, Config, Root},
+    encode::pattern::PatternEncoder,
+};
+use pqcrypto_mldsa::mldsa44;
+use pqcrypto_traits::sign::{PublicKey, SecretKey};
+use spki::SubjectPublicKeyInfoOwned;
+use std::array::TryFromSliceError;
+use std::path::Path;
+use std::{fs::File, io::Write, path::PathBuf};
 
 /// Result type for kemri_toy
 pub type Result<T> = core::result::Result<T, Error>;
@@ -54,7 +54,7 @@ pub enum Error {
     CertBuilder,
     Io,
     SliceError,
-    MlKem(String)
+    MlKem(String),
 }
 
 impl From<TryFromSliceError> for Error {
@@ -239,7 +239,7 @@ fn main() -> Result<()> {
                         let sk = SubjectPublicKeyInfoOwned::from_pem(&public_key_bytes)?;
                         sk.to_der()?
                     }
-                },
+                }
                 Err(e) => {
                     error!("pub_key_file must be provided and exist: {e:?}");
                     return Err(e);
@@ -249,7 +249,9 @@ fn main() -> Result<()> {
             let pk = match spki.subject_public_key.as_bytes() {
                 Some(pk) => pk,
                 None => {
-                    error!("Failed to read public key from SubjectPublicKeyInfo read from pub_key_file");
+                    error!(
+                        "Failed to read public key from SubjectPublicKeyInfo read from pub_key_file"
+                    );
                     return Err(Error::Unrecognized);
                 }
             };
@@ -257,12 +259,21 @@ fn main() -> Result<()> {
 
             let ta_key_file = output_folder.join("ta.key");
             let ta_cert_file = output_folder.join("ta.der");
-            let (signer, ta_cert) = if Path::new(&ta_key_file).exists() && Path::new(&ta_key_file).exists() {
+            let (signer, ta_cert) = if Path::new(&ta_key_file).exists()
+                && Path::new(&ta_key_file).exists()
+            {
                 let ta_cert = get_cert_from_file_arg(&Some(ta_cert_file))?;
-                let public_key_bytes = match ta_cert.tbs_certificate().subject_public_key_info().subject_public_key.as_bytes() {
+                let public_key_bytes = match ta_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .as_bytes()
+                {
                     Some(pk) => pk,
                     None => {
-                        error!("Failed to read public key from SubjectPublicKeyInfo read from ta.der");
+                        error!(
+                            "Failed to read public key from SubjectPublicKeyInfo read from ta.der"
+                        );
                         return Err(Error::Unrecognized);
                     }
                 };
@@ -296,7 +307,7 @@ fn main() -> Result<()> {
             return Ok(());
         }
     }
-    
+
     if args.ee_key_file.is_some() {
         let private_key_bytes = match get_buffer_from_file_arg(&args.ee_key_file) {
             Ok(private_key_bytes) => private_key_bytes,
@@ -351,13 +362,19 @@ fn main() -> Result<()> {
         let cert_arg = match get_cert_from_file_arg(&args.ee_cert_file) {
             Ok(cert) => {
                 args.kem = match KemAlgorithms::from_oid(
-                    cert.tbs_certificate().subject_public_key_info().algorithm.oid,
+                    cert.tbs_certificate()
+                        .subject_public_key_info()
+                        .algorithm
+                        .oid,
                 ) {
                     Ok(ka) => ka,
                     Err(e) => {
                         error!(
                             "Unrecognized KEM algorithm in ee_cert_file: {}",
-                            cert.tbs_certificate().subject_public_key_info().algorithm.oid
+                            cert.tbs_certificate()
+                                .subject_public_key_info()
+                                .algorithm
+                                .oid
                         );
                         return Err(e);
                     }

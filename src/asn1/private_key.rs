@@ -7,8 +7,8 @@
 //          }
 //      }
 
-use der::{Choice, Sequence};
 use der::asn1::OctetString;
+use der::{Choice, Sequence};
 
 pub type MlKemSeed = OctetString; //[u8; 64];
 
@@ -64,4 +64,3 @@ pub enum MlKem1024PrivateKey {
     ExpandedKey(MlKem1024Expanded),
     Both(MlKem1024Both),
 }
-

@@ -6,6 +6,11 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
+use crate::misc::utils::get_filename_from_oid;
+use crate::{
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
+};
 use const_oid::{
     ObjectIdentifier,
     db::rfc5911::{
@@ -13,11 +18,11 @@ use const_oid::{
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
 };
-use pqckeys::pqc_oids::{ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F, SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F, SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F, SLH_DSA_SHAKE_256S};
-use crate::misc::utils::get_filename_from_oid;
-use crate::{
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
+use pqckeys::pqc_oids::{
+    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
+    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
+    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
+    SLH_DSA_SHAKE_256S,
 };
 
 /// KEM algorithms available via command line argument
@@ -173,40 +178,88 @@ impl SigAlgorithms {
                 format!("{}_{}", ML_DSA_87, get_filename_from_oid(ML_DSA_87))
             }
             SigAlgorithms::SlhDsaSha2_128s => {
-                format!("{}_{}", SLH_DSA_SHA2_128S, get_filename_from_oid(SLH_DSA_SHA2_128S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_128S,
+                    get_filename_from_oid(SLH_DSA_SHA2_128S)
+                )
             }
             SigAlgorithms::SlhDsaSha2_128f => {
-                format!("{}_{}", SLH_DSA_SHA2_128F, get_filename_from_oid(SLH_DSA_SHA2_128F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_128F,
+                    get_filename_from_oid(SLH_DSA_SHA2_128F)
+                )
             }
             SigAlgorithms::SlhDsaSha2_192s => {
-                format!("{}_{}", SLH_DSA_SHA2_192S, get_filename_from_oid(SLH_DSA_SHA2_192S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_192S,
+                    get_filename_from_oid(SLH_DSA_SHA2_192S)
+                )
             }
             SigAlgorithms::SlhDsaSha2_192f => {
-                format!("{}_{}", SLH_DSA_SHA2_192F, get_filename_from_oid(SLH_DSA_SHA2_192F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_192F,
+                    get_filename_from_oid(SLH_DSA_SHA2_192F)
+                )
             }
             SigAlgorithms::SlhDsaSha2_256s => {
-                format!("{}_{}", SLH_DSA_SHA2_256S, get_filename_from_oid(SLH_DSA_SHA2_256S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_256S,
+                    get_filename_from_oid(SLH_DSA_SHA2_256S)
+                )
             }
             SigAlgorithms::SlhDsaSha2_256f => {
-                format!("{}_{}", SLH_DSA_SHA2_256F, get_filename_from_oid(SLH_DSA_SHA2_256F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHA2_256F,
+                    get_filename_from_oid(SLH_DSA_SHA2_256F)
+                )
             }
             SigAlgorithms::SlhDsaShake128s => {
-                format!("{}_{}", SLH_DSA_SHAKE_128S, get_filename_from_oid(SLH_DSA_SHAKE_128S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_128S,
+                    get_filename_from_oid(SLH_DSA_SHAKE_128S)
+                )
             }
             SigAlgorithms::SlhDsaShake128f => {
-                format!("{}_{}", SLH_DSA_SHAKE_128F, get_filename_from_oid(SLH_DSA_SHAKE_128F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_128F,
+                    get_filename_from_oid(SLH_DSA_SHAKE_128F)
+                )
             }
             SigAlgorithms::SlhDsaShake192s => {
-                format!("{}_{}", SLH_DSA_SHAKE_192S, get_filename_from_oid(SLH_DSA_SHAKE_192S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_192S,
+                    get_filename_from_oid(SLH_DSA_SHAKE_192S)
+                )
             }
             SigAlgorithms::SlhDsaShake192f => {
-                format!("{}_{}", SLH_DSA_SHAKE_192F, get_filename_from_oid(SLH_DSA_SHAKE_192F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_192F,
+                    get_filename_from_oid(SLH_DSA_SHAKE_192F)
+                )
             }
             SigAlgorithms::SlhDsaShake256s => {
-                format!("{}_{}", SLH_DSA_SHAKE_256S, get_filename_from_oid(SLH_DSA_SHAKE_256S))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_256S,
+                    get_filename_from_oid(SLH_DSA_SHAKE_256S)
+                )
             }
             SigAlgorithms::SlhDsaShake256f => {
-                format!("{}_{}", SLH_DSA_SHAKE_256F, get_filename_from_oid(SLH_DSA_SHAKE_256F))
+                format!(
+                    "{}_{}",
+                    SLH_DSA_SHAKE_256F,
+                    get_filename_from_oid(SLH_DSA_SHAKE_256F)
+                )
             }
         }
     }
@@ -444,7 +497,7 @@ pub struct KemriToyArgs {
         conflicts_with = "ukm"
     )]
     pub sig: SigAlgorithms,
-    
+
     /// File that contains a DER-encoded OneAsymmetricKey private key to use when generating a certificate
     #[clap(
         long,
@@ -460,7 +513,7 @@ pub struct KemriToyArgs {
         help_heading = "Certificate Generation"
     )]
     pub pub_key_file: Option<PathBuf>,
-    
+
     /// Generate a certificate from a public key (so all the other stuff can work)
     #[clap(
         action,
@@ -481,7 +534,7 @@ pub struct KemriToyArgs {
         help_heading = "Certificate Processing"
     )]
     pub verify_cert: bool,
-    
+
     /// Generate a certificate from a given public key or freshly generated public key
     #[clap(
         action,
