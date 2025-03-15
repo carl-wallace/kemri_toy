@@ -4,14 +4,13 @@ use const_oid::ObjectIdentifier;
 use signature::{Keypair, Signer};
 
 use der::{Decode, Document, Encode, asn1::BitString};
+use ml_dsa::{KeyPair, MlDsa44, MlDsa65, MlDsa87, Signature, VerifyingKey};
+use pqckeys::pqc_oids::{ML_DSA_44, ML_DSA_65, ML_DSA_87};
 use spki::{
     AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
     EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,
 };
 use zerocopy::AsBytes;
-use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87, Signature, SigningKey, VerifyingKey, B32, KeyPair};
-use pqckeys::oak::PublicKey;
-use pqckeys::pqc_oids::{ML_DSA_44, ML_DSA_65, ML_DSA_87};
 
 pub enum PqcSigner {
     MlDsa44(Box<KeyPair<MlDsa44>>),
@@ -29,31 +28,26 @@ pub enum PqcVerifyingKey {
 impl PqcVerifyingKey {
     pub(crate) fn oid(&self) -> ObjectIdentifier {
         match self {
-            PqcVerifyingKey::MlDsa44(_) => {ML_DSA_44}
-            PqcVerifyingKey::MlDsa65(_) => {ML_DSA_65}
-            PqcVerifyingKey::MlDsa87(_) => {ML_DSA_87}
+            PqcVerifyingKey::MlDsa44(_) => ML_DSA_44,
+            PqcVerifyingKey::MlDsa65(_) => ML_DSA_65,
+            PqcVerifyingKey::MlDsa87(_) => ML_DSA_87,
         }
     }
     pub(crate) fn public_key(&self) -> Vec<u8> {
         match self {
-            PqcVerifyingKey::MlDsa44(vk) => {
-                vk.encode().as_bytes().to_vec()
-            }
-            PqcVerifyingKey::MlDsa65(vk) => {
-                vk.encode().as_bytes().to_vec()
-            }
-            PqcVerifyingKey::MlDsa87(vk) => {
-                vk.encode().as_bytes().to_vec()
-            }
+            PqcVerifyingKey::MlDsa44(vk) => vk.encode().as_bytes().to_vec(),
+            PqcVerifyingKey::MlDsa65(vk) => vk.encode().as_bytes().to_vec(),
+            PqcVerifyingKey::MlDsa87(vk) => vk.encode().as_bytes().to_vec(),
         }
-    }}
+    }
+}
 
 impl PqcSigner {
     pub(crate) fn oid(&self) -> ObjectIdentifier {
         match self {
-            PqcSigner::MlDsa44(_) => {ML_DSA_44}
-            PqcSigner::MlDsa65(_) => {ML_DSA_65}
-            PqcSigner::MlDsa87(_) => {ML_DSA_87}
+            PqcSigner::MlDsa44(_) => ML_DSA_44,
+            PqcSigner::MlDsa65(_) => ML_DSA_65,
+            PqcSigner::MlDsa87(_) => ML_DSA_87,
         }
     }
     pub(crate) fn public_key(&self) -> Vec<u8> {
@@ -150,28 +144,14 @@ pub enum PqcSignature {
     MlDsa87(Box<Signature<MlDsa87>>),
 }
 impl PqcSignature {
-    fn oid(&self) -> ObjectIdentifier {
-        match self {
-            PqcSignature::MlDsa44(_) => {ML_DSA_44}
-            PqcSignature::MlDsa65(_) => {ML_DSA_65}
-            PqcSignature::MlDsa87(_) => {ML_DSA_87}
-        }
-    }
     fn signature(&self) -> Vec<u8> {
         match self {
-            PqcSignature::MlDsa44(sig) => {
-                sig.encode().as_bytes().to_vec()
-            }
-            PqcSignature::MlDsa65(sig) => {
-                sig.encode().as_bytes().to_vec()
-            }
-            PqcSignature::MlDsa87(sig) => {
-                sig.encode().as_bytes().to_vec()
-            }
+            PqcSignature::MlDsa44(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::MlDsa65(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::MlDsa87(sig) => sig.encode().as_bytes().to_vec(),
         }
     }
 }
-
 
 impl SignatureBitStringEncoding for PqcSignature {
     fn to_bitstring(&self) -> Result<BitString, der::Error> {
@@ -181,8 +161,12 @@ impl SignatureBitStringEncoding for PqcSignature {
 
 impl Signer<PqcSignature> for PqcSigner {
     fn try_sign(&self, tbs: &[u8]) -> Result<PqcSignature, signature::Error> {
-        //todo fix unwrap
-        Ok(self.sign(tbs).unwrap())
+        match self.sign(tbs) {
+            Ok(s) => Ok(s),
+            Err(e) => {
+                panic!("Failed to generate signature: {e:?}");
+            }
+        }
     }
 }
 

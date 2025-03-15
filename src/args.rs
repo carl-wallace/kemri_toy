@@ -1,11 +1,14 @@
 //! Arguments for the `kemri_toy` utility
 
 use core::fmt;
+use ml_dsa::KeyGen;
 use std::path::PathBuf;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
+use crate::misc::gen_certs::rand;
+use crate::misc::signer::PqcSigner;
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
@@ -18,6 +21,7 @@ use const_oid::{
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
 };
+use ml_dsa::{MlDsa44, MlDsa65, MlDsa87};
 use pqckeys::pqc_oids::{
     ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
     SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
@@ -122,6 +126,38 @@ impl fmt::Display for SigAlgorithms {
 }
 
 impl SigAlgorithms {
+    pub fn generate_key_pair(&self) -> Result<PqcSigner> {
+        let mut rng = rand::rng();
+        let xi: ml_dsa::B32 = rand(&mut rng);
+
+        match self {
+            SigAlgorithms::MlDsa44 => {
+                Ok(PqcSigner::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))))
+            }
+            SigAlgorithms::MlDsa65 => {
+                Ok(PqcSigner::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))))
+            }
+            SigAlgorithms::MlDsa87 => {
+                Ok(PqcSigner::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))))
+            }
+            // SigAlgorithms::SlhDsaSha2_128s => {}
+            // SigAlgorithms::SlhDsaSha2_128f => {}
+            // SigAlgorithms::SlhDsaSha2_192s => {}
+            // SigAlgorithms::SlhDsaSha2_192f => {}
+            // SigAlgorithms::SlhDsaSha2_256s => {}
+            // SigAlgorithms::SlhDsaSha2_256f => {}
+            // SigAlgorithms::SlhDsaShake128s => {}
+            // SigAlgorithms::SlhDsaShake128f => {}
+            // SigAlgorithms::SlhDsaShake192s => {}
+            // SigAlgorithms::SlhDsaShake192f => {}
+            // SigAlgorithms::SlhDsaShake256s => {}
+            // SigAlgorithms::SlhDsaShake256f => {}
+            _ => {
+                todo!("SLH algorithms not yet implemented");
+            }
+        }
+    }
+
     /// Get KemAlgorithms instance from an object identifier.
     pub fn from_oid(oid: ObjectIdentifier) -> Result<SigAlgorithms> {
         match oid {
@@ -519,40 +555,43 @@ pub struct KemriToyArgs {
         action,
         long,
         short,
-        requires = "pub_key_file",
-        requires = "sig",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
         help_heading = "Certificate Processing"
     )]
     pub generate_cert: bool,
 
-    /// Verify a self-signed certificate
+    /// Generate a SignedData using the given private key
     #[clap(
         action,
         long,
         short,
-        requires = "input_file",
-        help_heading = "Certificate Processing"
-    )]
-    pub verify_cert: bool,
-
-    /// Generate a certificate from a given public key or freshly generated public key
-    #[clap(
-        action,
-        long,
-        short,
-        requires = "pub_key_file",
-        requires = "sig",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
         help_heading = "Signed Data Processing"
     )]
     pub generate_signed_data: bool,
 
-    /// Generate a certificate from a given public key or freshly generated public key
+    /// Generate a certificate from --pub-key-file, if present, or a freshly generated public key
     #[clap(
         action,
         long,
         short,
         requires = "input_file",
-        requires = "sig",
         help_heading = "Signed Data Processing"
     )]
     pub verify_signed_data: bool,

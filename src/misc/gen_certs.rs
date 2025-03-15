@@ -22,13 +22,18 @@ use rand::rngs::OsRng;
 // //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 // use pqcrypto_traits::sign::{PublicKey, SecretKey};
 
+use crate::args::SigAlgorithms;
 use crate::asn1::private_key::{
     MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded,
     MlKem768PrivateKey, MlKem1024Both, MlKem1024Expanded, MlKem1024PrivateKey, MlKemSeed,
 };
 use crate::misc::builder_profiles::KemCert;
+use crate::misc::signer::PqcSigner;
 use crate::{
-    Error, ML_DSA_44, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    Error,
+    ML_KEM_512,
+    ML_KEM_768,
+    ML_KEM_1024,
     args::{
         KemAlgorithms,
         KemAlgorithms::{
@@ -41,7 +46,6 @@ use der::{
     Encode,
     asn1::{BitString, UtcTime},
 };
-use ml_dsa::{KeyGen, MlDsa44, MlDsa65};
 use ml_kem::B32;
 use ml_kem::EncodedSizeUser;
 use ml_kem::array::Array;
@@ -56,8 +60,6 @@ use x509_cert::{
     serial_number::SerialNumber,
     time::{Time, Validity},
 };
-use crate::Error::Pqc;
-use crate::misc::signer::PqcSigner;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -95,12 +97,8 @@ fn get_random_serial() -> crate::Result<SerialNumber> {
 }
 
 /// Generate a new self-signed trust anchor certificate containing an ML_DSA_44_IPD key
-pub fn generate_ta() -> crate::Result<(PqcSigner, Certificate)> {
-    let mut rng = rand::rng();
-    let xi: ml_dsa::B32 = rand(&mut rng);
-    let kp = MlDsa44::key_gen_internal(&xi);
-
-    let signer = PqcSigner::MlDsa44(Box::new(kp));
+pub fn generate_ta(sig: &SigAlgorithms) -> crate::Result<(PqcSigner, Certificate)> {
+    let signer = sig.generate_key_pair()?;
     let ca_pk_bytes = signer.public_key();
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -112,7 +110,7 @@ pub fn generate_ta() -> crate::Result<(PqcSigner, Certificate)> {
         subject_public_key: BitString::from_bytes(&ca_pk_bytes)?,
     };
 
-    let dn_str = "cn=ML DSA 44 TA,o=Test,c=US".to_string();
+    let dn_str = format!("cn={} TA,o=Test,c=US", sig.filename());
     let dn = Name::from_str(&dn_str)?;
 
     // todo - make a profile a la old Leaf
@@ -140,7 +138,7 @@ pub fn generate_ta() -> crate::Result<(PqcSigner, Certificate)> {
 //     }};
 // }
 
-pub fn rand<L: ArraySize>(rng: &mut (impl CryptoRng + RngCore)) -> Array<u8, L> {
+pub fn rand<L: ArraySize>(rng: &mut impl CryptoRng) -> Array<u8, L> {
     let mut val = Array::default();
     rng.fill_bytes(&mut val);
     val
@@ -210,7 +208,7 @@ pub fn generate_ml_kem_cert(
 
 /// Generate new dilithium TA and end-entity KEM certificate based on KemriToyArgs with files output to the given output folder
 pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<Certificate> {
-    let (signer, ta_cert) = match generate_ta() {
+    let (signer, ta_cert) = match generate_ta(&SigAlgorithms::MlDsa44) {
         Ok((signer, ta_cert)) => (signer, ta_cert),
         Err(e) => {
             error!("Failed to generate TA cert: {e:?}");

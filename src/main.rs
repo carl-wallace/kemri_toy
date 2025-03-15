@@ -12,7 +12,7 @@ mod asn1;
 #[macro_use]
 mod misc;
 
-use crate::misc::gen_certs::{buffer_to_hex, generate_ml_kem_cert, generate_ta, rand};
+use crate::misc::gen_certs::{generate_ml_kem_cert, generate_ta};
 // use crate::misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey};
 use crate::{
     args::{KemAlgorithms, KemriToyArgs},
@@ -39,11 +39,9 @@ use spki::SubjectPublicKeyInfoOwned;
 use std::array::TryFromSliceError;
 use std::path::Path;
 use std::{fs::File, io::Write, path::PathBuf};
-use zerocopy::AsBytes;
 
-use ml_dsa::{KeyGen, MlDsa65, Signature, SigningKey, VerifyingKey, B32};
-use x509_cert::Certificate;
 use crate::args::SigAlgorithms;
+use x509_cert::Certificate;
 
 /// Result type for kemri_toy
 pub type Result<T> = core::result::Result<T, Error>;
@@ -179,36 +177,21 @@ pub const ID_KMAC128: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.
 /// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
 pub const ID_KMAC256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.22");
 
-#[test]
-fn test_ml_dsa_44()  {
-    let mut rng = rand::rng();
-    let xi: B32 = rand(&mut rng);
-    let kp = MlDsa65::key_gen_internal(&xi);
-    let sk = kp.signing_key();
-    let vk = kp.verifying_key();
-    let sk_bytes = sk.encode();
-    let x = sk_bytes.as_bytes();
-    let vk_bytes = vk.encode();
-    let xx = sk_bytes.as_bytes();
-    let xxx = vk_bytes.as_bytes();
-    println!("{}", buffer_to_hex(xxx));
-}
-
-pub fn generate_self_signed(sig: &SigAlgorithms, output_folder: &Path) -> crate::Result<Certificate> {
-    let (signer, ta_cert) = match generate_ta() {
+/// Generate a self-signed certificate for the given algorithm
+pub fn generate_self_signed(sig: &SigAlgorithms, output_folder: &Path) -> Result<Certificate> {
+    let (signer, ta_cert) = match generate_ta(sig) {
         Ok((signer, ta_cert)) => (signer, ta_cert),
         Err(e) => {
             error!("Failed to generate TA cert: {e:?}");
             return Err(e);
         }
     };
-    let mut ta_file = File::create(output_folder.join("ta.key"))?;
-    // todo
-    // let _ = ta_file.write_all(&signer.secret_key.as_bytes());
+    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.key")))?;
+    let _ = ta_file.write_all(&signer.private_key());
 
-    let mut ta_file = File::create(output_folder.join("ta.der"))?;
+    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.der")))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
-    todo!()
+    Ok(ta_cert)
 }
 
 /// kemri_toy implementation
@@ -266,67 +249,59 @@ fn main() -> Result<()> {
         None => PathBuf::from("."),
     };
 
-    if args.generate_signed_data || args.generate_cert {
-        if args.generate_cert {
-            let public_key_bytes = if args.pub_key_file.is_some() {
-                match get_buffer_from_file_arg(&args.pub_key_file) {
-                    Ok(public_key_bytes) => {
-                        if public_key_bytes[0] == 0x30 {
-                            public_key_bytes
-                        } else {
-                            let sk = SubjectPublicKeyInfoOwned::from_pem(&public_key_bytes)?;
-                            sk.to_der()?
-                        }
-                    }
-                    Err(e) => {
-                        error!("pub_key_file must be provided and exist: {e:?}");
-                        return Err(e);
-                    }
+    if args.generate_signed_data {
+        todo!()
+    }
+
+    if args.pub_key_file.is_some() {
+        let public_key_bytes = match get_buffer_from_file_arg(&args.pub_key_file) {
+            Ok(public_key_bytes) => {
+                if public_key_bytes[0] == 0x30 {
+                    public_key_bytes
+                } else {
+                    let sk = SubjectPublicKeyInfoOwned::from_pem(&public_key_bytes)?;
+                    sk.to_der()?
                 }
-            } else {
-                let mut rng = rand::rng();
-                let xi: B32 = rand(&mut rng);
-                let kp = MlDsa65::key_gen_internal(&xi);
-                let sk = kp.signing_key();
-                let vk = kp.verifying_key();
-
-
-                todo!("generate fresh signing key pair")
             }
-            ;
-            let spki = SubjectPublicKeyInfoOwned::from_der(&public_key_bytes)?;
-            let pk = match spki.subject_public_key.as_bytes() {
-                Some(pk) => pk,
-                None => {
-                    error!(
-                        "Failed to read public key from SubjectPublicKeyInfo read from pub_key_file"
-                    );
-                    return Err(Error::Unrecognized);
-                }
-            };
-            let kem = KemAlgorithms::from_oid(spki.algorithm.oid)?;
+            Err(e) => {
+                error!("pub_key_file must be provided and exist: {e:?}");
+                return Err(e);
+            }
+        };
 
-            let ta_key_file = output_folder.join("ta.key");
-            let ta_cert_file = output_folder.join("ta.der");
-            let (signer, ta_cert) = if Path::new(&ta_key_file).exists()
-                && Path::new(&ta_key_file).exists()
-            {
-                let ta_cert = get_cert_from_file_arg(&Some(ta_cert_file))?;
-                let public_key_bytes = match ta_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .as_bytes()
-                {
-                    Some(pk) => pk,
-                    None => {
-                        error!(
-                            "Failed to read public key from SubjectPublicKeyInfo read from ta.der"
-                        );
-                        return Err(Error::Unrecognized);
-                    }
-                };
-                let key_bytes = get_buffer_from_file_arg(&Some(ta_key_file))?;
+        let spki = SubjectPublicKeyInfoOwned::from_der(&public_key_bytes)?;
+        let pk = match spki.subject_public_key.as_bytes() {
+            Some(pk) => pk,
+            None => {
+                error!(
+                    "Failed to read public key from SubjectPublicKeyInfo read from pub_key_file"
+                );
+                return Err(Error::Unrecognized);
+            }
+        };
+        let kem = KemAlgorithms::from_oid(spki.algorithm.oid)?;
+
+        let ta_key_file = output_folder.join("ta.key");
+        let ta_cert_file = output_folder.join("ta.der");
+        let (signer, ta_cert) =
+            if Path::new(&ta_key_file).exists() && Path::new(&ta_cert_file).exists() {
+                // let ta_cert = get_cert_from_file_arg(&Some(ta_cert_file))?;
+                // let public_key_bytes = match ta_cert
+                //     .tbs_certificate()
+                //     .subject_public_key_info()
+                //     .subject_public_key
+                //     .as_bytes()
+                // {
+                //     Some(pk) => pk,
+                //     None => {
+                //         error!(
+                //             "Failed to read public key from SubjectPublicKeyInfo read from ta.der"
+                //         );
+                //         return Err(Error::Unrecognized);
+                //     }
+                // };
+                // let key_bytes = get_buffer_from_file_arg(&Some(ta_key_file))?;
+
                 // let public_key = mldsa44::PublicKey::from_bytes(public_key_bytes)?;
                 // let secret_key = mldsa44::SecretKey::from_bytes(&key_bytes)?;
                 // let signer = Mldsa44KeyPair {
@@ -334,9 +309,9 @@ fn main() -> Result<()> {
                 //     secret_key,
                 // };
                 // (signer, ta_cert)
-                todo!()
+                todo!("deserialize TA")
             } else {
-                let (signer, ta_cert) = match generate_ta() {
+                let (signer, ta_cert) = match generate_ta(&args.sig) {
                     Ok((signer, ta_cert)) => (signer, ta_cert),
                     Err(e) => {
                         error!("Failed to generate TA cert: {e:?}");
@@ -344,22 +319,36 @@ fn main() -> Result<()> {
                     }
                 };
                 let mut ta_file = File::create(output_folder.join("ta.key"))?;
-                
-                todo!();
-                //let _ = ta_file.write_all(&signer.secret_key.as_bytes());
+
+                let _ = ta_file.write_all(&signer.private_key());
 
                 let mut ta_file = File::create(output_folder.join("ta.der"))?;
                 let _ = ta_file.write_all(&ta_cert.to_der()?);
                 (signer, ta_cert)
             };
+        let cert = generate_ml_kem_cert(&signer, &ta_cert, pk, kem.clone())?;
+        let mut ta_file = File::create(output_folder.join(format!("{}_cert.der", kem)))?;
+        let _ = ta_file.write_all(&cert.to_der()?);
+        return Ok(());
+    }
 
-            let cert = generate_ml_kem_cert(&signer, &ta_cert, pk, kem.clone())?;
-            let mut ta_file = File::create(output_folder.join(format!("{}_cert.der", kem)))?;
-            let _ = ta_file.write_all(&cert.to_der()?);
-            return Ok(());
-        } else if args.generate_cert {
-            todo!()
-        }
+    if args.generate_cert {
+        let (signer, ta_cert) = match generate_ta(&args.sig) {
+            Ok((signer, ta_cert)) => (signer, ta_cert),
+            Err(e) => {
+                error!("Failed to generate TA cert: {e:?}");
+                return Err(e);
+            }
+        };
+        let mut ta_file =
+            File::create(output_folder.join(format!("{}-ta.key", args.sig.filename())))?;
+
+        let _ = ta_file.write_all(&signer.private_key());
+
+        let mut ta_file =
+            File::create(output_folder.join(format!("{}-ta.der", args.sig.filename())))?;
+        let _ = ta_file.write_all(&ta_cert.to_der()?);
+        return Ok(());
     }
 
     if args.ee_key_file.is_some() {

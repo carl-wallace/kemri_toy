@@ -33,15 +33,15 @@ impl Profile for KemCert {
 
         extensions.push(
             AuthorityKeyIdentifier::try_from(issuer_spk.clone())?
-                .to_extension(&tbs.subject(), &extensions)?,
+                .to_extension(tbs.subject(), &extensions)?,
         );
 
         let ski = SubjectKeyIdentifier::try_from(spk)?;
-        extensions.push(ski.to_extension(&tbs.subject(), &extensions)?);
+        extensions.push(ski.to_extension(tbs.subject(), &extensions)?);
 
         // ## keyUsage SHOULD
         let key_usage = KeyUsages::KeyEncipherment.into();
-        extensions.push(KeyUsage(key_usage).to_extension(&tbs.subject(), &extensions)?);
+        extensions.push(KeyUsage(key_usage).to_extension(tbs.subject(), &extensions)?);
 
         Ok(extensions)
     }
