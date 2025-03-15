@@ -12,10 +12,15 @@ use spki::{
 };
 use zerocopy::AsBytes;
 
-pub enum PqcSigner {
+pub enum PqcKeyPair {
     MlDsa44(Box<KeyPair<MlDsa44>>),
     MlDsa65(Box<KeyPair<MlDsa65>>),
     MlDsa87(Box<KeyPair<MlDsa87>>),
+}
+
+pub struct PqcSigner {
+    pub seed: Vec<u8>,
+    pub keypair: PqcKeyPair,
 }
 
 #[derive(Clone)]
@@ -43,67 +48,74 @@ impl PqcVerifyingKey {
 }
 
 impl PqcSigner {
+    pub(crate) fn new(seed: &[u8], keypair: PqcKeyPair) -> Self {
+        PqcSigner {
+            seed: seed.to_vec(),
+            keypair,
+        }
+    }
+
     pub(crate) fn oid(&self) -> ObjectIdentifier {
-        match self {
-            PqcSigner::MlDsa44(_) => ML_DSA_44,
-            PqcSigner::MlDsa65(_) => ML_DSA_65,
-            PqcSigner::MlDsa87(_) => ML_DSA_87,
+        match self.keypair {
+            PqcKeyPair::MlDsa44(_) => ML_DSA_44,
+            PqcKeyPair::MlDsa65(_) => ML_DSA_65,
+            PqcKeyPair::MlDsa87(_) => ML_DSA_87,
         }
     }
     pub(crate) fn public_key(&self) -> Vec<u8> {
-        match self {
-            PqcSigner::MlDsa44(kp) => {
+        match &self.keypair {
+            PqcKeyPair::MlDsa44(kp) => {
                 let vk = kp.verifying_key();
                 vk.encode().as_bytes().to_vec()
             }
-            PqcSigner::MlDsa65(kp) => {
+            PqcKeyPair::MlDsa65(kp) => {
                 let vk = kp.verifying_key();
                 vk.encode().as_bytes().to_vec()
             }
-            PqcSigner::MlDsa87(kp) => {
+            PqcKeyPair::MlDsa87(kp) => {
                 let vk = kp.verifying_key();
                 vk.encode().as_bytes().to_vec()
             }
         }
     }
     pub(crate) fn private_key(&self) -> Vec<u8> {
-        match self {
-            PqcSigner::MlDsa44(kp) => {
+        match &self.keypair {
+            PqcKeyPair::MlDsa44(kp) => {
                 let sk = kp.signing_key();
                 sk.encode().as_bytes().to_vec()
             }
-            PqcSigner::MlDsa65(kp) => {
+            PqcKeyPair::MlDsa65(kp) => {
                 let sk = kp.signing_key();
                 sk.encode().as_bytes().to_vec()
             }
-            PqcSigner::MlDsa87(kp) => {
+            PqcKeyPair::MlDsa87(kp) => {
                 let sk = kp.signing_key();
                 sk.encode().as_bytes().to_vec()
             }
         }
     }
     pub(crate) fn verifying_key(&self) -> PqcVerifyingKey {
-        match self {
-            PqcSigner::MlDsa44(kp) => {
+        match &self.keypair {
+            PqcKeyPair::MlDsa44(kp) => {
                 PqcVerifyingKey::MlDsa44(Box::new(kp.verifying_key().clone()))
             }
-            PqcSigner::MlDsa65(kp) => {
+            PqcKeyPair::MlDsa65(kp) => {
                 PqcVerifyingKey::MlDsa65(Box::new(kp.verifying_key().clone()))
             }
-            PqcSigner::MlDsa87(kp) => {
+            PqcKeyPair::MlDsa87(kp) => {
                 PqcVerifyingKey::MlDsa87(Box::new(kp.verifying_key().clone()))
             }
         }
     }
     pub(crate) fn sign(&self, msg: &[u8]) -> crate::Result<PqcSignature> {
-        match self {
-            PqcSigner::MlDsa44(kp) => {
+        match &self.keypair {
+            PqcKeyPair::MlDsa44(kp) => {
                 Ok(PqcSignature::MlDsa44(Box::new(kp.signing_key().sign(msg))))
             }
-            PqcSigner::MlDsa65(kp) => {
+            PqcKeyPair::MlDsa65(kp) => {
                 Ok(PqcSignature::MlDsa65(Box::new(kp.signing_key().sign(msg))))
             }
-            PqcSigner::MlDsa87(kp) => {
+            PqcKeyPair::MlDsa87(kp) => {
                 Ok(PqcSignature::MlDsa87(Box::new(kp.signing_key().sign(msg))))
             }
         }

@@ -8,7 +8,7 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 
 use crate::misc::gen_certs::rand;
-use crate::misc::signer::PqcSigner;
+use crate::misc::signer::{PqcKeyPair, PqcSigner};
 use crate::misc::utils::get_filename_from_oid;
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
@@ -131,15 +131,18 @@ impl SigAlgorithms {
         let xi: ml_dsa::B32 = rand(&mut rng);
 
         match self {
-            SigAlgorithms::MlDsa44 => {
-                Ok(PqcSigner::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))))
-            }
-            SigAlgorithms::MlDsa65 => {
-                Ok(PqcSigner::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))))
-            }
-            SigAlgorithms::MlDsa87 => {
-                Ok(PqcSigner::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))))
-            }
+            SigAlgorithms::MlDsa44 => Ok(PqcSigner::new(
+                xi.clone().as_slice(),
+                PqcKeyPair::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))),
+            )),
+            SigAlgorithms::MlDsa65 => Ok(PqcSigner::new(
+                xi.clone().as_slice(),
+                PqcKeyPair::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))),
+            )),
+            SigAlgorithms::MlDsa87 => Ok(PqcSigner::new(
+                xi.clone().as_slice(),
+                PqcKeyPair::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))),
+            )),
             // SigAlgorithms::SlhDsaSha2_128s => {}
             // SigAlgorithms::SlhDsaSha2_128f => {}
             // SigAlgorithms::SlhDsaSha2_192s => {}

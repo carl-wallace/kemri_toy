@@ -64,3 +64,58 @@ pub enum MlKem1024PrivateKey {
     ExpandedKey(MlKem1024Expanded),
     Both(MlKem1024Both),
 }
+
+pub type MlDsaSeed = OctetString; //[u8; 64];
+
+pub type MlDsa44Expanded = OctetString; //[u8; 1632];
+pub type MlDsa65Expanded = OctetString; //[u8; 2400];
+pub type MlDsa87Expanded = OctetString; //[u8; 3168];
+
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+#[allow(missing_docs)]
+pub struct MlDsa44Both {
+    pub seed: MlDsaSeed,
+    pub expanded_key: MlDsa87Expanded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Choice)]
+#[allow(missing_docs)]
+#[allow(clippy::large_enum_variant)]
+pub enum MlDsa44PrivateKey {
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
+    Seed(MlDsaSeed),
+    ExpandedKey(MlDsa44Expanded),
+    Both(MlDsa44Both),
+}
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+#[allow(missing_docs)]
+pub struct MlDsa65Both {
+    pub seed: MlDsaSeed,
+    pub expanded_key: MlDsa65Expanded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Choice)]
+#[allow(missing_docs)]
+#[allow(clippy::large_enum_variant)]
+pub enum MlDsa65PrivateKey {
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
+    Seed(MlDsaSeed),
+    ExpandedKey(MlDsa65Expanded),
+    Both(MlDsa65Both),
+}
+#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
+#[allow(missing_docs)]
+pub struct MlDsa87Both {
+    pub seed: MlDsaSeed,
+    pub expanded_key: MlDsa87Expanded,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Choice)]
+#[allow(missing_docs)]
+#[allow(clippy::large_enum_variant)]
+pub enum MlDsa87PrivateKey {
+    #[asn1(context_specific = "0", tag_mode = "IMPLICIT")]
+    Seed(MlDsaSeed),
+    ExpandedKey(MlDsa87Expanded),
+    Both(MlDsa87Both),
+}
