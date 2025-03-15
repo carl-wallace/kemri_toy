@@ -7,6 +7,11 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
+use slh_dsa::{
+    Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
+    Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
+};
+
 use crate::misc::gen_certs::rand;
 use crate::misc::signer::{PqcKeyPair, PqcSigner};
 use crate::misc::utils::get_filename_from_oid;
@@ -128,36 +133,77 @@ impl fmt::Display for SigAlgorithms {
 impl SigAlgorithms {
     pub fn generate_key_pair(&self) -> Result<PqcSigner> {
         let mut rng = rand::rng();
-        let xi: ml_dsa::B32 = rand(&mut rng);
 
         match self {
-            SigAlgorithms::MlDsa44 => Ok(PqcSigner::new(
-                xi.clone().as_slice(),
-                PqcKeyPair::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))),
-            )),
-            SigAlgorithms::MlDsa65 => Ok(PqcSigner::new(
-                xi.clone().as_slice(),
-                PqcKeyPair::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))),
-            )),
-            SigAlgorithms::MlDsa87 => Ok(PqcSigner::new(
-                xi.clone().as_slice(),
-                PqcKeyPair::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))),
-            )),
-            // SigAlgorithms::SlhDsaSha2_128s => {}
-            // SigAlgorithms::SlhDsaSha2_128f => {}
-            // SigAlgorithms::SlhDsaSha2_192s => {}
-            // SigAlgorithms::SlhDsaSha2_192f => {}
-            // SigAlgorithms::SlhDsaSha2_256s => {}
-            // SigAlgorithms::SlhDsaSha2_256f => {}
-            // SigAlgorithms::SlhDsaShake128s => {}
-            // SigAlgorithms::SlhDsaShake128f => {}
-            // SigAlgorithms::SlhDsaShake192s => {}
-            // SigAlgorithms::SlhDsaShake192f => {}
-            // SigAlgorithms::SlhDsaShake256s => {}
-            // SigAlgorithms::SlhDsaShake256f => {}
-            _ => {
-                todo!("SLH algorithms not yet implemented");
+            SigAlgorithms::MlDsa44 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))),
+                ))
             }
+            SigAlgorithms::MlDsa65 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))),
+                ))
+            }
+            SigAlgorithms::MlDsa87 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))),
+                ))
+            }
+            SigAlgorithms::SlhDsaSha2_128s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_128s(Box::new(SigningKey::<Sha2_128s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_128f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_128f(Box::new(SigningKey::<Sha2_128f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_192s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_192f(Box::new(SigningKey::<Sha2_192f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_192f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_192s(Box::new(SigningKey::<Sha2_192s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_256s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_256f(Box::new(SigningKey::<Sha2_256f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_256f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_256s(Box::new(SigningKey::<Sha2_256s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake128s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake128f(Box::new(SigningKey::<Shake128f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake128f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake128s(Box::new(SigningKey::<Shake128s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake192s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake192f(Box::new(SigningKey::<Shake192f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake192f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake192s(Box::new(SigningKey::<Shake192s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake256s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake256f(Box::new(SigningKey::<Shake256f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake256f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
+            )),
         }
     }
 

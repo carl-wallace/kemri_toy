@@ -637,7 +637,6 @@ dependencies = [
  "der",
  "generic-array",
  "hkdf",
- "hybrid-array",
  "log",
  "log4rs",
  "ml-dsa",
@@ -649,6 +648,7 @@ dependencies = [
  "serde",
  "sha2",
  "signature",
+ "slh-dsa",
  "spki",
  "subtle-encoding",
  "tari-tiny-keccak",
@@ -1103,6 +1103,24 @@ source = "git+https://github.com/RustCrypto/traits.git#204a4e030fa98863429ccd379
 dependencies = [
  "digest",
  "rand_core 0.9.3",
+]
+
+[[package]]
+name = "slh-dsa"
+version = "0.2.0-pre"
+source = "git+https://github.com/RustCrypto/signatures#8324be36081a8fdf85d3b50bd769ab59f71b0289"
+dependencies = [
+ "const-oid",
+ "digest",
+ "hmac",
+ "hybrid-array",
+ "pkcs8",
+ "rand_core 0.9.3",
+ "sha2",
+ "sha3",
+ "signature",
+ "typenum",
+ "zerocopy 0.7.35",
 ]
 
 [[package]]
