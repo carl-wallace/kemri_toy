@@ -190,10 +190,10 @@ pub fn generate_self_signed(sig: &SigAlgorithms, output_folder: &Path) -> Result
             return Err(e);
         }
     };
-    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.key")))?;
+    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.der")))?;
     let _ = ta_file.write_all(&signer.private_key());
 
-    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.der")))?;
+    let mut ta_file = File::create(output_folder.join(format!("{sig}_ta.der")))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
     Ok(ta_cert)
 }
@@ -285,7 +285,7 @@ fn main() -> Result<()> {
         };
         let kem = KemAlgorithms::from_oid(spki.algorithm.oid)?;
 
-        let ta_key_file = output_folder.join("ta.key");
+        let ta_key_file = output_folder.join("ta.der");
         let ta_cert_file = output_folder.join("ta.der");
         let (signer, ta_cert) =
             if Path::new(&ta_key_file).exists() && Path::new(&ta_cert_file).exists() {
@@ -322,7 +322,7 @@ fn main() -> Result<()> {
                         return Err(e);
                     }
                 };
-                let mut ta_file = File::create(output_folder.join("ta.key"))?;
+                let mut ta_file = File::create(output_folder.join("ta.der"))?;
 
                 let _ = ta_file.write_all(&signer.private_key());
 
@@ -387,14 +387,15 @@ fn main() -> Result<()> {
             .expect("Failed to encode private key as OneAsymmetricKey");
 
         let mut ta_file =
-            File::create(output_folder.join(format!("{}-ta.key", args.sig.filename())))?;
-        let _ = ta_file.write_all(&der_oak);
-
-        let mut ta_file =
-            File::create(output_folder.join(format!("{}-ta.der", args.sig.filename())))?;
+            File::create(output_folder.join(format!("{}_ta.der", args.sig.filename())))?;
         let _ = ta_file.write_all(&ta_cert.to_der()?);
 
         if !signer.seed.is_empty() {
+            let mut ta_file = File::create(
+                output_folder.join(format!("{}_expandedkey_priv.der", args.sig.filename())),
+            )?;
+            let _ = ta_file.write_all(&der_oak);
+
             let private_key_bytes_seed = match args.sig {
                 SigAlgorithms::MlDsa44 => {
                     let pk = MlDsa44PrivateKey::Seed(
@@ -484,6 +485,10 @@ fn main() -> Result<()> {
             let mut ee_key_file =
                 File::create(output_folder.join(format!("{}_both_priv.der", args.sig.filename())))?;
             let _ = ee_key_file.write_all(&der_oak_both);
+        } else {
+            let mut ta_file =
+                File::create(output_folder.join(format!("{}_priv.der", args.sig.filename())))?;
+            let _ = ta_file.write_all(&der_oak);
         }
 
         return Ok(());

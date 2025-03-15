@@ -49,6 +49,7 @@ use der::{
 use ml_kem::B32;
 use ml_kem::EncodedSizeUser;
 use ml_kem::array::Array;
+use ml_kem::kem::{Decapsulate, Encapsulate};
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 use rand_core::TryRngCore;
 use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
@@ -215,15 +216,15 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             return Err(e);
         }
     };
-    let mut ta_file = File::create(output_folder.join("ta.key"))?;
+    let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&signer.private_key());
 
     let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
-    let (private_key_bytes, new_cert, seed) = match kem {
+    let (private_key_bytes, new_cert, seed, ct, ss) = match kem {
         OtherMlKem512 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
+            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem512::generate_deterministic,
@@ -237,10 +238,20 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                     return Err(e);
                 }
             };
-            (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert), seed)
+            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
+            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            assert_eq!(ss, ss2);
+
+            (
+                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_cert),
+                seed,
+                ct.as_slice().to_vec(),
+                ss.as_slice().to_vec(),
+            )
         }
         OtherMlKem768 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
+            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem768::generate_deterministic,
@@ -254,10 +265,20 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                     return Err(e);
                 }
             };
-            (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert), seed)
+            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
+            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            assert_eq!(ss, ss2);
+
+            (
+                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_cert),
+                seed,
+                ct.as_slice().to_vec(),
+                ss.as_slice().to_vec(),
+            )
         }
         OtherMlKem1024 => {
-            let (_ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
+            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
                 signer,
                 ta_cert,
                 MlKem1024::generate_deterministic,
@@ -271,7 +292,17 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                     return Err(e);
                 }
             };
-            (Some(ee_secret_key.as_bytes().to_vec()), Some(ee_cert), seed)
+            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
+            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            assert_eq!(ss, ss2);
+
+            (
+                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_cert),
+                seed,
+                ct.as_slice().to_vec(),
+                ss.as_slice().to_vec(),
+            )
         }
     };
 
@@ -290,8 +321,12 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         }
     };
 
-    let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", kem.filename())))?;
-    let _ = ee_file.write_all(&cert.to_der()?);
+    let mut ct_file =
+        File::create(output_folder.join(format!("{}_ciphertext.bin", kem.filename())))?;
+    let _ = ct_file.write_all(&ct);
+
+    let mut ss_file = File::create(output_folder.join(format!("{}_ss.bin", kem.filename())))?;
+    let _ = ss_file.write_all(&ss);
 
     let private_key_bytes = match kem {
         KemAlgorithms::MlKem512 => {
@@ -317,6 +352,9 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         }
     };
 
+    let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", kem.filename())))?;
+    let _ = ee_file.write_all(&cert.to_der()?);
+
     let oak_leaf = OneAsymmetricKey {
         version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
@@ -331,7 +369,8 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         .to_der()
         .expect("Failed to encode private key as OneAsymmetricKey");
 
-    let mut ee_key_file = File::create(output_folder.join(format!("{}_priv.der", kem.filename())))?;
+    let mut ee_key_file =
+        File::create(output_folder.join(format!("{}_expandedkey_priv.der", kem.filename())))?;
     let _ = ee_key_file.write_all(&der_oak);
 
     let private_key_bytes_seed = match kem {

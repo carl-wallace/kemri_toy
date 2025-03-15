@@ -76,13 +76,13 @@ impl KemAlgorithms {
     pub fn filename(&self) -> String {
         match self {
             KemAlgorithms::MlKem512 => {
-                format!("{}_{}", ML_KEM_512, get_filename_from_oid(ML_KEM_512))
+                format!("{}-{}", ML_KEM_512, get_filename_from_oid(ML_KEM_512))
             }
             KemAlgorithms::MlKem768 => {
-                format!("{}_{}", ML_KEM_768, get_filename_from_oid(ML_KEM_768))
+                format!("{}-{}", ML_KEM_768, get_filename_from_oid(ML_KEM_768))
             }
             KemAlgorithms::MlKem1024 => {
-                format!("{}_{}", ML_KEM_1024, get_filename_from_oid(ML_KEM_1024))
+                format!("{}-{}", ML_KEM_1024, get_filename_from_oid(ML_KEM_1024))
             }
         }
     }
@@ -254,96 +254,96 @@ impl SigAlgorithms {
     pub fn filename(&self) -> String {
         match self {
             SigAlgorithms::MlDsa44 => {
-                format!("{}_{}", ML_DSA_44, get_filename_from_oid(ML_DSA_44))
+                format!("{}-{}", get_filename_from_oid(ML_DSA_44), ML_DSA_44)
             }
             SigAlgorithms::MlDsa65 => {
-                format!("{}_{}", ML_DSA_65, get_filename_from_oid(ML_DSA_65))
+                format!("{}-{}", get_filename_from_oid(ML_DSA_65), ML_DSA_65)
             }
             SigAlgorithms::MlDsa87 => {
-                format!("{}_{}", ML_DSA_87, get_filename_from_oid(ML_DSA_87))
+                format!("{}-{}", get_filename_from_oid(ML_DSA_87), ML_DSA_87)
             }
             SigAlgorithms::SlhDsaSha2_128s => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHA2_128S,
-                    get_filename_from_oid(SLH_DSA_SHA2_128S)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_128S),
+                    SLH_DSA_SHA2_128S
                 )
             }
             SigAlgorithms::SlhDsaSha2_128f => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHA2_128F,
-                    get_filename_from_oid(SLH_DSA_SHA2_128F)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_128F),
+                    SLH_DSA_SHA2_128F
                 )
             }
             SigAlgorithms::SlhDsaSha2_192s => {
                 format!(
-                    "{}_{}",
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_192S),
                     SLH_DSA_SHA2_192S,
-                    get_filename_from_oid(SLH_DSA_SHA2_192S)
                 )
             }
             SigAlgorithms::SlhDsaSha2_192f => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHA2_192F,
-                    get_filename_from_oid(SLH_DSA_SHA2_192F)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_192F),
+                    SLH_DSA_SHA2_192F
                 )
             }
             SigAlgorithms::SlhDsaSha2_256s => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHA2_256S,
-                    get_filename_from_oid(SLH_DSA_SHA2_256S)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_256S),
+                    SLH_DSA_SHA2_256S
                 )
             }
             SigAlgorithms::SlhDsaSha2_256f => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHA2_256F,
-                    get_filename_from_oid(SLH_DSA_SHA2_256F)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_256F),
+                    SLH_DSA_SHA2_256F
                 )
             }
             SigAlgorithms::SlhDsaShake128s => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHAKE_128S,
-                    get_filename_from_oid(SLH_DSA_SHAKE_128S)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_128S),
+                    SLH_DSA_SHAKE_128S
                 )
             }
             SigAlgorithms::SlhDsaShake128f => {
                 format!(
-                    "{}_{}",
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_128F),
                     SLH_DSA_SHAKE_128F,
-                    get_filename_from_oid(SLH_DSA_SHAKE_128F)
                 )
             }
             SigAlgorithms::SlhDsaShake192s => {
                 format!(
-                    "{}_{}",
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_192S),
                     SLH_DSA_SHAKE_192S,
-                    get_filename_from_oid(SLH_DSA_SHAKE_192S)
                 )
             }
             SigAlgorithms::SlhDsaShake192f => {
                 format!(
-                    "{}_{}",
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_192F),
                     SLH_DSA_SHAKE_192F,
-                    get_filename_from_oid(SLH_DSA_SHAKE_192F)
                 )
             }
             SigAlgorithms::SlhDsaShake256s => {
                 format!(
-                    "{}_{}",
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_256S),
                     SLH_DSA_SHAKE_256S,
-                    get_filename_from_oid(SLH_DSA_SHAKE_256S)
                 )
             }
             SigAlgorithms::SlhDsaShake256f => {
                 format!(
-                    "{}_{}",
-                    SLH_DSA_SHAKE_256F,
-                    get_filename_from_oid(SLH_DSA_SHAKE_256F)
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_256F),
+                    SLH_DSA_SHAKE_256F
                 )
             }
         }

@@ -753,24 +753,24 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
 
 pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     match oid {
-        ML_KEM_512 => "ML-KEM-512".to_string(),
-        ML_KEM_768 => "ML-KEM-768".to_string(),
-        ML_KEM_1024 => "ML-KEM-1024".to_string(),
-        ML_DSA_44 => "ML-DSA-44".to_string(),
-        ML_DSA_65 => "ML-DSA-65".to_string(),
-        ML_DSA_87 => "ML-DSA-87".to_string(),
-        SLH_DSA_SHA2_128S => "SLH-DSA-SHA2-128S".to_string(),
-        SLH_DSA_SHA2_128F => "SLH-DSA-SHA2-128F".to_string(),
-        SLH_DSA_SHA2_192S => "SLH-DSA-SHA2-192S".to_string(),
-        SLH_DSA_SHA2_192F => "SLH-DSA-SHA2-192F".to_string(),
-        SLH_DSA_SHA2_256S => "SLH-DSA-SHA2-256S".to_string(),
-        SLH_DSA_SHA2_256F => "SLH-DSA-SHA2-256F".to_string(),
-        SLH_DSA_SHAKE_128S => "SLH-DSA-SHAKE-128S".to_string(),
-        SLH_DSA_SHAKE_128F => "SLH-DSA-SHAKE-128F".to_string(),
-        SLH_DSA_SHAKE_192S => "SLH-DSA-SHAKE-192S".to_string(),
-        SLH_DSA_SHAKE_192F => "SLH-DSA-SHAKE-192F".to_string(),
-        SLH_DSA_SHAKE_256S => "SLH-DSA-SHAKE-256S".to_string(),
-        SLH_DSA_SHAKE_256F => "SLH-DSA-SHAKE-256F".to_string(),
+        ML_KEM_512 => "ml-kem-512".to_string(),
+        ML_KEM_768 => "ml-kem-768".to_string(),
+        ML_KEM_1024 => "ml-kem-1024".to_string(),
+        ML_DSA_44 => "ml-dsa-44".to_string(),
+        ML_DSA_65 => "ml-dsa-65".to_string(),
+        ML_DSA_87 => "ml-dsa-87".to_string(),
+        SLH_DSA_SHA2_128S => "slh-dsa-sha2-128s".to_string(),
+        SLH_DSA_SHA2_128F => "slh-dsa-sha2-128f".to_string(),
+        SLH_DSA_SHA2_192S => "slh-dsa-sha2-192s".to_string(),
+        SLH_DSA_SHA2_192F => "slh-dsa-sha2-192f".to_string(),
+        SLH_DSA_SHA2_256S => "slh-dsa-sha2-256s".to_string(),
+        SLH_DSA_SHA2_256F => "slh-dsa-sha2-256f".to_string(),
+        SLH_DSA_SHAKE_128S => "slh-dsa-shake-128s".to_string(),
+        SLH_DSA_SHAKE_128F => "slh-dsa-shake-128f".to_string(),
+        SLH_DSA_SHAKE_192S => "slh-dsa-shake-192s".to_string(),
+        SLH_DSA_SHAKE_192F => "slh-dsa-shake-192f".to_string(),
+        SLH_DSA_SHAKE_256S => "slh-dsa-shake-256s".to_string(),
+        SLH_DSA_SHAKE_256F => "slh-dsa-shake-256f".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }
@@ -1035,7 +1035,7 @@ fn generate_test() {
 fn rsa_auth_env_data_tests() {
     // openssl cms -encrypt -in data.txt -recip cert.der -originator cert.der -out auth_enveloped_data_256.bin -aes-256-gcm -outform DER
     // openssl cms -encrypt -in data.txt -recip cert.der -originator cert.der -out auth_enveloped_data_128.bin -aes-128-gcm -outform DER
-    let rsa_priv = include_bytes!("../../tests/artifacts/openssl/rsa.key");
+    let rsa_priv = include_bytes!("../../tests/artifacts/openssl/rsa.der");
     let _rsa_cert = include_bytes!("../../tests/artifacts/openssl/rsa.der");
     let expected_plaintext = include_bytes!("../../tests/artifacts/openssl/data.txt");
 
