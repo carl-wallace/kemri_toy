@@ -164,43 +164,43 @@ impl SigAlgorithms {
                 &[],
                 PqcKeyPair::Sha2_128f(Box::new(SigningKey::<Sha2_128f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaSha2_192s => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaSha2_192f => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Sha2_192f(Box::new(SigningKey::<Sha2_192f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaSha2_192f => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaSha2_192s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Sha2_192s(Box::new(SigningKey::<Sha2_192s>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaSha2_256s => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaSha2_256f => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Sha2_256f(Box::new(SigningKey::<Sha2_256f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaSha2_256f => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaSha2_256s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Sha2_256s(Box::new(SigningKey::<Sha2_256s>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake128s => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake128f => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake128f(Box::new(SigningKey::<Shake128f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake128f => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake128s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake128s(Box::new(SigningKey::<Shake128s>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake192s => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake192f => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake192f(Box::new(SigningKey::<Shake192f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake192f => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake192s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake192s(Box::new(SigningKey::<Shake192s>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake256s => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake256f => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake256f(Box::new(SigningKey::<Shake256f>::new(&mut rng))),
             )),
-            SigAlgorithms::SlhDsaShake256f => Ok(PqcSigner::new(
+            SigAlgorithms::SlhDsaShake256s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
             )),
@@ -621,7 +621,6 @@ pub struct KemriToyArgs {
     #[clap(
         action,
         long,
-        short,
         conflicts_with = "ee_cert_file",
         conflicts_with = "kem",
         conflicts_with = "kdf",
@@ -644,4 +643,14 @@ pub struct KemriToyArgs {
         help_heading = "Signed Data Processing"
     )]
     pub verify_signed_data: bool,
+
+    /// Generate a certificate from --pub-key-file, if present, or a freshly generated public key
+    #[clap(
+        action,
+        long,
+        requires = "ee_cert_file",
+        requires = "input_file",
+        help_heading = "Common"
+    )]
+    pub check_private_key: bool,
 }
