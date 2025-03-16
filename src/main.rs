@@ -12,6 +12,7 @@ mod asn1;
 #[macro_use]
 mod misc;
 
+use crate::misc::check_private_key::check_private_key;
 use crate::misc::gen_certs::{generate_ml_kem_cert, generate_ta};
 // use crate::misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey};
 use crate::{
@@ -62,6 +63,8 @@ pub enum Error {
     Io,
     SliceError,
     MlKem(String),
+    MlDsa(String),
+    SlhDsa(String),
 }
 
 impl From<TryFromSliceError> for Error {
@@ -494,6 +497,28 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    if args.check_private_key {
+        let input_file = match get_buffer_from_file_arg(&args.input_file) {
+            Ok(input_file) => input_file,
+            Err(e) => {
+                error!("input-file must be provided and exist: {e:?}");
+                return Err(e);
+            }
+        };
+        let cert = match get_cert_from_file_arg(&args.ee_cert_file) {
+            Ok(cert) => cert,
+            Err(e) => {
+                error!("ee-cert-file must be provided and exist: {e:?}");
+                return Err(e);
+            }
+        };
+        check_private_key(
+            &input_file,
+            cert.tbs_certificate().subject_public_key_info(),
+        )?;
+        return Ok(());
+    }
+
     if args.ee_key_file.is_some() {
         let private_key_bytes = match get_buffer_from_file_arg(&args.ee_key_file) {
             Ok(private_key_bytes) => private_key_bytes,
@@ -518,7 +543,7 @@ fn main() -> Result<()> {
             }
         };
 
-        let input_filename = match args.input_file {
+        let input_filename = match &args.input_file {
             Some(input_file) => input_file
                 .file_name()
                 .unwrap_or_default()
@@ -632,5 +657,6 @@ fn main() -> Result<()> {
             println!("EnvelopedData written to: {output_file_name}");
         }
     }
+
     Ok(())
 }
