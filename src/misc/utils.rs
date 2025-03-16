@@ -2,6 +2,7 @@
 
 use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use log::{debug, error};
+use ml_kem::EncodedSizeUser;
 use ml_kem::{B32, KemCore, MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params};
 use std::{
     fs::File,
@@ -20,7 +21,10 @@ use sha2::{Digest, Sha256, Sha384, Sha512};
 //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
 //use pqcrypto_traits::kem::PublicKey;
 
-use crate::asn1::private_key::{MlKem512PrivateKey, MlKem768PrivateKey, MlKem1024PrivateKey};
+use crate::asn1::private_key::{
+    MlDsa44PrivateKey, MlDsa65PrivateKey, MlDsa87PrivateKey, MlKem512PrivateKey,
+    MlKem768PrivateKey, MlKem1024PrivateKey,
+};
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
@@ -50,8 +54,9 @@ use const_oid::{
     },
 };
 use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
+use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
 use ml_kem::kem::Decapsulate;
-use ml_kem::{Encoded, EncodedSizeUser, MlKem512};
+use ml_kem::{Encoded, MlKem512};
 use pqckeys::oak::OneAsymmetricKey;
 use pqckeys::pqc_oids::{
     ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
@@ -64,6 +69,7 @@ use rsa::rand_core::TryRngCore;
 use tari_tiny_keccak::Hasher;
 use tari_tiny_keccak::Kmac;
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
+use zerocopy::AsBytes;
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -357,7 +363,10 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
     Ok(content_encryption_key)
 }
 
-fn extract_private_key(oid: ObjectIdentifier, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
+pub(crate) fn extract_private_key(
+    oid: ObjectIdentifier,
+    private_key_bytes: &[u8],
+) -> crate::Result<Vec<u8>> {
     match oid {
         ML_KEM_512 => {
             let key = MlKem512PrivateKey::from_der(private_key_bytes)?;
@@ -440,10 +449,91 @@ fn extract_private_key(oid: ObjectIdentifier, private_key_bytes: &[u8]) -> crate
                 }
             }
         }
-        _ => {
-            error!("Unrecognized KEM algorithm: {}", oid);
-            Err(Error::Unrecognized)
+        ML_DSA_44 => {
+            let key = MlDsa44PrivateKey::from_der(private_key_bytes)?;
+            match key {
+                MlDsa44PrivateKey::Seed(seed) => {
+                    let b32 = B32::try_from(seed.as_bytes()).unwrap();
+                    Ok(MlDsa44::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec())
+                }
+                MlDsa44PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlDsa44PrivateKey::Both(both) => {
+                    let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
+                    let ek = MlDsa65::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec();
+                    if ek.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                }
+            }
         }
+        ML_DSA_65 => {
+            let key = MlDsa65PrivateKey::from_der(private_key_bytes)?;
+            match key {
+                MlDsa65PrivateKey::Seed(seed) => {
+                    let b32 = B32::try_from(seed.as_bytes()).unwrap();
+                    Ok(MlDsa65::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec())
+                }
+                MlDsa65PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlDsa65PrivateKey::Both(both) => {
+                    let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
+                    let ek = MlDsa65::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec();
+                    if ek.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                }
+            }
+        }
+        ML_DSA_87 => {
+            let key = MlDsa87PrivateKey::from_der(private_key_bytes)?;
+            match key {
+                MlDsa87PrivateKey::Seed(seed) => {
+                    let b32 = B32::try_from(seed.as_bytes()).unwrap();
+                    Ok(MlDsa87::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec())
+                }
+                MlDsa87PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
+                MlDsa87PrivateKey::Both(both) => {
+                    let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
+                    let ek = MlDsa87::key_gen_internal(&b32)
+                        .verifying_key()
+                        .encode()
+                        .as_bytes()
+                        .to_vec();
+                    if ek.as_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
+                        return Err(Error::MlKem(
+                            "Inconsistent values in both option".to_string(),
+                        ));
+                    }
+                    Ok(both.expanded_key.as_bytes().to_vec())
+                }
+            }
+        }
+        _ => Ok(private_key_bytes.to_vec()),
     }
 }
 
