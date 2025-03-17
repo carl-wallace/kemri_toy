@@ -512,9 +512,11 @@ fn main() -> Result<()> {
                 return Err(e);
             }
         };
+        let input_file_name = args.input_file.unwrap_or_default().into_os_string().into_string().unwrap();
         check_private_key(
             &input_file,
             cert.tbs_certificate().subject_public_key_info(),
+            &input_file_name
         )?;
         return Ok(());
     }

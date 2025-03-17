@@ -76,13 +76,13 @@ impl KemAlgorithms {
     pub fn filename(&self) -> String {
         match self {
             KemAlgorithms::MlKem512 => {
-                format!("{}-{}", ML_KEM_512, get_filename_from_oid(ML_KEM_512))
+                format!("{}-{}", get_filename_from_oid(ML_KEM_512), ML_KEM_512)
             }
             KemAlgorithms::MlKem768 => {
-                format!("{}-{}", ML_KEM_768, get_filename_from_oid(ML_KEM_768))
+                format!("{}-{}", get_filename_from_oid(ML_KEM_768), ML_KEM_768)
             }
             KemAlgorithms::MlKem1024 => {
-                format!("{}-{}", ML_KEM_1024, get_filename_from_oid(ML_KEM_1024))
+                format!("{}-{}", get_filename_from_oid(ML_KEM_1024), ML_KEM_1024)
             }
         }
     }

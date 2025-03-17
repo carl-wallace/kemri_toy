@@ -455,7 +455,7 @@ pub(crate) fn extract_private_key(
                 MlDsa44PrivateKey::Seed(seed) => {
                     let b32 = B32::try_from(seed.as_bytes()).unwrap();
                     Ok(MlDsa44::key_gen_internal(&b32)
-                        .verifying_key()
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec())
@@ -463,8 +463,8 @@ pub(crate) fn extract_private_key(
                 MlDsa44PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlDsa44PrivateKey::Both(both) => {
                     let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
-                    let ek = MlDsa65::key_gen_internal(&b32)
-                        .verifying_key()
+                    let ek = MlDsa44::key_gen_internal(&b32)
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec();
@@ -483,7 +483,7 @@ pub(crate) fn extract_private_key(
                 MlDsa65PrivateKey::Seed(seed) => {
                     let b32 = B32::try_from(seed.as_bytes()).unwrap();
                     Ok(MlDsa65::key_gen_internal(&b32)
-                        .verifying_key()
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec())
@@ -492,7 +492,7 @@ pub(crate) fn extract_private_key(
                 MlDsa65PrivateKey::Both(both) => {
                     let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
                     let ek = MlDsa65::key_gen_internal(&b32)
-                        .verifying_key()
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec();
@@ -511,7 +511,7 @@ pub(crate) fn extract_private_key(
                 MlDsa87PrivateKey::Seed(seed) => {
                     let b32 = B32::try_from(seed.as_bytes()).unwrap();
                     Ok(MlDsa87::key_gen_internal(&b32)
-                        .verifying_key()
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec())
@@ -520,7 +520,7 @@ pub(crate) fn extract_private_key(
                 MlDsa87PrivateKey::Both(both) => {
                     let b32 = B32::try_from(both.seed.as_bytes()).unwrap();
                     let ek = MlDsa87::key_gen_internal(&b32)
-                        .verifying_key()
+                        .signing_key()
                         .encode()
                         .as_bytes()
                         .to_vec();

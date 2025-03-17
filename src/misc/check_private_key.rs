@@ -23,7 +23,7 @@ use pqckeys::pqc_oids::*;
 use crate::{Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result, misc::utils::extract_private_key};
 
 macro_rules! check_ml_kem_key {
-    ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr) => {{
+    ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key = extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
         let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from(private_key.as_bytes()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
@@ -33,17 +33,17 @@ macro_rules! check_ml_kem_key {
         let c = ml_kem::Ciphertext::<$ct_ty>::try_from(ct).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let k = dk.decapsulate(&c).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         if k == ss {
-            println!("Consistency check passed");
+            println!("Consistency check passed for {}", $filename);
             return Ok(true);
         } else {
-            println!("Consistency check failed");
+            println!("Consistency check failed for {}", $filename);
             return Ok(false);
         }
     }};
 }
 
 macro_rules! check_ml_dsa_key {
-    ($dsa:ty, $oak:expr, $spki:expr) => {{
+    ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
         let sk_bytes = ml_dsa::EncodedSigningKey::<$dsa>::try_from(private_key.as_slice()).map_err(|e| Error::MlDsa(format!("{e:?}")))?;
@@ -54,11 +54,11 @@ macro_rules! check_ml_dsa_key {
         let vk = ml_dsa::VerifyingKey::<$dsa>::decode(&vk_bytes);
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
-                println!("Consistency check passed");
+                println!("Consistency check passed for {}", $filename);
                 return Ok(true);
             }
             Err(e) => {
-                error!("Consistency check failed: {e:?}");
+                error!("Consistency check failed for {}: {e:?}", $filename);
                 return Ok(false);
             }
         }
@@ -66,7 +66,7 @@ macro_rules! check_ml_dsa_key {
 }
 
 macro_rules! check_slh_dsa_key {
-    ($dsa:ty, $oak:expr, $spki:expr) => {{
+    ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
         let sk = SigningKey::<$dsa>::try_from(private_key.as_slice()).map_err(|e| Error::SlhDsa(format!("{e:?}")))?;
@@ -74,11 +74,11 @@ macro_rules! check_slh_dsa_key {
         let sig = sk.sign("abc".as_bytes());
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
-                println!("Consistency check passed");
+                println!("Consistency check passed for {}", $filename);
                 return Ok(true);
             }
             Err(e) => {
-                error!("Consistency check failed: {e:?}");
+                error!("Consistency check failed for {}: {e:?}", $filename);
                 return Ok(false);
             }
         }
@@ -90,44 +90,45 @@ macro_rules! check_slh_dsa_key {
 pub(crate) fn check_private_key(
     oak_bytes: &[u8],
     spki: &SubjectPublicKeyInfoOwned,
+    filename: &str
 ) -> Result<bool> {
     let oak = OneAsymmetricKey::from_der(oak_bytes)?;
     if oak.private_key_alg.oid == ML_DSA_44 {
-        check_ml_dsa_key!(MlDsa44, oak, spki);
+        check_ml_dsa_key!(MlDsa44, oak, spki, filename);
     } else if oak.private_key_alg.oid == ML_DSA_65 {
-        check_ml_dsa_key!(MlDsa65, oak, spki);
+        check_ml_dsa_key!(MlDsa65, oak, spki, filename);
     } else if oak.private_key_alg.oid == ML_DSA_87 {
-        check_ml_dsa_key!(MlDsa87, oak, spki);
+        check_ml_dsa_key!(MlDsa87, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_128F {
-        check_slh_dsa_key!(Sha2_128f, oak, spki);
+        check_slh_dsa_key!(Sha2_128f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_128S {
-        check_slh_dsa_key!(Sha2_128s, oak, spki);
+        check_slh_dsa_key!(Sha2_128s, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_192F {
-        check_slh_dsa_key!(Sha2_192f, oak, spki);
+        check_slh_dsa_key!(Sha2_192f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_192S {
-        check_slh_dsa_key!(Sha2_192s, oak, spki);
+        check_slh_dsa_key!(Sha2_192s, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_256F {
-        check_slh_dsa_key!(Sha2_256f, oak, spki);
+        check_slh_dsa_key!(Sha2_256f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHA2_256S {
-        check_slh_dsa_key!(Sha2_256s, oak, spki);
+        check_slh_dsa_key!(Sha2_256s, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_128F {
-        check_slh_dsa_key!(Shake128f, oak, spki);
+        check_slh_dsa_key!(Shake128f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_128S {
-        check_slh_dsa_key!(Shake128s, oak, spki);
+        check_slh_dsa_key!(Shake128s, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_192F {
-        check_slh_dsa_key!(Shake192f, oak, spki);
+        check_slh_dsa_key!(Shake192f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_192S {
-        check_slh_dsa_key!(Shake192s, oak, spki);
+        check_slh_dsa_key!(Shake192s, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_256F {
-        check_slh_dsa_key!(Shake256f, oak, spki);
+        check_slh_dsa_key!(Shake256f, oak, spki, filename);
     } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_256S {
-        check_slh_dsa_key!(Shake256s, oak, spki);
+        check_slh_dsa_key!(Shake256s, oak, spki, filename);
     } else if oak.private_key_alg.oid == ML_KEM_512 {
-        check_ml_kem_key!(MlKem512Params, MlKem512, oak, spki);
+        check_ml_kem_key!(MlKem512Params, MlKem512, oak, spki, filename);
     } else if oak.private_key_alg.oid == ML_KEM_768 {
-        check_ml_kem_key!(MlKem768Params, MlKem768, oak, spki);
+        check_ml_kem_key!(MlKem768Params, MlKem768, oak, spki, filename);
     } else if oak.private_key_alg.oid == ML_KEM_1024 {
-        check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki);
+        check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
     } else {
         println!("Unrecognized alorithm");
         return Err(Error::Unrecognized);
