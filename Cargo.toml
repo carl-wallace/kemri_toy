@@ -28,7 +28,7 @@ cbc = { version = "=0.2.0-pre.2" }
 cipher = { version = "=0.5.0-pre.8", features = ["alloc", "block-padding", "rand_core"] }
 
 # this is in use until upstream sets the inout feature for the aead crate
-aes-gcm = { path="/Users/cwallace/devel/junk/baloo/AEADs/aes-gcm"}
+aes-gcm = { git="https://github.com/baloo/AEADs.git", branch = "baloo/inout"}
 
 aes-kw = { git = "https://github.com/baloo/key-wraps.git", branch = "baloo/edition-2024" }
 
