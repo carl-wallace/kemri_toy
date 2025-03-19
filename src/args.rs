@@ -1,24 +1,17 @@
 //! Arguments for the `kemri_toy` utility
 
 use core::fmt;
-use ml_dsa::KeyGen;
 use std::path::PathBuf;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
+use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
     Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
 };
 
-use crate::misc::gen_certs::rand;
-use crate::misc::signer::{PqcKeyPair, PqcSigner};
-use crate::misc::utils::get_filename_from_oid;
-use crate::{
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
-};
 use const_oid::{
     ObjectIdentifier,
     db::rfc5911::{
@@ -26,12 +19,21 @@ use const_oid::{
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
 };
-use ml_dsa::{MlDsa44, MlDsa65, MlDsa87};
 use pqckeys::pqc_oids::{
     ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
     SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
     SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
     SLH_DSA_SHAKE_256S,
+};
+
+use crate::{
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
+    misc::{
+        gen_certs::rand,
+        signer::{PqcKeyPair, PqcSigner},
+        utils::get_filename_from_oid,
+    },
 };
 
 /// KEM algorithms available via command line argument
@@ -582,6 +584,22 @@ pub struct KemriToyArgs {
         conflicts_with = "ukm"
     )]
     pub sig: SigAlgorithms,
+    /// Generate a SignedData using the private key from --ee-key-file
+    #[clap(
+        action,
+        long,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        help_heading = "Signing"
+    )]
+    pub generate_signed_data: bool,
 
     /// File that contains a DER-encoded OneAsymmetricKey private key to use when generating a certificate
     #[clap(
@@ -598,7 +616,6 @@ pub struct KemriToyArgs {
         help_heading = "Certificate Generation"
     )]
     pub pub_key_file: Option<PathBuf>,
-
     /// Generate a certificate from a public key (so all the other stuff can work)
     #[clap(
         action,
@@ -613,44 +630,27 @@ pub struct KemriToyArgs {
         conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
         conflicts_with = "ee_key_file",
-        help_heading = "Certificate Processing"
+        help_heading = "Certificate Generation"
     )]
     pub generate_cert: bool,
 
-    /// Generate a SignedData using the given private key
-    #[clap(
-        action,
-        long,
-        conflicts_with = "ee_cert_file",
-        conflicts_with = "kem",
-        conflicts_with = "kdf",
-        conflicts_with = "enc",
-        conflicts_with = "aead",
-        conflicts_with = "auth_env_data",
-        conflicts_with = "ee_cert_file",
-        conflicts_with = "ukm",
-        conflicts_with = "ee_key_file",
-        help_heading = "Signed Data Processing"
-    )]
-    pub generate_signed_data: bool,
-
-    /// Generate a certificate from --pub-key-file, if present, or a freshly generated public key
-    #[clap(
-        action,
-        long,
-        short,
-        requires = "input_file",
-        help_heading = "Signed Data Processing"
-    )]
-    pub verify_signed_data: bool,
-
-    /// Generate a certificate from --pub-key-file, if present, or a freshly generated public key
+    /// Perform consistency checks for a private key --input-file and public key from certificate from
+    /// --ee-cert-file
     #[clap(
         action,
         long,
         requires = "ee_cert_file",
         requires = "input_file",
-        help_heading = "Common"
+        help_heading = "Verification"
     )]
     pub check_private_key: bool,
+    /// Verify a SignedData from --input-file
+    #[clap(
+        action,
+        long,
+        short,
+        requires = "input_file",
+        help_heading = "Verification"
+    )]
+    pub verify_signed_data: bool,
 }
