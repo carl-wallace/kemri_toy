@@ -949,7 +949,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
 
 #[test]
 fn decrypt_kemri_toy_expanded() {
-    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "").is_ok());
+    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_expandedkey").is_ok());
 }
 #[test]
 fn decrypt_kemri_toy_seed() {
@@ -989,7 +989,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     key_map.insert(
         ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}_expandedkey_priv.der",
             key_folder,
             KemAlgorithms::MlKem512.filename()
         )))?,
@@ -997,7 +997,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     key_map.insert(
         ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}_expandedkey_priv.der",
             key_folder,
             KemAlgorithms::MlKem768.filename()
         )))?,
@@ -1005,7 +1005,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     key_map.insert(
         ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}_priv.der",
+            "{}/{}_expandedkey_priv.der",
             key_folder,
             KemAlgorithms::MlKem1024.filename()
         )))?,
@@ -1125,7 +1125,7 @@ fn generate_test() {
 fn rsa_auth_env_data_tests() {
     // openssl cms -encrypt -in data.txt -recip cert.der -originator cert.der -out auth_enveloped_data_256.bin -aes-256-gcm -outform DER
     // openssl cms -encrypt -in data.txt -recip cert.der -originator cert.der -out auth_enveloped_data_128.bin -aes-128-gcm -outform DER
-    let rsa_priv = include_bytes!("../../tests/artifacts/openssl/rsa.der");
+    let rsa_priv = include_bytes!("../../tests/artifacts/openssl/rsa.key");
     let _rsa_cert = include_bytes!("../../tests/artifacts/openssl/rsa.der");
     let expected_plaintext = include_bytes!("../../tests/artifacts/openssl/data.txt");
 
@@ -1145,10 +1145,10 @@ fn break_things() {
     let expected_plaintext =
         include_bytes!("../../tests/artifacts/kemri_toy/expected_plaintext.txt");
     let ml_kem_512_key = include_bytes!(
-        "../../tests/artifacts/kemri_toy/2.16.840.1.101.3.4.4.1_ML-KEM-512_priv.der"
+        "../../tests/artifacts/kemri_toy/ml-kem-512-2.16.840.1.101.3.4.4.1_expandedkey_priv.der"
     );
     let auth_data_bytes = include_bytes!(
-        "../../tests/artifacts/kemri_toy/2.16.840.1.101.3.4.4.1_ML-KEM-512_kemri_auth_id-alg-hkdf-with-sha256.der"
+        "../../tests/artifacts/kemri_toy/ml-kem-512-2.16.840.1.101.3.4.4.1_kemri_auth_id-alg-hkdf-with-sha256.der"
     );
 
     let pt = process_content_info(auth_data_bytes, ml_kem_512_key).unwrap();
