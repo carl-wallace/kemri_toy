@@ -46,11 +46,13 @@ macro_rules! check_ml_dsa_key {
     ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let sk_bytes = ml_dsa::EncodedSigningKey::<$dsa>::try_from(private_key.as_slice()).map_err(|e| Error::MlDsa(format!("{e:?}")))?;
+        let sk_bytes = ml_dsa::EncodedSigningKey::<$dsa>::try_from(private_key.as_slice())
+            .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
         let sk = ml_dsa::SigningKey::<$dsa>::decode(&sk_bytes);
         let sig = sk.sign("abc".as_bytes());
         let vk_bytes =
-            ml_dsa::EncodedVerifyingKey::<$dsa>::try_from($spki.subject_public_key.raw_bytes()).map_err(|e| Error::MlDsa(format!("{e:?}")))?;
+            ml_dsa::EncodedVerifyingKey::<$dsa>::try_from($spki.subject_public_key.raw_bytes())
+                .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
         let vk = ml_dsa::VerifyingKey::<$dsa>::decode(&vk_bytes);
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
@@ -69,8 +71,10 @@ macro_rules! check_slh_dsa_key {
     ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let sk = SigningKey::<$dsa>::try_from(private_key.as_slice()).map_err(|e| Error::SlhDsa(format!("{e:?}")))?;
-        let vk = VerifyingKey::<$dsa>::try_from($spki.subject_public_key.raw_bytes()).map_err(|e| Error::SlhDsa(format!("{e:?}")))?;
+        let sk = SigningKey::<$dsa>::try_from(private_key.as_slice())
+            .map_err(|e| Error::SlhDsa(format!("{e:?}")))?;
+        let vk = VerifyingKey::<$dsa>::try_from($spki.subject_public_key.raw_bytes())
+            .map_err(|e| Error::SlhDsa(format!("{e:?}")))?;
         let sig = sk.sign("abc".as_bytes());
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
@@ -90,7 +94,7 @@ macro_rules! check_slh_dsa_key {
 pub(crate) fn check_private_key(
     oak_bytes: &[u8],
     spki: &SubjectPublicKeyInfoOwned,
-    filename: &str
+    filename: &str,
 ) -> Result<bool> {
     let oak = OneAsymmetricKey::from_der(oak_bytes)?;
     if oak.private_key_alg.oid == ML_DSA_44 {
