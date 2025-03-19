@@ -16,8 +16,9 @@ use slh_dsa::*;
 use der::Decode;
 use spki::SubjectPublicKeyInfoOwned;
 
-use pqckeys::oak::OneAsymmetricKey;
-use pqckeys::pqc_oids::*;
+use pqckeys::{
+    oak::OneAsymmetricKey, pqc_oids::*
+};
 use zerocopy::IntoBytes;
 
 use crate::{Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result, misc::utils::extract_private_key};

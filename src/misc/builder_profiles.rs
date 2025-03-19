@@ -1,9 +1,15 @@
+//! Certificate generation support
+
 use spki::SubjectPublicKeyInfoRef;
-use x509_cert::TbsCertificate;
-use x509_cert::builder::Profile;
-use x509_cert::ext::pkix::{AuthorityKeyIdentifier, KeyUsage, KeyUsages, SubjectKeyIdentifier};
-use x509_cert::ext::{AsExtension, Extension};
-use x509_cert::name::Name;
+use x509_cert::{
+    TbsCertificate,
+    builder::Profile,
+    ext::{
+        AsExtension, Extension,
+        pkix::{AuthorityKeyIdentifier, KeyUsage, KeyUsages, SubjectKeyIdentifier},
+    },
+    name::Name,
+};
 
 /// KEM Certificate
 pub struct KemCert {

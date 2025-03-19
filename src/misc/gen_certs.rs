@@ -18,10 +18,6 @@ use cipher::rand_core::CryptoRng;
 use rand::RngCore;
 use rand::rngs::OsRng;
 
-// use pqcrypto_mldsa::mldsa44;
-// //use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-// use pqcrypto_traits::sign::{PublicKey, SecretKey};
-
 use crate::args::SigAlgorithms;
 use crate::asn1::private_key::{
     MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded,

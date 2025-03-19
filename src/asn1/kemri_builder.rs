@@ -7,7 +7,9 @@ use aes::{Aes128, Aes192, Aes256};
 use aes_kw::AesKw;
 use cipher::{KeyInit, KeySizeUser, rand_core::CryptoRng};
 use hkdf::Hkdf;
-use ml_kem::{Encoded, MlKem512Params, MlKem768Params, MlKem1024Params, EncodedSizeUser, kem::Encapsulate};
+use ml_kem::{
+    Encoded, EncodedSizeUser, MlKem512Params, MlKem768Params, MlKem1024Params, kem::Encapsulate,
+};
 use sha2::{Sha256, Sha384, Sha512};
 use tari_tiny_keccak::{Hasher, Kmac};
 

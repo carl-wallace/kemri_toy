@@ -12,41 +12,43 @@ mod asn1;
 #[macro_use]
 mod misc;
 
-use crate::misc::check_private_key::check_private_key;
-use crate::misc::gen_certs::{generate_ml_kem_cert, generate_ta};
-// use crate::misc::signer::{Mldsa44KeyPair, Mldsa44PublicKey};
-use crate::{
-    args::{KemAlgorithms, KemriToyArgs},
-    misc::{
-        gen_certs::generate_pki,
-        utils::{
-            generate_auth_enveloped_data, generate_enveloped_data, get_buffer_from_file_arg,
-            get_cert_from_file_arg, process_content_info,
-        },
-    },
+use std::{
+    array::TryFromSliceError,
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
 };
+
 use clap::Parser;
-use const_oid::ObjectIdentifier;
-use der::{Decode, DecodePem, Encode};
 use log::{LevelFilter, debug, error};
 use log4rs::{
     append::console::ConsoleAppender,
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
-// use pqcrypto_mldsa::mldsa44;
-// use pqcrypto_traits::sign::{PublicKey, SecretKey};
-use crate::args::SigAlgorithms;
-use crate::asn1::private_key::{
-    MlDsa44Both, MlDsa44Expanded, MlDsa44PrivateKey, MlDsa65Both, MlDsa65Expanded,
-    MlDsa65PrivateKey, MlDsa87Both, MlDsa87Expanded, MlDsa87PrivateKey, MlDsaSeed,
-};
-use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
+
+use const_oid::ObjectIdentifier;
+use der::{Decode, DecodePem, Encode};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoOwned};
-use std::array::TryFromSliceError;
-use std::path::Path;
-use std::{fs::File, io::Write, path::PathBuf};
 use x509_cert::Certificate;
+
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
+
+use crate::{
+    args::{KemAlgorithms, KemriToyArgs, SigAlgorithms},
+    asn1::private_key::{
+        MlDsa44Both, MlDsa44Expanded, MlDsa44PrivateKey, MlDsa65Both, MlDsa65Expanded,
+        MlDsa65PrivateKey, MlDsa87Both, MlDsa87Expanded, MlDsa87PrivateKey, MlDsaSeed,
+    },
+    misc::{
+        check_private_key::check_private_key,
+        gen_certs::{generate_ml_kem_cert, generate_pki, generate_ta},
+        utils::{
+            generate_auth_enveloped_data, generate_enveloped_data, get_buffer_from_file_arg,
+            get_cert_from_file_arg, process_content_info,
+        },
+    },
+};
 
 /// Result type for kemri_toy
 pub type Result<T> = core::result::Result<T, Error>;
@@ -91,13 +93,6 @@ impl From<x509_cert::builder::Error> for Error {
         Error::CertBuilder
     }
 }
-
-// impl From<pqcrypto_traits::Error> for Error {
-//     fn from(err: pqcrypto_traits::Error) -> Error {
-//         error!("pqcrypto_traits::Error: {err:?}");
-//         Error::Pqc
-//     }
-// }
 
 /// OID for the ML-DSA-44 parameter set as defined in [NIST CSOR].
 /// ```text

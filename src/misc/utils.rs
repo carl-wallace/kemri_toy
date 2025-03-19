@@ -19,9 +19,6 @@ use hkdf::Hkdf;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use zerocopy::IntoBytes;
 
-//use pqcrypto_mlkem::{mlkem1024, mlkem512, mlkem768};
-//use pqcrypto_traits::kem::PublicKey;
-
 use crate::asn1::private_key::{
     MlDsa44PrivateKey, MlDsa65PrivateKey, MlDsa87PrivateKey, MlKem512PrivateKey,
     MlKem768PrivateKey, MlKem1024PrivateKey,
@@ -949,7 +946,14 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
 
 #[test]
 fn decrypt_kemri_toy_expanded() {
-    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "_expandedkey").is_ok());
+    assert!(
+        test_decrypt(
+            "tests/artifacts/kemri_toy",
+            "tests/artifacts/kemri_toy",
+            "_expandedkey"
+        )
+        .is_ok()
+    );
 }
 #[test]
 fn decrypt_kemri_toy_seed() {
