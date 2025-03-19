@@ -1,3 +1,5 @@
+//! ASN.1 encoders/decoders for PQ private key format
+
 // ML-KEM-1024-PrivateKey ::= CHOICE {
 //      seed [0] OCTET STRING (SIZE (64)),
 //      expandedKey OCTET STRING (SIZE (3168)),

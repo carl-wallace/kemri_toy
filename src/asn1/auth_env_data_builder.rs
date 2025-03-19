@@ -2,9 +2,10 @@
 
 use log::debug;
 
-use aes_gcm::aead::AeadInPlace;
-use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm};
-use cipher::KeyInit;
+use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm, aead::AeadInPlace};
+use cipher::{Key, KeyInit, KeySizeUser};
+use rand_core::CryptoRng;
+
 use cms::{
     authenticated_data::MessageAuthenticationCode,
     builder::{Error, RecipientInfoBuilder},
@@ -19,9 +20,6 @@ use crate::{
     asn1::auth_env_data::{AuthEnvelopedData, GcmParameters},
     misc::{gen_certs::buffer_to_hex, utils::ContentEncryptionAlgorithmAead},
 };
-use cipher::Key;
-use cipher::KeySizeUser;
-use rand_core::CryptoRng;
 
 /// Result type with cms::builder::Error
 type Result<T> = core::result::Result<T, Error>;

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+// todo: align with current drafts
 
 use der::asn1::{BitString, OctetString};
 use der::Sequence;
