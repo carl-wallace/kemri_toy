@@ -865,7 +865,7 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     }
 }
 
-// key_type_part is empty for expanded, _seed for seed only, _both for both
+// key_type_part is _expandedkey for expanded, _seed for seed only, _both for both
 #[cfg(test)]
 fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) -> Result<(), Error> {
     use crate::KemAlgorithms;
