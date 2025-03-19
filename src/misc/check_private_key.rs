@@ -3,7 +3,6 @@
 use log::error;
 use rand::rngs::OsRng;
 use rand_core::TryRngCore;
-use zerocopy::AsBytes;
 
 use ml_dsa::{MlDsa44, MlDsa65, MlDsa87};
 use ml_kem::{
@@ -19,6 +18,7 @@ use spki::SubjectPublicKeyInfoOwned;
 
 use pqckeys::oak::OneAsymmetricKey;
 use pqckeys::pqc_oids::*;
+use zerocopy::IntoBytes;
 
 use crate::{Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result, misc::utils::extract_private_key};
 

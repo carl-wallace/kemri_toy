@@ -19,7 +19,7 @@ use spki::{
     AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
     EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,
 };
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 
 pub enum PqcKeyPair {
     MlDsa44(Box<KeyPair<MlDsa44>>),

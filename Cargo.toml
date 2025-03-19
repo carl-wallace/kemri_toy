@@ -8,30 +8,18 @@ rust-version = "1.85.0"
 
 [dependencies]
 base64ct = { version="1.6.0", features = ["alloc"] }
-# EnvelopedDataBuilder is not yet released, hence use of private branch
 cms = { version = "0.3.0-pre.0", features = ["builder"] }
-# cms = { git = "https://github.com/carl-wallace/formats", features = ["builder"], branch = "bump_cms_sig" }
-# cms = { path = "/Users/cwallace/devel/carl-wallace/formats/cms", features = ["builder"] }
 const-oid = { version = "0.10.0-pre.2", default-features = false, features = ["db"] }
 der = { version="0.8.0-rc.1", features = ["alloc", "derive", "flagset", "oid"] }
 spki = { version = "0.8.0-rc.1", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.3.0-pre.0", default-features = false, features = ["hazmat", "builder"] }
-# x509-cert = { path = "/Users/cwallace/devel/carl-wallace/formats/x509-cert" }
 pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "kemri", features = ["pem"] }
-# pqckeys = { path = "/Users/cwallace/devel/carl-wallace/pqckeys", features = ["pem"] }
-
-generic-array = "1.2.0"
-tari-tiny-keccak = { version = "2.0.2", features = ["kmac"] }
 
 aes = { version = "=0.9.0-pre.3" }
+aes-gcm = { git="https://github.com/baloo/AEADs.git", branch = "baloo/inout"}
+aes-kw = { git = "https://github.com/baloo/key-wraps.git", branch = "baloo/edition-2024" }
 cbc = { version = "=0.2.0-pre.2" }
 cipher = { version = "=0.5.0-pre.8", features = ["alloc", "block-padding", "rand_core"] }
-
-# this is in use until upstream sets the inout feature for the aead crate
-aes-gcm = { git="https://github.com/baloo/AEADs.git", branch = "baloo/inout"}
-
-aes-kw = { git = "https://github.com/baloo/key-wraps.git", branch = "baloo/edition-2024" }
-
 hkdf = "0.13.0-pre.4"
 ml-dsa = { git="https://github.com/RustCrypto/signatures"}
 ml-kem = { git = "https://github.com/baloo/KEMs.git", branch="baloo/rand-core-0.9", features=["deterministic"] }
@@ -39,15 +27,17 @@ slh-dsa = { git="https://github.com/RustCrypto/signatures"}
 rsa = { version = "=0.10.0-pre.4", features = ["sha2"] }
 sha2 = "0.11.0-pre.5"
 signature = { version = "=2.3.0-pre.6", features = ["digest", "alloc"]}
+tari-tiny-keccak = { version = "2.0.2", features = ["kmac"] }
 
 clap = {version = "4.4.18", features = ["std", "derive"] }
+generic-array = "1.2.0"
 log = "0.4.20"
 log4rs = "1.2.0"
 rand_core = { version = "0.9", features = ["std"] }
 rand = "0.9"
 serde = { version = "1.0.196", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
-zerocopy = "0.7.35"
+zerocopy = "0.8.23"
 
 [patch.crates-io]
 base64ct   = { git = "https://github.com/baloo/formats/", branch="baloo/reunite-workspace" }
@@ -62,16 +52,13 @@ x509-cert        = { git = "https://github.com/baloo/formats/", branch="baloo/re
 
 aes  = { git = "https://github.com/RustCrypto/block-ciphers.git" }
 cbc  = { git = "https://github.com/RustCrypto/block-modes.git" }
-
+cipher = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
 digest  = { git = "https://github.com/RustCrypto/traits.git" }
-
 sha2 = { git = "https://github.com/RustCrypto/hashes.git" }
+signature      = { git = "https://github.com/RustCrypto/traits.git" }
 
 # https://github.com/RustCrypto/traits/pull/1777
 crypto-common = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
-cipher = { git = "https://github.com/baloo/traits.git", branch = "baloo/relax-sized-rng" }
-# elliptic-curve = { git = "https://github.com/RustCrypto/traits.git" }
-signature      = { git = "https://github.com/RustCrypto/traits.git" }
 
 # https://github.com/RustCrypto/RSA/pull/478
 rsa = { git = "https://github.com/RustCrypto/RSA.git" }
