@@ -3,6 +3,7 @@
 use log::error;
 use rand::rngs::OsRng;
 use rand_core::TryRngCore;
+use zerocopy::IntoBytes;
 
 use ml_dsa::{MlDsa44, MlDsa65, MlDsa87};
 use ml_kem::{
@@ -16,10 +17,7 @@ use slh_dsa::*;
 use der::Decode;
 use spki::SubjectPublicKeyInfoOwned;
 
-use pqckeys::{
-    oak::OneAsymmetricKey, pqc_oids::*
-};
-use zerocopy::IntoBytes;
+use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
 
 use crate::{Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result, misc::utils::extract_private_key};
 
@@ -135,7 +133,7 @@ pub(crate) fn check_private_key(
     } else if oak.private_key_alg.oid == ML_KEM_1024 {
         check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
     } else {
-        println!("Unrecognized alorithm");
+        println!("Unrecognized algorithm");
         return Err(Error::Unrecognized);
     }
 }

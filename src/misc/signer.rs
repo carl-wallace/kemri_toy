@@ -1,25 +1,27 @@
 //! Signer implementation for mldsa44 key pairs
 
-use const_oid::ObjectIdentifier;
+use zerocopy::IntoBytes;
+
+use ml_dsa::{KeyPair, MlDsa44, MlDsa65, MlDsa87, Signature, VerifyingKey};
 use signature::{Keypair, RandomizedSigner, Signer};
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
     Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
 };
 
+use const_oid::ObjectIdentifier;
 use der::{Decode, Document, Encode, asn1::BitString};
-use ml_dsa::{KeyPair, MlDsa44, MlDsa65, MlDsa87, Signature, VerifyingKey};
+use spki::{
+    AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
+    EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,
+};
+
 use pqckeys::pqc_oids::{
     ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
     SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
     SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
     SLH_DSA_SHAKE_256S,
 };
-use spki::{
-    AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
-    EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,
-};
-use zerocopy::IntoBytes;
 
 pub enum PqcKeyPair {
     MlDsa44(Box<KeyPair<MlDsa44>>),

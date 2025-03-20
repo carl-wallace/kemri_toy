@@ -1,14 +1,14 @@
 //! Utility functions for `kemri_toy`
 
-use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
-use log::{debug, error};
-use ml_kem::EncodedSizeUser;
-use ml_kem::{B32, KemCore, MlKem512Params, MlKem768, MlKem768Params, MlKem1024, MlKem1024Params};
 use std::{
     fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
+
+use log::{debug, error};
+use rand::rngs::OsRng;
+use zerocopy::IntoBytes;
 
 use aes::{Aes128, Aes192, Aes256};
 use aes_gcm::aead::{AeadInPlace, Nonce};
@@ -16,31 +16,26 @@ use aes_gcm::{Aes128Gcm, Aes256Gcm, Key};
 use aes_kw::AesKw;
 use cipher::{BlockModeDecrypt, Iv, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
+use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
+use ml_kem::{
+    B32, Encoded, EncodedSizeUser, KemCore, MlKem512, MlKem512Params, MlKem768, MlKem768Params,
+    MlKem1024, MlKem1024Params, kem::Decapsulate,
+};
+use rsa::rand_core::TryRngCore;
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use zerocopy::IntoBytes;
+use tari_tiny_keccak::{Hasher, Kmac};
 
-use crate::asn1::private_key::{
-    MlDsa44PrivateKey, MlDsa65PrivateKey, MlDsa87PrivateKey, MlKem512PrivateKey,
-    MlKem768PrivateKey, MlKem1024PrivateKey,
-};
-use crate::{
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
-    asn1::{
-        auth_env_data::{AuthEnvelopedData, GcmParameters},
-        auth_env_data_builder::AuthEnvelopedDataBuilder,
-        kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
-    },
-    misc::gen_certs::buffer_to_hex,
-};
-use cms::cert::IssuerAndSerialNumber;
-use cms::enveloped_data::KeyTransRecipientInfo;
 use cms::{
     builder::{ContentEncryptionAlgorithm, EnvelopedDataBuilder},
+    cert::IssuerAndSerialNumber,
     content_info::ContentInfo,
-    enveloped_data::{EnvelopedData, OtherRecipientInfo, RecipientIdentifier, RecipientInfo},
+    enveloped_data::{
+        EnvelopedData, KeyTransRecipientInfo, OtherRecipientInfo, RecipientIdentifier,
+        RecipientInfo,
+    },
     kemri::CmsOriForKemOtherInfo,
 };
+use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
 use const_oid::{
     ObjectIdentifier,
     db::{
@@ -52,21 +47,32 @@ use const_oid::{
     },
 };
 use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
-use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
-use ml_kem::kem::Decapsulate;
-use ml_kem::{Encoded, MlKem512};
-use pqckeys::oak::OneAsymmetricKey;
-use pqckeys::pqc_oids::{
-    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
-    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
-    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
-    SLH_DSA_SHAKE_256S,
-};
-use rand::rngs::OsRng;
-use rsa::rand_core::TryRngCore;
-use tari_tiny_keccak::Hasher;
-use tari_tiny_keccak::Kmac;
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
+
+use pqckeys::{
+    oak::OneAsymmetricKey,
+    pqc_oids::{
+        ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
+        SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
+        SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
+        SLH_DSA_SHAKE_256S,
+    },
+};
+
+use crate::{
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    asn1::{
+        auth_env_data::{AuthEnvelopedData, GcmParameters},
+        auth_env_data_builder::AuthEnvelopedDataBuilder,
+        kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
+        private_key::{
+            MlDsa44PrivateKey, MlDsa65PrivateKey, MlDsa87PrivateKey, MlKem512PrivateKey,
+            MlKem768PrivateKey, MlKem1024PrivateKey,
+        },
+    },
+    misc::gen_certs::buffer_to_hex,
+};
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -93,15 +99,6 @@ macro_rules! decrypt_block_mode {
         cipher.decrypt_padded_vec::<cipher::block_padding::Pkcs7>($ct)
     }};
 }
-
-// macro_rules! decrypt_kem {
-//     ($kem_ct:expr, $ct_ty:ty, $sk_ty:ty, $decap:expr, $ee_sk:expr) => {{
-//         let ct = <$ct_ty>::from_bytes($kem_ct)?;
-//         let private_key = <$sk_ty>::from_bytes($ee_sk)?;
-//         let ss = $decap(&ct, &private_key);
-//         ss.as_bytes().to_vec()
-//     }};
-// }
 
 /// Macro to decrypt data using ML-KEM512, ML-KEM768 or ML-KEM1024
 macro_rules! decrypt_kem_rust_crypto {
@@ -862,6 +859,19 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     }
 }
 
+#[cfg(test)]
+fn get_kem_oid_from_file_name(file_name: &str) -> Option<String> {
+    if file_name.contains("2.16.840.1.101.3.4.4.1") {
+        Some("2.16.840.1.101.3.4.4.1".to_string())
+    } else if file_name.contains("2.16.840.1.101.3.4.4.2") {
+        Some("2.16.840.1.101.3.4.4.2".to_string())
+    } else if file_name.contains("2.16.840.1.101.3.4.4.3") {
+        Some("2.16.840.1.101.3.4.4.3".to_string())
+    } else {
+        None
+    }
+}
+
 // key_type_part is _expandedkey for expanded, _seed for seed only, _both for both
 #[cfg(test)]
 fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) -> Result<(), Error> {
@@ -904,45 +914,72 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         )))?,
     );
     let paths = std::fs::read_dir(artifact_folder).unwrap();
-    for path in paths {
-        match path {
-            Ok(path) => {
-                if let Some(file_name) = path.file_name().to_str() {
-                    if file_name.contains("_priv")
-                        || file_name.contains("_ee")
-                        || file_name.contains(".txt")
-                    {
-                        continue;
-                    } else {
-                        let parts = file_name.split('_').collect::<Vec<&str>>();
-                        if let Some(oid) = parts.first() {
-                            if let Some(key) = key_map.get(&oid.to_string()) {
-                                if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
-                                    println!("Processing {:?}", path.path());
-                                    match process_content_info(&ci, key) {
-                                        Ok(pt) => assert_eq!(pt, expected_plaintext),
-                                        Err(e) => {
-                                            println!("ERROR processing {:?}: {e:?}", path.path());
-                                            return Err(e);
-                                        }
-                                    }
+    let mut success = 0;
+    for path in paths.flatten() {
+        if let Some(file_name) = path.file_name().to_str() {
+            if file_name.contains("_priv")
+                || file_name.contains("_ee")
+                || file_name.contains(".txt")
+            {
+                continue;
+            } else {
+                if let Some(oid) = get_kem_oid_from_file_name(file_name) {
+                    if let Some(key) = key_map.get(&oid.to_string()) {
+                        if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
+                            println!("Processing {:?}", path.path());
+                            match process_content_info(&ci, key) {
+                                Ok(pt) => {
+                                    assert_eq!(pt, expected_plaintext);
+                                    success += 1;
+                                },
+                                Err(e) => {
+                                    println!("ERROR processing {:?}: {e:?}", path.path());
+                                    return Err(e);
                                 }
                             }
                         }
                     }
                 }
             }
-            Err(_) => {}
         }
     }
+    assert!(success > 0);
     Ok(())
 }
 
-// todo: add updated artifacts then uncomment
-// #[test]
-// fn decrypt_cryptonext() {
-//     assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/cryptonext", "").is_ok());
-// }
+#[test]
+fn decrypt_cryptonext_expandedkey() {
+    assert!(
+        test_decrypt(
+            "tests/artifacts/cryptonext",
+            "tests/artifacts/cryptonext",
+            "_expandedkey"
+        )
+        .is_ok()
+    );
+}
+#[test]
+fn decrypt_cryptonext_seed() {
+    assert!(
+        test_decrypt(
+            "tests/artifacts/cryptonext",
+            "tests/artifacts/cryptonext",
+            "_seed"
+        )
+        .is_ok()
+    );
+}
+#[test]
+fn decrypt_cryptonext_both() {
+    assert!(
+        test_decrypt(
+            "tests/artifacts/cryptonext",
+            "tests/artifacts/cryptonext",
+            "_both"
+        )
+        .is_ok()
+    );
+}
 
 #[test]
 fn decrypt_kemri_toy_expanded() {
