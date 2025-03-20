@@ -1,20 +1,18 @@
 //! Builder for `AuthEnvelopedData` with parts copied and adapted from `EnvelopedDataBuilder` in the cms crate
 
 use log::debug;
-use rand_core::{
-    OsRng, {CryptoRng, CryptoRngCore, RngCore},
-};
 
-use aes_gcm::aead::AeadMutInPlace;
-use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm};
-use cipher::KeyInit;
+use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm, aead::AeadInPlace};
+use cipher::{Key, KeyInit, KeySizeUser};
+use rand_core::CryptoRng;
+
 use cms::{
     authenticated_data::MessageAuthenticationCode,
     builder::{Error, RecipientInfoBuilder},
     content_info::CmsVersion,
     enveloped_data::{EncryptedContentInfo, OriginatorInfo, RecipientInfo, RecipientInfos},
 };
-use der::{asn1::OctetString, zeroize::Zeroize, Any, Decode, Encode};
+use der::{Any, Decode, Encode, asn1::OctetString, zeroize::Zeroize};
 use spki::AlgorithmIdentifierOwned;
 use x509_cert::attr::Attributes;
 
@@ -22,15 +20,14 @@ use crate::{
     asn1::auth_env_data::{AuthEnvelopedData, GcmParameters},
     misc::{gen_certs::buffer_to_hex, utils::ContentEncryptionAlgorithmAead},
 };
-use cipher::Key;
-use cipher::KeySizeUser;
+
 /// Result type with cms::builder::Error
 type Result<T> = core::result::Result<T, Error>;
 
 /// Builds CMS `AuthEnvelopedData` according to RFC 5083 § 2.1.
-pub struct AuthEnvelopedDataBuilder<'c> {
+pub struct AuthEnvelopedDataBuilder<'c, R: ?Sized> {
     originator_info: Option<OriginatorInfo>,
-    recipient_infos: Vec<Box<dyn RecipientInfoBuilder + 'c>>,
+    recipient_infos: Vec<Box<dyn RecipientInfoBuilder<Rng = R> + 'c>>,
     unencrypted_content: &'c [u8],
     // TODO bk Not good to offer both, `content_encryptor` and `content_encryption_algorithm`.
     // We should
@@ -48,13 +45,13 @@ pub struct AuthEnvelopedDataBuilder<'c> {
 
 /// Macro for encrypting data using Aes128Gcm or Aes256Gcm
 macro_rules! encrypt_gcm_mode {
-    ($data:expr, $aead:ty, $key:expr, $aad:ident, $rng:expr, $oid:expr) => {{
+    ($data:expr, $aead:ty, $key:expr, $aad:ident, $oid:expr) => {{
         let (key, nonce) = match $key {
             None => {
-                let key = <$aead>::generate_key($rng);
+                let key = <$aead>::generate_key();
                 // todo use rng parameter or something simliar to encrypt_block_mode to generate nonce and key
-                let nonce = <$aead>::generate_nonce(&mut OsRng);
-                (key, nonce)
+                let nonce = <$aead>::generate_nonce();
+                (key.unwrap().to_vec(), nonce.unwrap().as_slice().to_vec())
             }
             Some(key) => {
                 if key.len() != <$aead>::key_size() {
@@ -63,20 +60,22 @@ macro_rules! encrypt_gcm_mode {
                     )));
                 }
                 (
-                    Key::<$aead>::from_slice(key).to_owned(),
-                    <$aead>::generate_nonce($rng)
+                    #[allow(deprecated)]
+                    Key::<$aead>::from_slice(key).to_owned().to_vec(),
+                    <$aead>::generate_nonce().unwrap().to_vec(),
                 )
             }
         };
         debug!("CEK: {}", buffer_to_hex(&key));
         debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
 
-        let mut cipher = <$aead>::new(&key);
+        let cipher = <$aead>::new_from_slice(&key).unwrap();
         let mut buffer = vec![0u8; 0];
         buffer.extend_from_slice($data);
         let aad = $aad.unwrap_or("".as_bytes().to_vec());
-
-        match cipher.encrypt_in_place(&nonce, &aad, &mut buffer) {
+        #[allow(deprecated)]
+        let aead_nonce = aes_gcm::Nonce::from_slice(&nonce);
+        match cipher.encrypt_in_place(&aead_nonce, &aad, &mut buffer) {
             Ok(_) => {
                 let (ct, tag) = buffer.split_at(buffer.len() - 16);
                 let gcm_params = GcmParameters {
@@ -89,7 +88,9 @@ macro_rules! encrypt_gcm_mode {
                 };
                 Ok((ct.to_vec(), key.to_vec(), alg, Some(tag.to_vec())))
             }
-            Err(_e) => Err(Error::Builder("Failed to encrypt with AAD: {:e}".to_string())),
+            Err(_e) => Err(Error::Builder(
+                "Failed to encrypt with AAD: {:e}".to_string(),
+            )),
         }
     }};
 }
@@ -106,31 +107,36 @@ fn encrypt_data<R>(
     encryption_algorithm_identifier: &ContentEncryptionAlgorithmAead,
     key: Option<&[u8]>,
     aad: Option<Vec<u8>>,
-    rng: &mut R,
+    _rng: &mut R,
 ) -> Result<(Vec<u8>, Vec<u8>, AlgorithmIdentifierOwned, Option<Vec<u8>>)>
 where
-    R: CryptoRng + RngCore,
+    R: CryptoRng + ?Sized,
 {
     match encryption_algorithm_identifier {
-        ContentEncryptionAlgorithmAead::Aes128Gcm => encrypt_gcm_mode!(
-            data,
-            Aes128Gcm,
-            key,
-            aad,
-            rng,
-            encryption_algorithm_identifier.oid()
-        ),
-        ContentEncryptionAlgorithmAead::Aes256Gcm => encrypt_gcm_mode!(
-            data,
-            Aes256Gcm,
-            key,
-            aad,
-            rng,
-            encryption_algorithm_identifier.oid()
-        ),
+        ContentEncryptionAlgorithmAead::Aes128Gcm => {
+            encrypt_gcm_mode!(
+                data,
+                Aes128Gcm,
+                key,
+                aad,
+                encryption_algorithm_identifier.oid()
+            )
+        }
+        ContentEncryptionAlgorithmAead::Aes256Gcm => {
+            encrypt_gcm_mode!(
+                data,
+                Aes256Gcm,
+                key,
+                aad,
+                encryption_algorithm_identifier.oid()
+            )
+        }
     }
 }
-impl<'c> AuthEnvelopedDataBuilder<'c> {
+impl<'c, R> AuthEnvelopedDataBuilder<'c, R>
+where
+    R: CryptoRng + ?Sized,
+{
     /// Create a new builder for `AuthEnvelopedData`
     pub fn new(
         originator_info: Option<OriginatorInfo>,
@@ -138,7 +144,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
         content_encryption_algorithm: ContentEncryptionAlgorithmAead,
         auth_attributes: Option<Attributes>,
         unauth_attributes: Option<Attributes>,
-    ) -> Result<AuthEnvelopedDataBuilder<'c>> {
+    ) -> Result<Self> {
         Ok(AuthEnvelopedDataBuilder {
             originator_info,
             recipient_infos: Vec::new(),
@@ -153,7 +159,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
     /// RFC 5652 § 6.2, when `AuthEnvelopedData` is built.
     pub fn add_recipient_info(
         &mut self,
-        recipient_info_builder: impl RecipientInfoBuilder + 'c,
+        recipient_info_builder: impl RecipientInfoBuilder<Rng = R> + 'c,
     ) -> Result<&mut Self> {
         self.recipient_infos.push(Box::new(recipient_info_builder));
         Ok(self)
@@ -161,7 +167,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
 
     /// Generate an `AuthEnvelopedData` object according to RFC 5083 § 2.2 using a provided
     /// random number generator.
-    pub fn build_with_rng(&mut self, rng: &mut impl CryptoRngCore) -> Result<AuthEnvelopedData> {
+    pub fn build_with_rng(&mut self, rng: &mut R) -> Result<AuthEnvelopedData> {
         // DER encode authenticated attributes, if any
         // Generate content encryption key
         // Encrypt content and capture authentication tag
@@ -189,7 +195,7 @@ impl<'c> AuthEnvelopedDataBuilder<'c> {
         let recipient_infos_vec = self
             .recipient_infos
             .iter_mut()
-            .map(|ri| ri.build(&content_encryption_key))
+            .map(|ri| ri.build_with_rng(&content_encryption_key, rng))
             .collect::<Result<Vec<RecipientInfo>>>()?;
         content_encryption_key.zeroize();
         let recip_infos = RecipientInfos::try_from(recipient_infos_vec)?;

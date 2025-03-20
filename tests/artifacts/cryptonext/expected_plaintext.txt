@@ -1,2 +1,2 @@
-plaintext message for encryption
+plaintext message for signing and encryption
 This is the second line.

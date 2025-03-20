@@ -6,18 +6,34 @@ use std::path::PathBuf;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
+use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
+use slh_dsa::{
+    Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
+    Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
+};
+
 use const_oid::{
+    ObjectIdentifier,
     db::rfc5911::{
         ID_AES_128_CBC, ID_AES_128_GCM, ID_AES_128_WRAP, ID_AES_192_CBC, ID_AES_192_WRAP,
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
-    ObjectIdentifier,
+};
+use pqckeys::pqc_oids::{
+    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
+    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
+    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
+    SLH_DSA_SHAKE_256S,
 };
 
-use crate::misc::utils::get_filename_from_oid;
 use crate::{
-    Error, Result, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512,
-    ID_KMAC128, ID_KMAC256, ML_KEM_1024, ML_KEM_512, ML_KEM_768,
+    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
+    misc::{
+        gen_certs::rand,
+        signer::{PqcKeyPair, PqcSigner},
+        utils::get_filename_from_oid,
+    },
 };
 
 /// KEM algorithms available via command line argument
@@ -61,21 +77,277 @@ impl KemAlgorithms {
     /// Get filename component for KemAlgorithms instance.
     pub fn filename(&self) -> String {
         match self {
-            KemAlgorithms::MlKem512 => format!(
-                "{}_{}",
-                ML_KEM_512,
-                get_filename_from_oid(ML_KEM_512)
-            ),
-            KemAlgorithms::MlKem768 => format!(
-                "{}_{}",
-                ML_KEM_768,
-                get_filename_from_oid(ML_KEM_768)
-            ),
-            KemAlgorithms::MlKem1024 => format!(
-                "{}_{}",
-                ML_KEM_1024,
-                get_filename_from_oid(ML_KEM_1024)
-            ),
+            KemAlgorithms::MlKem512 => {
+                format!("{}-{}", get_filename_from_oid(ML_KEM_512), ML_KEM_512)
+            }
+            KemAlgorithms::MlKem768 => {
+                format!("{}-{}", get_filename_from_oid(ML_KEM_768), ML_KEM_768)
+            }
+            KemAlgorithms::MlKem1024 => {
+                format!("{}-{}", get_filename_from_oid(ML_KEM_1024), ML_KEM_1024)
+            }
+        }
+    }
+}
+
+/// KEM algorithms available via command line argument
+#[derive(Clone, Serialize, Deserialize, Debug, Default, clap::ValueEnum)]
+pub enum SigAlgorithms {
+    #[default]
+    MlDsa44,
+    MlDsa65,
+    MlDsa87,
+    SlhDsaSha2_128s,
+    SlhDsaSha2_128f,
+    SlhDsaSha2_192s,
+    SlhDsaSha2_192f,
+    SlhDsaSha2_256s,
+    SlhDsaSha2_256f,
+    SlhDsaShake128s,
+    SlhDsaShake128f,
+    SlhDsaShake192s,
+    SlhDsaShake192f,
+    SlhDsaShake256s,
+    SlhDsaShake256f,
+}
+impl fmt::Display for SigAlgorithms {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SigAlgorithms::MlDsa44 => write!(f, "ml-dsa44"),
+            SigAlgorithms::MlDsa65 => write!(f, "ml-dsa65"),
+            SigAlgorithms::MlDsa87 => write!(f, "ml-dsa87"),
+            SigAlgorithms::SlhDsaSha2_128s => write!(f, "slh-dsa-sha2-128s"),
+            SigAlgorithms::SlhDsaSha2_128f => write!(f, "slh-dsa-sha2-128f"),
+            SigAlgorithms::SlhDsaSha2_192s => write!(f, "slh-dsa-sha2-192s"),
+            SigAlgorithms::SlhDsaSha2_192f => write!(f, "slh-dsa-sha2-192f"),
+            SigAlgorithms::SlhDsaSha2_256s => write!(f, "slh-dsa-sha2-256s"),
+            SigAlgorithms::SlhDsaSha2_256f => write!(f, "slh-dsa-sha2-256f"),
+            SigAlgorithms::SlhDsaShake128s => write!(f, "slh-dsa-shake-128s"),
+            SigAlgorithms::SlhDsaShake128f => write!(f, "slh-dsa-shake-128f"),
+            SigAlgorithms::SlhDsaShake192s => write!(f, "slh-dsa-shake-192s"),
+            SigAlgorithms::SlhDsaShake192f => write!(f, "slh-dsa-shake-192f"),
+            SigAlgorithms::SlhDsaShake256s => write!(f, "slh-dsa-shake-256s"),
+            SigAlgorithms::SlhDsaShake256f => write!(f, "slh-dsa-shake-256f"),
+        }
+    }
+}
+
+impl SigAlgorithms {
+    pub fn generate_key_pair(&self) -> Result<PqcSigner> {
+        let mut rng = rand::rng();
+
+        match self {
+            SigAlgorithms::MlDsa44 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa44(Box::new(MlDsa44::key_gen_internal(&xi))),
+                ))
+            }
+            SigAlgorithms::MlDsa65 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa65(Box::new(MlDsa65::key_gen_internal(&xi))),
+                ))
+            }
+            SigAlgorithms::MlDsa87 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa87(Box::new(MlDsa87::key_gen_internal(&xi))),
+                ))
+            }
+            SigAlgorithms::SlhDsaSha2_128s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_128s(Box::new(SigningKey::<Sha2_128s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_128f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_128f(Box::new(SigningKey::<Sha2_128f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_192f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_192f(Box::new(SigningKey::<Sha2_192f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_192s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_192s(Box::new(SigningKey::<Sha2_192s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_256f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_256f(Box::new(SigningKey::<Sha2_256f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaSha2_256s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Sha2_256s(Box::new(SigningKey::<Sha2_256s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake128f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake128f(Box::new(SigningKey::<Shake128f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake128s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake128s(Box::new(SigningKey::<Shake128s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake192f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake192f(Box::new(SigningKey::<Shake192f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake192s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake192s(Box::new(SigningKey::<Shake192s>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake256f => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake256f(Box::new(SigningKey::<Shake256f>::new(&mut rng))),
+            )),
+            SigAlgorithms::SlhDsaShake256s => Ok(PqcSigner::new(
+                &[],
+                PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
+            )),
+        }
+    }
+
+    /// Get KemAlgorithms instance from an object identifier.
+    pub fn from_oid(oid: ObjectIdentifier) -> Result<SigAlgorithms> {
+        match oid {
+            ML_DSA_44 => Ok(SigAlgorithms::MlDsa44),
+            ML_DSA_65 => Ok(SigAlgorithms::MlDsa65),
+            ML_DSA_87 => Ok(SigAlgorithms::MlDsa87),
+            SLH_DSA_SHA2_128S => Ok(SigAlgorithms::SlhDsaSha2_128s),
+            SLH_DSA_SHA2_128F => Ok(SigAlgorithms::SlhDsaSha2_128f),
+            SLH_DSA_SHA2_192S => Ok(SigAlgorithms::SlhDsaSha2_192s),
+            SLH_DSA_SHA2_192F => Ok(SigAlgorithms::SlhDsaSha2_192f),
+            SLH_DSA_SHA2_256S => Ok(SigAlgorithms::SlhDsaSha2_256s),
+            SLH_DSA_SHA2_256F => Ok(SigAlgorithms::SlhDsaSha2_256f),
+            SLH_DSA_SHAKE_128S => Ok(SigAlgorithms::SlhDsaShake128s),
+            SLH_DSA_SHAKE_128F => Ok(SigAlgorithms::SlhDsaShake128f),
+            SLH_DSA_SHAKE_192S => Ok(SigAlgorithms::SlhDsaShake192s),
+            SLH_DSA_SHAKE_192F => Ok(SigAlgorithms::SlhDsaShake192f),
+            SLH_DSA_SHAKE_256S => Ok(SigAlgorithms::SlhDsaShake256s),
+            SLH_DSA_SHAKE_256F => Ok(SigAlgorithms::SlhDsaShake256f),
+            _ => Err(Error::Unrecognized),
+        }
+    }
+
+    /// Get object identifier from KemAlgorithms instance.
+    pub fn oid(&self) -> ObjectIdentifier {
+        match self {
+            SigAlgorithms::MlDsa44 => ML_DSA_44,
+            SigAlgorithms::MlDsa65 => ML_DSA_65,
+            SigAlgorithms::MlDsa87 => ML_DSA_87,
+            SigAlgorithms::SlhDsaSha2_128s => SLH_DSA_SHA2_128S,
+            SigAlgorithms::SlhDsaSha2_128f => SLH_DSA_SHA2_128F,
+            SigAlgorithms::SlhDsaSha2_192s => SLH_DSA_SHA2_192S,
+            SigAlgorithms::SlhDsaSha2_192f => SLH_DSA_SHA2_192F,
+            SigAlgorithms::SlhDsaSha2_256s => SLH_DSA_SHA2_256S,
+            SigAlgorithms::SlhDsaSha2_256f => SLH_DSA_SHA2_256F,
+            SigAlgorithms::SlhDsaShake128s => SLH_DSA_SHAKE_128S,
+            SigAlgorithms::SlhDsaShake128f => SLH_DSA_SHAKE_128F,
+            SigAlgorithms::SlhDsaShake192s => SLH_DSA_SHAKE_192S,
+            SigAlgorithms::SlhDsaShake192f => SLH_DSA_SHAKE_192F,
+            SigAlgorithms::SlhDsaShake256s => SLH_DSA_SHAKE_256S,
+            SigAlgorithms::SlhDsaShake256f => SLH_DSA_SHAKE_256F,
+        }
+    }
+
+    /// Get filename component for KemAlgorithms instance.
+    pub fn filename(&self) -> String {
+        match self {
+            SigAlgorithms::MlDsa44 => {
+                format!("{}-{}", get_filename_from_oid(ML_DSA_44), ML_DSA_44)
+            }
+            SigAlgorithms::MlDsa65 => {
+                format!("{}-{}", get_filename_from_oid(ML_DSA_65), ML_DSA_65)
+            }
+            SigAlgorithms::MlDsa87 => {
+                format!("{}-{}", get_filename_from_oid(ML_DSA_87), ML_DSA_87)
+            }
+            SigAlgorithms::SlhDsaSha2_128s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_128S),
+                    SLH_DSA_SHA2_128S
+                )
+            }
+            SigAlgorithms::SlhDsaSha2_128f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_128F),
+                    SLH_DSA_SHA2_128F
+                )
+            }
+            SigAlgorithms::SlhDsaSha2_192s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_192S),
+                    SLH_DSA_SHA2_192S,
+                )
+            }
+            SigAlgorithms::SlhDsaSha2_192f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_192F),
+                    SLH_DSA_SHA2_192F
+                )
+            }
+            SigAlgorithms::SlhDsaSha2_256s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_256S),
+                    SLH_DSA_SHA2_256S
+                )
+            }
+            SigAlgorithms::SlhDsaSha2_256f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHA2_256F),
+                    SLH_DSA_SHA2_256F
+                )
+            }
+            SigAlgorithms::SlhDsaShake128s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_128S),
+                    SLH_DSA_SHAKE_128S
+                )
+            }
+            SigAlgorithms::SlhDsaShake128f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_128F),
+                    SLH_DSA_SHAKE_128F,
+                )
+            }
+            SigAlgorithms::SlhDsaShake192s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_192S),
+                    SLH_DSA_SHAKE_192S,
+                )
+            }
+            SigAlgorithms::SlhDsaShake192f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_192F),
+                    SLH_DSA_SHAKE_192F,
+                )
+            }
+            SigAlgorithms::SlhDsaShake256s => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_256S),
+                    SLH_DSA_SHAKE_256S,
+                )
+            }
+            SigAlgorithms::SlhDsaShake256f => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(SLH_DSA_SHAKE_256F),
+                    SLH_DSA_SHAKE_256F
+                )
+            }
         }
     }
 }
@@ -299,4 +571,86 @@ pub struct KemriToyArgs {
         help_heading = "Decryption"
     )]
     pub ee_key_file: Option<PathBuf>,
+
+    /// Signature algorithm to use when preparing a certificate or SignedData object
+    #[clap(
+        long,
+        default_value_t,
+        help_heading = "Signing",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "kem",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ukm"
+    )]
+    pub sig: SigAlgorithms,
+    /// Generate a SignedData using the private key from --ee-key-file
+    #[clap(
+        action,
+        long,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        help_heading = "Signing"
+    )]
+    pub generate_signed_data: bool,
+
+    /// File that contains a DER-encoded OneAsymmetricKey private key to use when generating a certificate
+    #[clap(
+        long,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        help_heading = "Certificate Generation"
+    )]
+    pub pub_key_file: Option<PathBuf>,
+    /// Generate a certificate from a public key (so all the other stuff can work)
+    #[clap(
+        action,
+        long,
+        short,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        help_heading = "Certificate Generation"
+    )]
+    pub generate_cert: bool,
+
+    /// Perform consistency checks for a private key --input-file and public key from certificate from
+    /// --ee-cert-file
+    #[clap(
+        action,
+        long,
+        requires = "ee_cert_file",
+        requires = "input_file",
+        help_heading = "Verification"
+    )]
+    pub check_private_key: bool,
+    /// Verify a SignedData from --input-file
+    #[clap(
+        action,
+        long,
+        short,
+        requires = "input_file",
+        help_heading = "Verification"
+    )]
+    pub verify_signed_data: bool,
 }

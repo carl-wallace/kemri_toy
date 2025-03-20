@@ -5,7 +5,7 @@ use cms::{
     content_info::CmsVersion,
     enveloped_data::{EncryptedContentInfo, OriginatorInfo, RecipientInfos},
 };
-use der::{asn1::OctetString, Sequence};
+use der::{Sequence, asn1::OctetString};
 use x509_cert::attr::Attributes;
 
 /// The `AuthEnvelopedData` type is defined in [RFC 5083 Section 2.1].
