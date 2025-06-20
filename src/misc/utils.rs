@@ -11,7 +11,7 @@ use rand::rngs::OsRng;
 use zerocopy::IntoBytes;
 
 use aes::{Aes128, Aes192, Aes256};
-use aes_gcm::aead::{AeadInPlace, Nonce};
+use aes_gcm::aead::{AeadInOut, Nonce};
 use aes_gcm::{Aes128Gcm, Aes256Gcm, Key};
 use aes_kw::AesKw;
 use cipher::{BlockModeDecrypt, Iv, KeyInit, KeyIvInit};

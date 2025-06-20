@@ -2,7 +2,7 @@
 
 use log::debug;
 
-use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm, aead::AeadInPlace};
+use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm, aead::AeadInOut};
 use cipher::{Key, KeyInit, KeySizeUser};
 use rand_core::CryptoRng;
 
