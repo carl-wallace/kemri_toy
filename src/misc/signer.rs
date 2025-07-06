@@ -731,13 +731,13 @@ impl PqcSigner {
             }
             PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key();
                 PqcVerifyingKey::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa)))
             }
             PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
-                PqcVerifyingKey::Mldsa44EcdsaP256Sha256(Box::new((mldsa, ecdsa)))
+                let ecdsa = sk.1.verifying_key();
+                PqcVerifyingKey::Mldsa44EcdsaP256Sha256(Box::new((mldsa, *ecdsa)))
             }
             PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => todo!(),
             PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => todo!(),
@@ -749,31 +749,31 @@ impl PqcSigner {
             }
             PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
-                PqcVerifyingKey::Mldsa65EcdsaP256Sha512(Box::new((mldsa, ecdsa)))
+                let ecdsa = sk.1.verifying_key();
+                PqcVerifyingKey::Mldsa65EcdsaP256Sha512(Box::new((mldsa, *ecdsa)))
             }
             PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
-                PqcVerifyingKey::Mldsa65EcdsaP384Sha512(Box::new((mldsa, ecdsa)))
+                let ecdsa = sk.1.verifying_key();
+                PqcVerifyingKey::Mldsa65EcdsaP384Sha512(Box::new((mldsa, *ecdsa)))
             }
             PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key();
                 PqcVerifyingKey::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa)))
             }
             PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
-                PqcVerifyingKey::Mldsa87EcdsaP384Sha512(Box::new((mldsa, ecdsa)))
+                let ecdsa = sk.1.verifying_key();
+                PqcVerifyingKey::Mldsa87EcdsaP384Sha512(Box::new((mldsa, *ecdsa)))
             }
             PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
             PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => todo!(),
             PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => todo!(),
             PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
-                let ecdsa = sk.1.verifying_key().clone();
-                PqcVerifyingKey::Mldsa87EcdsaP521Sha512(Box::new((mldsa, ecdsa)))
+                let ecdsa = sk.1.verifying_key();
+                PqcVerifyingKey::Mldsa87EcdsaP521Sha512(Box::new((mldsa, *ecdsa)))
             }
         }
     }

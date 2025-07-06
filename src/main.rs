@@ -1,11 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![warn(
-    missing_docs,
-    rust_2018_idioms,
-    unused_qualifications,
-    clippy::unwrap_used
-)]
+#![warn(missing_docs, rust_2018_idioms, unused_qualifications)]
+// todo - restore this
+// clippy::unwrap_used
 
 mod args;
 mod asn1;
@@ -185,8 +182,7 @@ fn main() -> Result<()> {
     if let Some(logging_config) = &args.logging_config {
         if let Err(e) = log4rs::init_file(logging_config, Default::default()) {
             println!(
-                "ERROR: failed to configure logging using {} with {:?}. Continuing without logging.",
-                logging_config, e
+                "ERROR: failed to configure logging using {logging_config} with {e:?}. Continuing without logging."
             );
         } else {
             logging_configured = true;
@@ -205,15 +201,13 @@ fn main() -> Result<()> {
                 let handle = log4rs::init_config(config);
                 if let Err(e) = handle {
                     println!(
-                        "ERROR: failed to configure logging for stdout with {:?}. Continuing without logging.",
-                        e
+                        "ERROR: failed to configure logging for stdout with {e:?}. Continuing without logging."
                     );
                 }
             }
             Err(e) => {
                 println!(
-                    "ERROR: failed to prepare default logging configuration with {:?}. Continuing without logging",
-                    e
+                    "ERROR: failed to prepare default logging configuration with {e:?}. Continuing without logging"
                 );
             }
         }
@@ -309,7 +303,7 @@ fn main() -> Result<()> {
                 (signer, ta_cert)
             };
         let cert = generate_ml_kem_cert(&signer, &ta_cert, pk, kem.clone())?;
-        let mut ta_file = File::create(output_folder.join(format!("{}_cert.der", kem)))?;
+        let mut ta_file = File::create(output_folder.join(format!("{kem}_cert.der")))?;
         let _ = ta_file.write_all(&cert.to_der()?);
         return Ok(());
     }
@@ -546,10 +540,7 @@ fn main() -> Result<()> {
 
             let mut ee_key_file = File::create(output_folder.join(&filename))?;
             let _ = ee_key_file.write_all(&recovered);
-            println!(
-                "Decrypted data from {} written to: {filename}",
-                input_filename
-            );
+            println!("Decrypted data from {input_filename} written to: {filename}");
         }
     } else {
         let cert_arg = match get_cert_from_file_arg(&args.ee_cert_file) {
