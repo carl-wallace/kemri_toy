@@ -3,25 +3,27 @@
 use zerocopy::IntoBytes;
 
 use ml_dsa::{KeyPair, MlDsa44, MlDsa65, MlDsa87, Signature, VerifyingKey};
-use signature::{Keypair, RandomizedSigner, Signer};
+use signature::{Keypair, RandomizedSigner, SignatureEncoding, Signer};
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
     Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
 };
 
-use const_oid::ObjectIdentifier;
+use const_oid::{
+    ObjectIdentifier,
+    db::{fips204::*, fips205::*},
+};
 use der::{Decode, Document, Encode, asn1::BitString};
+use ed448_goldilocks::Ed448;
+use rsa::{RsaPrivateKey, RsaPublicKey, pkcs1::EncodeRsaPrivateKey};
 use spki::{
     AlgorithmIdentifier, AlgorithmIdentifierOwned, DynSignatureAlgorithmIdentifier,
     EncodePublicKey, SignatureBitStringEncoding, SubjectPublicKeyInfoOwned,
 };
 
-use pqckeys::pqc_oids::{
-    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
-    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
-    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
-    SLH_DSA_SHAKE_256S,
-};
+use pqckeys::pqc_oids::*;
+use sha2::Sha256;
+use x509_cert::SubjectPublicKeyInfo;
 
 pub enum PqcKeyPair {
     MlDsa44(Box<KeyPair<MlDsa44>>),
@@ -39,11 +41,26 @@ pub enum PqcKeyPair {
     Shake192s(Box<SigningKey<Shake192s>>),
     Shake256f(Box<SigningKey<Shake256f>>),
     Shake256s(Box<SigningKey<Shake256s>>),
-}
-
-pub struct PqcSigner {
-    pub seed: Vec<u8>,
-    pub keypair: PqcKeyPair,
+    Mldsa44Rsa2048PssSha256(Box<(KeyPair<MlDsa44>, RsaPrivateKey)>),
+    Mldsa44Rsa2048Pkcs15Sha256(Box<(KeyPair<MlDsa44>, RsaPrivateKey)>),
+    Mldsa44Ed25519Sha512(Box<(KeyPair<MlDsa44>, ed25519_dalek::SigningKey)>),
+    Mldsa44EcdsaP256Sha256(Box<(KeyPair<MlDsa44>, p256::ecdsa::SigningKey)>),
+    Mldsa65Rsa3072PssSha512(Box<(KeyPair<MlDsa65>, RsaPrivateKey)>),
+    Mldsa65Rsa4096PssSha512(Box<(KeyPair<MlDsa65>, RsaPrivateKey)>),
+    Mldsa65Rsa4096Pkcs15Sha512(Box<(KeyPair<MlDsa65>, RsaPrivateKey)>),
+    Mldsa65EcdsaP256Sha512(Box<(KeyPair<MlDsa65>, p256::ecdsa::SigningKey)>),
+    Mldsa65EcdsaP384Sha512(Box<(KeyPair<MlDsa65>, p384::ecdsa::SigningKey)>),
+    Mldsa65Ed25519Sha512(Box<(KeyPair<MlDsa65>, ed25519_dalek::SigningKey)>),
+    Mldsa87EcdsaP384Sha512(Box<(KeyPair<MlDsa87>, p384::ecdsa::SigningKey)>),
+    Mldsa87Ed448Shake256(
+        Box<(
+            KeyPair<MlDsa87>,
+            ed448_goldilocks::elliptic_curve::SecretKey<Ed448>,
+        )>,
+    ),
+    Mldsa87Rsa3072PssSha512(Box<(KeyPair<MlDsa87>, RsaPrivateKey)>),
+    Mldsa87Rsa4096PssSha512(Box<(KeyPair<MlDsa87>, RsaPrivateKey)>),
+    Mldsa87EcdsaP521Sha512(Box<(KeyPair<MlDsa87>, p521::ecdsa::SigningKey)>),
 }
 
 #[derive(Clone)]
@@ -63,44 +80,61 @@ pub enum PqcVerifyingKey {
     Shake192s(Box<slh_dsa::VerifyingKey<Shake192s>>),
     Shake256f(Box<slh_dsa::VerifyingKey<Shake256f>>),
     Shake256s(Box<slh_dsa::VerifyingKey<Shake256s>>),
-}
-
-pub enum PqcSignature {
-    MlDsa44(Box<Signature<MlDsa44>>),
-    MlDsa65(Box<Signature<MlDsa65>>),
-    MlDsa87(Box<Signature<MlDsa87>>),
-    Sha2_128f(Box<slh_dsa::Signature<Sha2_128f>>),
-    Sha2_128s(Box<slh_dsa::Signature<Sha2_128s>>),
-    Sha2_192f(Box<slh_dsa::Signature<Sha2_192f>>),
-    Sha2_192s(Box<slh_dsa::Signature<Sha2_192s>>),
-    Sha2_256f(Box<slh_dsa::Signature<Sha2_256f>>),
-    Sha2_256s(Box<slh_dsa::Signature<Sha2_256s>>),
-    Shake128f(Box<slh_dsa::Signature<Shake128f>>),
-    Shake128s(Box<slh_dsa::Signature<Shake128s>>),
-    Shake192f(Box<slh_dsa::Signature<Shake192f>>),
-    Shake192s(Box<slh_dsa::Signature<Shake192s>>),
-    Shake256f(Box<slh_dsa::Signature<Shake256f>>),
-    Shake256s(Box<slh_dsa::Signature<Shake256s>>),
+    Mldsa44Rsa2048PssSha256(Box<(VerifyingKey<MlDsa44>, RsaPublicKey)>),
+    Mldsa44Rsa2048Pkcs15Sha256(Box<(VerifyingKey<MlDsa44>, RsaPublicKey)>),
+    Mldsa44Ed25519Sha512(Box<(VerifyingKey<MlDsa44>, ed25519_dalek::VerifyingKey)>),
+    Mldsa44EcdsaP256Sha256(Box<(VerifyingKey<MlDsa44>, p256::ecdsa::VerifyingKey)>),
+    Mldsa65Rsa3072PssSha512(Box<(VerifyingKey<MlDsa44>, RsaPublicKey)>),
+    Mldsa65Rsa4096PssSha512(Box<(VerifyingKey<MlDsa65>, RsaPublicKey)>),
+    Mldsa65Rsa4096Pkcs15Sha512(Box<(VerifyingKey<MlDsa65>, RsaPublicKey)>),
+    Mldsa65EcdsaP256Sha512(Box<(VerifyingKey<MlDsa65>, p256::ecdsa::VerifyingKey)>),
+    Mldsa65EcdsaP384Sha512(Box<(VerifyingKey<MlDsa65>, p384::ecdsa::VerifyingKey)>),
+    Mldsa65Ed25519Sha512(Box<(VerifyingKey<MlDsa65>, ed25519_dalek::VerifyingKey)>),
+    Mldsa87EcdsaP384Sha512(Box<(VerifyingKey<MlDsa87>, p384::ecdsa::VerifyingKey)>),
+    Mldsa87Ed448Shake256(
+        Box<(
+            VerifyingKey<MlDsa87>,
+            ed448_goldilocks::elliptic_curve::PublicKey<Ed448>,
+        )>,
+    ),
+    Mldsa87Rsa3072PssSha512(Box<(VerifyingKey<MlDsa87>, RsaPublicKey)>),
+    Mldsa87Rsa4096PssSha512(Box<(VerifyingKey<MlDsa87>, RsaPublicKey)>),
+    Mldsa87EcdsaP521Sha512(Box<(VerifyingKey<MlDsa87>, p521::ecdsa::VerifyingKey)>),
 }
 
 impl PqcVerifyingKey {
     pub(crate) fn oid(&self) -> ObjectIdentifier {
         match self {
-            PqcVerifyingKey::MlDsa44(_) => ML_DSA_44,
-            PqcVerifyingKey::MlDsa65(_) => ML_DSA_65,
-            PqcVerifyingKey::MlDsa87(_) => ML_DSA_87,
-            PqcVerifyingKey::Sha2_128f(_) => SLH_DSA_SHA2_128F,
-            PqcVerifyingKey::Sha2_128s(_) => SLH_DSA_SHA2_128S,
-            PqcVerifyingKey::Sha2_192f(_) => SLH_DSA_SHA2_192F,
-            PqcVerifyingKey::Sha2_192s(_) => SLH_DSA_SHA2_192S,
-            PqcVerifyingKey::Sha2_256f(_) => SLH_DSA_SHA2_256F,
-            PqcVerifyingKey::Sha2_256s(_) => SLH_DSA_SHA2_256S,
-            PqcVerifyingKey::Shake128f(_) => SLH_DSA_SHAKE_128F,
-            PqcVerifyingKey::Shake128s(_) => SLH_DSA_SHAKE_128S,
-            PqcVerifyingKey::Shake192f(_) => SLH_DSA_SHAKE_192F,
-            PqcVerifyingKey::Shake192s(_) => SLH_DSA_SHAKE_192S,
-            PqcVerifyingKey::Shake256f(_) => SLH_DSA_SHAKE_256F,
-            PqcVerifyingKey::Shake256s(_) => SLH_DSA_SHAKE_256S,
+            PqcVerifyingKey::MlDsa44(_) => ID_ML_DSA_44,
+            PqcVerifyingKey::MlDsa65(_) => ID_ML_DSA_65,
+            PqcVerifyingKey::MlDsa87(_) => ID_ML_DSA_87,
+            PqcVerifyingKey::Sha2_128f(_) => ID_SLH_DSA_SHA_2_128_F,
+            PqcVerifyingKey::Sha2_128s(_) => ID_SLH_DSA_SHA_2_128_S,
+            PqcVerifyingKey::Sha2_192f(_) => ID_SLH_DSA_SHA_2_192_F,
+            PqcVerifyingKey::Sha2_192s(_) => ID_SLH_DSA_SHA_2_192_S,
+            PqcVerifyingKey::Sha2_256f(_) => ID_SLH_DSA_SHA_2_256_F,
+            PqcVerifyingKey::Sha2_256s(_) => ID_SLH_DSA_SHA_2_256_S,
+            PqcVerifyingKey::Shake128f(_) => ID_SLH_DSA_SHAKE_128_F,
+            PqcVerifyingKey::Shake128s(_) => ID_SLH_DSA_SHAKE_128_S,
+            PqcVerifyingKey::Shake192f(_) => ID_SLH_DSA_SHAKE_192_F,
+            PqcVerifyingKey::Shake192s(_) => ID_SLH_DSA_SHAKE_192_S,
+            PqcVerifyingKey::Shake256f(_) => ID_SLH_DSA_SHAKE_256_F,
+            PqcVerifyingKey::Shake256s(_) => ID_SLH_DSA_SHAKE_256_S,
+            PqcVerifyingKey::Mldsa44Rsa2048PssSha256(_) => ID_MLDSA44_RSA2048_PSS_SHA256,
+            PqcVerifyingKey::Mldsa44Rsa2048Pkcs15Sha256(_) => ID_MLDSA44_RSA2048_PKCS15_SHA256,
+            PqcVerifyingKey::Mldsa44Ed25519Sha512(_) => ID_MLDSA44_ED25519_SHA512,
+            PqcVerifyingKey::Mldsa44EcdsaP256Sha256(_) => ID_MLDSA44_ECDSA_P256_SHA256,
+            PqcVerifyingKey::Mldsa65Rsa3072PssSha512(_) => ID_MLDSA65_RSA3072_PSS_SHA512,
+            PqcVerifyingKey::Mldsa65Rsa4096PssSha512(_) => ID_MLDSA65_RSA4096_PSS_SHA512,
+            PqcVerifyingKey::Mldsa65Rsa4096Pkcs15Sha512(_) => ID_MLDSA65_RSA4096_PKCS15_SHA512,
+            PqcVerifyingKey::Mldsa65EcdsaP256Sha512(_) => ID_MLDSA65_ECDSA_P256_SHA512,
+            PqcVerifyingKey::Mldsa65EcdsaP384Sha512(_) => ID_MLDSA65_ECDSA_P384_SHA512,
+            PqcVerifyingKey::Mldsa65Ed25519Sha512(_) => ID_MLDSA65_ED25519_SHA512,
+            PqcVerifyingKey::Mldsa87EcdsaP384Sha512(_) => ID_MLDSA87_ECDSA_P384_SHA512,
+            PqcVerifyingKey::Mldsa87Ed448Shake256(_) => ID_MLDSA87_ED448_SHAKE256,
+            PqcVerifyingKey::Mldsa87Rsa3072PssSha512(_) => ID_MLDSA87_RSA3072_PSS_SHA512,
+            PqcVerifyingKey::Mldsa87Rsa4096PssSha512(_) => ID_MLDSA87_RSA4096_PSS_SHA512,
+            PqcVerifyingKey::Mldsa87EcdsaP521Sha512(_) => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
     pub(crate) fn public_key(&self) -> Vec<u8> {
@@ -120,8 +154,255 @@ impl PqcVerifyingKey {
             PqcVerifyingKey::Shake192s(vk) => vk.to_bytes().to_vec(),
             PqcVerifyingKey::Shake256f(vk) => vk.to_bytes().to_vec(),
             PqcVerifyingKey::Shake256s(vk) => vk.to_bytes().to_vec(),
+            PqcVerifyingKey::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcVerifyingKey::Mldsa44Rsa2048Pkcs15Sha256(vk) => {
+                let rsa = vk.1.to_public_key_der().unwrap();
+                let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut spki.subject_public_key.as_bytes().unwrap().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa44Ed25519Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let mut ecdsa = vk.1.as_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcVerifyingKey::Mldsa44EcdsaP256Sha256(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let ecdsa = vk.1.to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcVerifyingKey::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcVerifyingKey::Mldsa65Rsa4096Pkcs15Sha512(vk) => {
+                let rsa = vk.1.to_public_key_der().unwrap();
+                let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut spki.subject_public_key.as_bytes().unwrap().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa65EcdsaP256Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let ecdsa = vk.1.to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa65EcdsaP384Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let ecdsa = vk.1.to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa65Ed25519Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let mut ecdsa = vk.1.as_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcVerifyingKey::Mldsa87EcdsaP384Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let ecdsa = vk.1.to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcVerifyingKey::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcVerifyingKey::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcVerifyingKey::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcVerifyingKey::Mldsa87EcdsaP521Sha512(vk) => {
+                let mut mldsa = vk.0.encode().as_bytes().to_vec();
+                let ecdsa = vk.1.to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
         }
     }
+}
+
+impl EncodePublicKey for PqcVerifyingKey {
+    fn to_public_key_der(&self) -> Result<Document, spki::Error> {
+        let spki_algorithm = AlgorithmIdentifierOwned {
+            oid: self.oid(),
+            parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
+        };
+        let ca_spki = SubjectPublicKeyInfoOwned {
+            algorithm: spki_algorithm,
+            subject_public_key: BitString::from_bytes(&self.public_key())?,
+        };
+        Ok(Document::from_der(&ca_spki.to_der()?)?)
+    }
+}
+
+pub enum PqcSignature {
+    MlDsa44(Box<Signature<MlDsa44>>),
+    MlDsa65(Box<Signature<MlDsa65>>),
+    MlDsa87(Box<Signature<MlDsa87>>),
+    Sha2_128f(Box<slh_dsa::Signature<Sha2_128f>>),
+    Sha2_128s(Box<slh_dsa::Signature<Sha2_128s>>),
+    Sha2_192f(Box<slh_dsa::Signature<Sha2_192f>>),
+    Sha2_192s(Box<slh_dsa::Signature<Sha2_192s>>),
+    Sha2_256f(Box<slh_dsa::Signature<Sha2_256f>>),
+    Sha2_256s(Box<slh_dsa::Signature<Sha2_256s>>),
+    Shake128f(Box<slh_dsa::Signature<Shake128f>>),
+    Shake128s(Box<slh_dsa::Signature<Shake128s>>),
+    Shake192f(Box<slh_dsa::Signature<Shake192f>>),
+    Shake192s(Box<slh_dsa::Signature<Shake192s>>),
+    Shake256f(Box<slh_dsa::Signature<Shake256f>>),
+    Shake256s(Box<slh_dsa::Signature<Shake256s>>),
+    Mldsa44Rsa2048PssSha256(Box<(Signature<MlDsa44>, Vec<u8>)>),
+    Mldsa44Rsa2048Pkcs15Sha256(Box<(Signature<MlDsa44>, Vec<u8>)>),
+    Mldsa44Ed25519Sha512(Box<(Signature<MlDsa44>, ed25519_dalek::Signature)>),
+    Mldsa44EcdsaP256Sha256(Box<(Signature<MlDsa44>, p256::ecdsa::Signature)>),
+    Mldsa65Rsa3072PssSha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65Rsa4096PssSha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65Rsa4096Pkcs15Sha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65EcdsaP256Sha512(Box<(Signature<MlDsa65>, p256::ecdsa::Signature)>),
+    Mldsa65EcdsaP384Sha512(Box<(Signature<MlDsa65>, p384::ecdsa::Signature)>),
+    Mldsa65Ed25519Sha512(Box<(Signature<MlDsa65>, ed25519_dalek::Signature)>),
+    Mldsa87EcdsaP384Sha512(Box<(Signature<MlDsa87>, p384::ecdsa::Signature)>),
+    Mldsa87Ed448Shake256(Box<(Signature<MlDsa87>, Vec<u8>)>), //todo fix
+    Mldsa87Rsa3072PssSha512(Box<(Signature<MlDsa87>, Vec<u8>)>),
+    Mldsa87Rsa4096PssSha512(Box<(Signature<MlDsa87>, Vec<u8>)>),
+    Mldsa87EcdsaP521Sha512(Box<(Signature<MlDsa87>, p521::ecdsa::Signature)>),
+}
+
+impl PqcSignature {
+    fn signature(&self) -> Vec<u8> {
+        match self {
+            PqcSignature::MlDsa44(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::MlDsa65(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::MlDsa87(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::Sha2_128f(sig) => sig.to_vec(),
+            PqcSignature::Sha2_128s(sig) => sig.to_vec(),
+            PqcSignature::Sha2_192f(sig) => sig.to_vec(),
+            PqcSignature::Sha2_192s(sig) => sig.to_vec(),
+            PqcSignature::Sha2_256f(sig) => sig.to_vec(),
+            PqcSignature::Sha2_256s(sig) => sig.to_vec(),
+            PqcSignature::Shake128f(sig) => sig.to_vec(),
+            PqcSignature::Shake128s(sig) => sig.to_vec(),
+            PqcSignature::Shake192f(sig) => sig.to_vec(),
+            PqcSignature::Shake192s(sig) => sig.to_vec(),
+            PqcSignature::Shake256f(sig) => sig.to_vec(),
+            PqcSignature::Shake256s(sig) => sig.to_vec(),
+            PqcSignature::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcSignature::Mldsa44Rsa2048Pkcs15Sha256(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut rsa = sig.1.clone();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut rsa);
+                retval
+            }
+            PqcSignature::Mldsa44Ed25519Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa44EcdsaP256Sha256(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcSignature::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcSignature::Mldsa65Rsa4096Pkcs15Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut rsa = sig.1.clone();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut rsa);
+                retval
+            }
+            PqcSignature::Mldsa65EcdsaP256Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa65EcdsaP384Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa65Ed25519Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa87EcdsaP384Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+            PqcSignature::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcSignature::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcSignature::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcSignature::Mldsa87EcdsaP521Sha512(sig) => {
+                let mut mldsa = sig.0.encode().as_bytes().to_vec();
+                let mut ecdsa = sig.1.to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa);
+                retval
+            }
+        }
+    }
+}
+
+impl SignatureBitStringEncoding for PqcSignature {
+    fn to_bitstring(&self) -> Result<BitString, der::Error> {
+        BitString::from_bytes(&self.signature())
+    }
+}
+
+pub struct PqcSigner {
+    pub seed: Vec<u8>,
+    pub keypair: PqcKeyPair,
 }
 
 impl PqcSigner {
@@ -134,21 +415,36 @@ impl PqcSigner {
 
     pub(crate) fn oid(&self) -> ObjectIdentifier {
         match self.keypair {
-            PqcKeyPair::MlDsa44(_) => ML_DSA_44,
-            PqcKeyPair::MlDsa65(_) => ML_DSA_65,
-            PqcKeyPair::MlDsa87(_) => ML_DSA_87,
-            PqcKeyPair::Sha2_128f(_) => SLH_DSA_SHA2_128F,
-            PqcKeyPair::Sha2_128s(_) => SLH_DSA_SHA2_128S,
-            PqcKeyPair::Sha2_192f(_) => SLH_DSA_SHA2_192F,
-            PqcKeyPair::Sha2_192s(_) => SLH_DSA_SHA2_192S,
-            PqcKeyPair::Sha2_256f(_) => SLH_DSA_SHA2_256F,
-            PqcKeyPair::Sha2_256s(_) => SLH_DSA_SHA2_256S,
-            PqcKeyPair::Shake128f(_) => SLH_DSA_SHAKE_128F,
-            PqcKeyPair::Shake128s(_) => SLH_DSA_SHAKE_128S,
-            PqcKeyPair::Shake192f(_) => SLH_DSA_SHAKE_192F,
-            PqcKeyPair::Shake192s(_) => SLH_DSA_SHAKE_192S,
-            PqcKeyPair::Shake256f(_) => SLH_DSA_SHAKE_256F,
-            PqcKeyPair::Shake256s(_) => SLH_DSA_SHAKE_256S,
+            PqcKeyPair::MlDsa44(_) => ID_ML_DSA_44,
+            PqcKeyPair::MlDsa65(_) => ID_ML_DSA_65,
+            PqcKeyPair::MlDsa87(_) => ID_ML_DSA_87,
+            PqcKeyPair::Sha2_128f(_) => ID_SLH_DSA_SHA_2_128_F,
+            PqcKeyPair::Sha2_128s(_) => ID_SLH_DSA_SHA_2_128_S,
+            PqcKeyPair::Sha2_192f(_) => ID_SLH_DSA_SHA_2_192_F,
+            PqcKeyPair::Sha2_192s(_) => ID_SLH_DSA_SHA_2_192_S,
+            PqcKeyPair::Sha2_256f(_) => ID_SLH_DSA_SHA_2_256_F,
+            PqcKeyPair::Sha2_256s(_) => ID_SLH_DSA_SHA_2_256_S,
+            PqcKeyPair::Shake128f(_) => ID_SLH_DSA_SHAKE_128_F,
+            PqcKeyPair::Shake128s(_) => ID_SLH_DSA_SHAKE_128_S,
+            PqcKeyPair::Shake192f(_) => ID_SLH_DSA_SHAKE_192_F,
+            PqcKeyPair::Shake192s(_) => ID_SLH_DSA_SHAKE_192_S,
+            PqcKeyPair::Shake256f(_) => ID_SLH_DSA_SHAKE_256_F,
+            PqcKeyPair::Shake256s(_) => ID_SLH_DSA_SHAKE_256_S,
+            PqcKeyPair::Mldsa44Rsa2048PssSha256(_) => ID_MLDSA44_RSA2048_PSS_SHA256,
+            PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(_) => ID_MLDSA44_RSA2048_PKCS15_SHA256,
+            PqcKeyPair::Mldsa44Ed25519Sha512(_) => ID_MLDSA44_ED25519_SHA512,
+            PqcKeyPair::Mldsa44EcdsaP256Sha256(_) => ID_MLDSA44_ECDSA_P256_SHA256,
+            PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => ID_MLDSA65_RSA3072_PSS_SHA512,
+            PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => ID_MLDSA65_RSA4096_PSS_SHA512,
+            PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(_) => ID_MLDSA65_RSA4096_PKCS15_SHA512,
+            PqcKeyPair::Mldsa65EcdsaP256Sha512(_) => ID_MLDSA65_ECDSA_P256_SHA512,
+            PqcKeyPair::Mldsa65EcdsaP384Sha512(_) => ID_MLDSA65_ECDSA_P384_SHA512,
+            PqcKeyPair::Mldsa65Ed25519Sha512(_) => ID_MLDSA65_ED25519_SHA512,
+            PqcKeyPair::Mldsa87EcdsaP384Sha512(_) => ID_MLDSA87_ECDSA_P384_SHA512,
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => ID_MLDSA87_ED448_SHAKE256,
+            PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => ID_MLDSA87_RSA3072_PSS_SHA512,
+            PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => ID_MLDSA87_RSA4096_PSS_SHA512,
+            PqcKeyPair::Mldsa87EcdsaP521Sha512(_) => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
     pub(crate) fn public_key(&self) -> Vec<u8> {
@@ -177,6 +473,93 @@ impl PqcSigner {
             PqcKeyPair::Shake192s(sk) => sk.verifying_key().to_vec(),
             PqcKeyPair::Shake256f(sk) => sk.verifying_key().to_vec(),
             PqcKeyPair::Shake256s(sk) => sk.verifying_key().to_vec(),
+            PqcKeyPair::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
+                let rsa = sk.1.to_public_key().to_public_key_der().unwrap();
+                let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut spki.subject_public_key.as_bytes().unwrap().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key().to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
+                let rsa = sk.1.to_public_key().to_public_key_der().unwrap();
+                let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut spki.subject_public_key.as_bytes().unwrap().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key().to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key().to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key().to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
+                let mut mldsa = sk.0.verifying_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.verifying_key().to_encoded_point(true);
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
         }
     }
     pub(crate) fn private_key(&self) -> Vec<u8> {
@@ -205,6 +588,91 @@ impl PqcSigner {
             PqcKeyPair::Shake192s(sk) => sk.to_vec(),
             PqcKeyPair::Shake256f(sk) => sk.to_vec(),
             PqcKeyPair::Shake256s(sk) => sk.to_vec(),
+            PqcKeyPair::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let rsa = sk.1.to_pkcs1_der().unwrap();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut rsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let rsa = sk.1.to_pkcs1_der().unwrap();
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut rsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
+                let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
+                let ecdsa = sk.1.to_bytes().to_vec();
+
+                let mut retval = vec![];
+                retval.append(&mut mldsa);
+                retval.append(&mut ecdsa.as_bytes().to_vec());
+                retval
+            }
         }
     }
     pub(crate) fn verifying_key(&self) -> PqcVerifyingKey {
@@ -253,6 +721,59 @@ impl PqcSigner {
             }
             PqcKeyPair::Shake256s(sk) => {
                 PqcVerifyingKey::Shake256s(Box::new(sk.verifying_key().clone()))
+            }
+            PqcKeyPair::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let rsa_private = sk.1.clone();
+                let rsa = rsa_private.to_public_key();
+                PqcVerifyingKey::Mldsa44Rsa2048Pkcs15Sha256(Box::new((mldsa, rsa)))
+            }
+            PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa44EcdsaP256Sha256(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let rsa_private = sk.1.clone();
+                let rsa = rsa_private.to_public_key();
+                PqcVerifyingKey::Mldsa65Rsa4096Pkcs15Sha512(Box::new((mldsa, rsa)))
+            }
+            PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa65EcdsaP256Sha512(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa65EcdsaP384Sha512(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa87EcdsaP384Sha512(Box::new((mldsa, ecdsa)))
+            }
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
+                let mldsa = sk.0.verifying_key().clone();
+                let ecdsa = sk.1.verifying_key().clone();
+                PqcVerifyingKey::Mldsa87EcdsaP521Sha512(Box::new((mldsa, ecdsa)))
             }
         }
     }
@@ -339,7 +860,84 @@ impl PqcSigner {
                     sk.sign_with_rng(&mut rng, msg),
                 )))
             }
+            PqcKeyPair::Mldsa44Rsa2048PssSha256(_) => todo!(),
+            PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha256>::new(sk.1.clone());
+                let rsa = rsa_sk.sign(msg).to_vec();
+                Ok(PqcSignature::Mldsa44Rsa2048Pkcs15Sha256(Box::new((
+                    mldsa, rsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))))
+            }
+            PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa44EcdsaP256Sha256(Box::new((
+                    mldsa, ecdsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa65Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha256>::new(sk.1.clone());
+                let rsa = rsa_sk.sign(msg).to_vec();
+                Ok(PqcSignature::Mldsa65Rsa4096Pkcs15Sha512(Box::new((
+                    mldsa, rsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa65EcdsaP256Sha512(Box::new((
+                    mldsa, ecdsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa65EcdsaP384Sha512(Box::new((
+                    mldsa, ecdsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))))
+            }
+            PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa87EcdsaP384Sha512(Box::new((
+                    mldsa, ecdsa,
+                ))))
+            }
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa3072PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87Rsa4096PssSha512(_) => todo!(),
+            PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
+                let mldsa = sk.0.signing_key().sign(msg);
+                let ecdsa = sk.1.sign(msg);
+                Ok(PqcSignature::Mldsa87EcdsaP521Sha512(Box::new((
+                    mldsa, ecdsa,
+                ))))
+            }
         }
+    }
+}
+
+impl DynSignatureAlgorithmIdentifier for PqcSigner {
+    fn signature_algorithm_identifier(&self) -> Result<AlgorithmIdentifier<der::Any>, spki::Error> {
+        let spki_algorithm = AlgorithmIdentifierOwned {
+            oid: self.oid(),
+            parameters: None, // Params absent for Dilithium signatures per draft-ietf-lamps-dilithium-certificates-02 section 2
+        };
+        Ok(spki_algorithm)
     }
 }
 
@@ -357,45 +955,10 @@ impl EncodePublicKey for PqcSigner {
     }
 }
 
-impl EncodePublicKey for PqcVerifyingKey {
-    fn to_public_key_der(&self) -> Result<Document, spki::Error> {
-        let spki_algorithm = AlgorithmIdentifierOwned {
-            oid: self.oid(),
-            parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
-        };
-        let ca_spki = SubjectPublicKeyInfoOwned {
-            algorithm: spki_algorithm,
-            subject_public_key: BitString::from_bytes(&self.public_key())?,
-        };
-        Ok(Document::from_der(&ca_spki.to_der()?)?)
-    }
-}
-
-impl PqcSignature {
-    fn signature(&self) -> Vec<u8> {
-        match self {
-            PqcSignature::MlDsa44(sig) => sig.encode().as_bytes().to_vec(),
-            PqcSignature::MlDsa65(sig) => sig.encode().as_bytes().to_vec(),
-            PqcSignature::MlDsa87(sig) => sig.encode().as_bytes().to_vec(),
-            PqcSignature::Sha2_128f(sig) => sig.to_vec(),
-            PqcSignature::Sha2_128s(sig) => sig.to_vec(),
-            PqcSignature::Sha2_192f(sig) => sig.to_vec(),
-            PqcSignature::Sha2_192s(sig) => sig.to_vec(),
-            PqcSignature::Sha2_256f(sig) => sig.to_vec(),
-            PqcSignature::Sha2_256s(sig) => sig.to_vec(),
-            PqcSignature::Shake128f(sig) => sig.to_vec(),
-            PqcSignature::Shake128s(sig) => sig.to_vec(),
-            PqcSignature::Shake192f(sig) => sig.to_vec(),
-            PqcSignature::Shake192s(sig) => sig.to_vec(),
-            PqcSignature::Shake256f(sig) => sig.to_vec(),
-            PqcSignature::Shake256s(sig) => sig.to_vec(),
-        }
-    }
-}
-
-impl SignatureBitStringEncoding for PqcSignature {
-    fn to_bitstring(&self) -> Result<BitString, der::Error> {
-        BitString::from_bytes(&self.signature())
+impl Keypair for PqcSigner {
+    type VerifyingKey = PqcVerifyingKey;
+    fn verifying_key(&self) -> <Self as Keypair>::VerifyingKey {
+        self.verifying_key()
     }
 }
 
@@ -407,22 +970,5 @@ impl Signer<PqcSignature> for PqcSigner {
                 panic!("Failed to generate signature: {e:?}");
             }
         }
-    }
-}
-
-impl Keypair for PqcSigner {
-    type VerifyingKey = PqcVerifyingKey;
-    fn verifying_key(&self) -> <Self as Keypair>::VerifyingKey {
-        self.verifying_key()
-    }
-}
-
-impl DynSignatureAlgorithmIdentifier for PqcSigner {
-    fn signature_algorithm_identifier(&self) -> Result<AlgorithmIdentifier<der::Any>, spki::Error> {
-        let spki_algorithm = AlgorithmIdentifierOwned {
-            oid: self.oid(),
-            parameters: None, // Params absent for Dilithium signatures per draft-ietf-lamps-dilithium-certificates-02 section 2
-        };
-        Ok(spki_algorithm)
     }
 }

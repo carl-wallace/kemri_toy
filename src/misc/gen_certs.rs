@@ -14,6 +14,7 @@ use rand::rngs::OsRng;
 use rand_core::TryRngCore;
 
 use cipher::rand_core::CryptoRng;
+use const_oid::db::fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024};
 use ml_kem::{
     ArraySize, B32, EncodedSizeUser, KemCore, MlKem512, MlKem768, MlKem1024,
     array::Array,
@@ -34,9 +35,10 @@ use x509_cert::{
 };
 
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
+use pqckeys::pqc_oids::*;
 
 use crate::{
-    Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    Error,
     args::{
         KemAlgorithms,
         KemAlgorithms::{
@@ -145,9 +147,13 @@ pub fn generate_ml_kem_cert(
     alg: KemAlgorithms,
 ) -> crate::Result<Certificate> {
     let oid = match alg {
-        OtherMlKem512 => ML_KEM_512,
-        OtherMlKem768 => ML_KEM_768,
-        OtherMlKem1024 => ML_KEM_1024,
+        OtherMlKem512 => ID_ALG_ML_KEM_512,
+        OtherMlKem768 => ID_ALG_ML_KEM_768,
+        OtherMlKem1024 => ID_ALG_ML_KEM_1024,
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_HMAC_SHA256,
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
+        KemAlgorithms::MlKem768Rsa3072HmacSha512 => ID_MLKEM768_RSA3072_HMAC_SHA512,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -284,6 +290,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 ss.as_slice().to_vec(),
             )
         }
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+            todo!()
+        }
     };
 
     let cert = match new_cert {
@@ -330,6 +348,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             );
             pk.to_der()?
         }
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+            todo!()
+        }
     };
 
     let mut ee_file = File::create(output_folder.join(format!("{}_ee.der", kem.filename())))?;
@@ -360,6 +390,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 MlKemSeed::new(seed.clone()).map_err(|e| Error::MlKem(format!("{e:?}")))?,
             );
             pk.to_der()?
+        }
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+            todo!()
         }
     };
 
@@ -394,6 +436,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                     .map_err(|e| Error::MlKem(format!("{e:?}")))?,
             };
             pk.to_der()?
+        }
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+            todo!()
+        }
+        KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+            todo!()
         }
     };
 

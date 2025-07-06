@@ -67,6 +67,14 @@ pub enum Error {
     MlKem(String),
     MlDsa(String),
     SlhDsa(String),
+    Rsa,
+}
+
+impl From<rsa::Error> for Error {
+    fn from(err: rsa::Error) -> Error {
+        error!("rsa::Error: {err:?}");
+        Error::Rsa
+    }
 }
 
 impl From<TryFromSliceError> for Error {
@@ -93,34 +101,6 @@ impl From<x509_cert::builder::Error> for Error {
         Error::CertBuilder
     }
 }
-
-/// OID for the ML-DSA-44 parameter set as defined in [NIST CSOR].
-/// ```text
-/// id-ml-dsa-44 OBJECT IDENTIFIER ::= { sigAlgs 17 }
-/// ```
-/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#DSA
-pub const ML_DSA_44: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.3.17");
-
-/// OID for the ML-KEM-512 parameter set as defined in [NIST CSOR].
-/// ```text
-/// id-alg-ml-kem-512 OBJECT IDENTIFIER ::= { sigAlgs 17 }
-/// ```
-/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
-pub const ML_KEM_512: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.1");
-
-/// OID for the ML-KEM-512 parameter set as defined in [NIST CSOR].
-/// ```text
-/// id-alg-ml-kem-768 OBJECT IDENTIFIER ::= { sigAlgs 17 }
-/// ```
-/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
-pub const ML_KEM_768: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.2");
-
-/// OID for the ML-KEM-1024 parameter set as defined in [NIST CSOR].
-/// ```text
-/// id-alg-ml-kem-1024 OBJECT IDENTIFIER ::= { sigAlgs 17 }
-/// ```
-/// [NIST CSOR]: https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration#KEM
-pub const ML_KEM_1024: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.4.3");
 
 /// From [draft-ietf-lamps-cms-kemri-07 Section 3]
 /// ```text

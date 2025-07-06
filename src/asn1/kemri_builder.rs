@@ -19,6 +19,7 @@ use cms::{
     enveloped_data::{OtherRecipientInfo, RecipientIdentifier, RecipientInfo, UserKeyingMaterial},
     kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
 };
+use const_oid::db::fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024};
 use const_oid::{
     ObjectIdentifier,
     db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
@@ -28,7 +29,7 @@ use spki::AlgorithmIdentifier;
 
 use crate::{
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_ORI_KEM, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    ID_KMAC256, ID_ORI_KEM,
     misc::{gen_certs::buffer_to_hex, utils::get_block_size},
 };
 
@@ -117,7 +118,7 @@ where
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
-                (ss.to_vec(), ct.to_vec(), ML_KEM_512)
+                (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_512)
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
                 let ek = <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
@@ -125,7 +126,7 @@ where
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
-                (ss.to_vec(), ct.to_vec(), ML_KEM_768)
+                (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_768)
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
                 let ek = <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
@@ -133,7 +134,7 @@ where
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
-                (ss.to_vec(), ct.to_vec(), ML_KEM_1024)
+                (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
         };
 

@@ -14,12 +14,17 @@ use ml_kem::{
 use signature::{Signer, Verifier};
 use slh_dsa::*;
 
+use const_oid::db::{
+    fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
+    fips204::*,
+    fips205::*,
+};
 use der::Decode;
 use spki::SubjectPublicKeyInfoOwned;
 
-use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
+use pqckeys::oak::OneAsymmetricKey;
 
-use crate::{Error, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result, misc::utils::extract_private_key};
+use crate::{Error, Result, misc::utils::extract_private_key};
 
 macro_rules! check_ml_kem_key {
     ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
@@ -96,41 +101,41 @@ pub(crate) fn check_private_key(
     filename: &str,
 ) -> Result<bool> {
     let oak = OneAsymmetricKey::from_der(oak_bytes)?;
-    if oak.private_key_alg.oid == ML_DSA_44 {
+    if oak.private_key_alg.oid == ID_ML_DSA_44 {
         check_ml_dsa_key!(MlDsa44, oak, spki, filename);
-    } else if oak.private_key_alg.oid == ML_DSA_65 {
+    } else if oak.private_key_alg.oid == ID_ML_DSA_65 {
         check_ml_dsa_key!(MlDsa65, oak, spki, filename);
-    } else if oak.private_key_alg.oid == ML_DSA_87 {
+    } else if oak.private_key_alg.oid == ID_ML_DSA_87 {
         check_ml_dsa_key!(MlDsa87, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_128F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_128_F {
         check_slh_dsa_key!(Sha2_128f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_128S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_128_S {
         check_slh_dsa_key!(Sha2_128s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_192F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_192_F {
         check_slh_dsa_key!(Sha2_192f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_192S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_192_S {
         check_slh_dsa_key!(Sha2_192s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_256F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_256_F {
         check_slh_dsa_key!(Sha2_256f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHA2_256S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_256_S {
         check_slh_dsa_key!(Sha2_256s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_128F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_128_F {
         check_slh_dsa_key!(Shake128f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_128S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_128_S {
         check_slh_dsa_key!(Shake128s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_192F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_192_F {
         check_slh_dsa_key!(Shake192f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_192S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_192_S {
         check_slh_dsa_key!(Shake192s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_256F {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_256_F {
         check_slh_dsa_key!(Shake256f, oak, spki, filename);
-    } else if oak.private_key_alg.oid == SLH_DSA_SHAKE_256S {
+    } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_256_S {
         check_slh_dsa_key!(Shake256s, oak, spki, filename);
-    } else if oak.private_key_alg.oid == ML_KEM_512 {
+    } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_512 {
         check_ml_kem_key!(MlKem512Params, MlKem512, oak, spki, filename);
-    } else if oak.private_key_alg.oid == ML_KEM_768 {
+    } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_768 {
         check_ml_kem_key!(MlKem768Params, MlKem768, oak, spki, filename);
-    } else if oak.private_key_alg.oid == ML_KEM_1024 {
+    } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_1024 {
         check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
     } else {
         println!("Unrecognized algorithm");

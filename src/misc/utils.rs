@@ -35,7 +35,12 @@ use cms::{
     },
     kemri::CmsOriForKemOtherInfo,
 };
-use const_oid::db::rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA};
+use const_oid::db::{
+    fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
+    fips204::*,
+    fips205::*,
+    rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA},
+};
 use const_oid::{
     ObjectIdentifier,
     db::{
@@ -49,19 +54,11 @@ use const_oid::{
 use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 
-use pqckeys::{
-    oak::OneAsymmetricKey,
-    pqc_oids::{
-        ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
-        SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
-        SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
-        SLH_DSA_SHAKE_256S,
-    },
-};
+use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
 
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024,
+    ID_KMAC256,
     asn1::{
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
@@ -175,7 +172,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
         .algorithm
         .oid
     {
-        ML_KEM_512 => {
+        ID_ALG_ML_KEM_512 => {
             let pk = Encoded::<
                 <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
             >::try_from(
@@ -193,7 +190,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
                 wrap,
             )?
         }
-        ML_KEM_768 => {
+        ID_ALG_ML_KEM_768 => {
             let pk = Encoded::<
                 <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
             >::try_from(
@@ -211,7 +208,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
                 wrap,
             )?
         }
-        ML_KEM_1024 => {
+        ID_ALG_ML_KEM_1024 => {
             let pk = Encoded::<
                 <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
             >::try_from(
@@ -362,7 +359,7 @@ pub(crate) fn extract_private_key(
     private_key_bytes: &[u8],
 ) -> crate::Result<Vec<u8>> {
     match oid {
-        ML_KEM_512 => {
+        ID_ALG_ML_KEM_512 => {
             let key = MlKem512PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem512PrivateKey::Seed(seed) => {
@@ -389,7 +386,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ML_KEM_768 => {
+        ID_ALG_ML_KEM_768 => {
             let key = MlKem768PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem768PrivateKey::Seed(seed) => {
@@ -416,7 +413,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ML_KEM_1024 => {
+        ID_ALG_ML_KEM_1024 => {
             let key = MlKem1024PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlKem1024PrivateKey::Seed(seed) => {
@@ -443,7 +440,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ML_DSA_44 => {
+        ID_ML_DSA_44 => {
             let key = MlDsa44PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa44PrivateKey::Seed(seed) => {
@@ -471,7 +468,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ML_DSA_65 => {
+        ID_ML_DSA_65 => {
             let key = MlDsa65PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa65PrivateKey::Seed(seed) => {
@@ -499,7 +496,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ML_DSA_87 => {
+        ID_ML_DSA_87 => {
             let key = MlDsa87PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa87PrivateKey::Seed(seed) => {
@@ -537,16 +534,16 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
     let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
     let ss = match kemri.kem.oid {
-        ML_KEM_512 => {
-            let ee_sk = extract_private_key(ML_KEM_512, private_key_bytes)?;
+        ID_ALG_ML_KEM_512 => {
+            let ee_sk = extract_private_key(ID_ALG_ML_KEM_512, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem512, MlKem512Params, ee_sk)
         }
-        ML_KEM_768 => {
-            let ee_sk = extract_private_key(ML_KEM_768, private_key_bytes)?;
+        ID_ALG_ML_KEM_768 => {
+            let ee_sk = extract_private_key(ID_ALG_ML_KEM_768, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem768, MlKem768Params, ee_sk)
         }
-        ML_KEM_1024 => {
-            let ee_sk = extract_private_key(ML_KEM_1024, private_key_bytes)?;
+        ID_ALG_ML_KEM_1024 => {
+            let ee_sk = extract_private_key(ID_ALG_ML_KEM_1024, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem1024, MlKem1024Params, ee_sk)
         }
         _ => {
@@ -837,24 +834,39 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
 
 pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     match oid {
-        ML_KEM_512 => "ml-kem-512".to_string(),
-        ML_KEM_768 => "ml-kem-768".to_string(),
-        ML_KEM_1024 => "ml-kem-1024".to_string(),
-        ML_DSA_44 => "ml-dsa-44".to_string(),
-        ML_DSA_65 => "ml-dsa-65".to_string(),
-        ML_DSA_87 => "ml-dsa-87".to_string(),
-        SLH_DSA_SHA2_128S => "slh-dsa-sha2-128s".to_string(),
-        SLH_DSA_SHA2_128F => "slh-dsa-sha2-128f".to_string(),
-        SLH_DSA_SHA2_192S => "slh-dsa-sha2-192s".to_string(),
-        SLH_DSA_SHA2_192F => "slh-dsa-sha2-192f".to_string(),
-        SLH_DSA_SHA2_256S => "slh-dsa-sha2-256s".to_string(),
-        SLH_DSA_SHA2_256F => "slh-dsa-sha2-256f".to_string(),
-        SLH_DSA_SHAKE_128S => "slh-dsa-shake-128s".to_string(),
-        SLH_DSA_SHAKE_128F => "slh-dsa-shake-128f".to_string(),
-        SLH_DSA_SHAKE_192S => "slh-dsa-shake-192s".to_string(),
-        SLH_DSA_SHAKE_192F => "slh-dsa-shake-192f".to_string(),
-        SLH_DSA_SHAKE_256S => "slh-dsa-shake-256s".to_string(),
-        SLH_DSA_SHAKE_256F => "slh-dsa-shake-256f".to_string(),
+        ID_ALG_ML_KEM_512 => "ml-kem-512".to_string(),
+        ID_ALG_ML_KEM_768 => "ml-kem-768".to_string(),
+        ID_ALG_ML_KEM_1024 => "ml-kem-1024".to_string(),
+        ID_ML_DSA_44 => "ml-dsa-44".to_string(),
+        ID_ML_DSA_65 => "ml-dsa-65".to_string(),
+        ID_ML_DSA_87 => "ml-dsa-87".to_string(),
+        ID_SLH_DSA_SHA_2_128_S => "slh-dsa-sha2-128s".to_string(),
+        ID_SLH_DSA_SHA_2_128_F => "slh-dsa-sha2-128f".to_string(),
+        ID_SLH_DSA_SHA_2_192_S => "slh-dsa-sha2-192s".to_string(),
+        ID_SLH_DSA_SHA_2_192_F => "slh-dsa-sha2-192f".to_string(),
+        ID_SLH_DSA_SHA_2_256_S => "slh-dsa-sha2-256s".to_string(),
+        ID_SLH_DSA_SHA_2_256_F => "slh-dsa-sha2-256f".to_string(),
+        ID_SLH_DSA_SHAKE_128_S => "slh-dsa-shake-128s".to_string(),
+        ID_SLH_DSA_SHAKE_128_F => "slh-dsa-shake-128f".to_string(),
+        ID_SLH_DSA_SHAKE_192_S => "slh-dsa-shake-192s".to_string(),
+        ID_SLH_DSA_SHAKE_192_F => "slh-dsa-shake-192f".to_string(),
+        ID_SLH_DSA_SHAKE_256_S => "slh-dsa-shake-256s".to_string(),
+        ID_SLH_DSA_SHAKE_256_F => "slh-dsa-shake-256f".to_string(),
+        ID_MLDSA44_RSA2048_PSS_SHA256 => "ml-dsa-44-rsa2048-pss".to_string(),
+        ID_MLDSA44_RSA2048_PKCS15_SHA256 => "ml-dsa-44-rsa2048-pkcs15".to_string(),
+        ID_MLDSA44_ED25519_SHA512 => "ml-dsa-44-ed25519".to_string(),
+        ID_MLDSA44_ECDSA_P256_SHA256 => "ml-dsa-44-ecdsa-p256".to_string(),
+        ID_MLDSA65_RSA3072_PSS_SHA512 => "ml-dsa-65-rsa3072-pss".to_string(),
+        ID_MLDSA65_RSA4096_PSS_SHA512 => "ml-dsa-65-rsa4096-pss".to_string(),
+        ID_MLDSA65_RSA4096_PKCS15_SHA512 => "ml-dsa-65-rsa4096-pkcs15".to_string(),
+        ID_MLDSA65_ECDSA_P256_SHA512 => "ml-dsa-65-ecdsa-p256".to_string(),
+        ID_MLDSA65_ECDSA_P384_SHA512 => "ml-dsa-65-ecdsa-p384".to_string(),
+        ID_MLDSA65_ED25519_SHA512 => "ml-dsa-65-ed25519".to_string(),
+        ID_MLDSA87_ECDSA_P384_SHA512 => "ml-dsa-87-ecdsa-p384".to_string(),
+        ID_MLDSA87_ED448_SHAKE256 => "ml-dsa-87-ed448".to_string(),
+        ID_MLDSA87_RSA3072_PSS_SHA512 => "ml-dsa-87-rsa3072-pss".to_string(),
+        ID_MLDSA87_RSA4096_PSS_SHA512 => "ml-dsa-87-rsa4096-pss".to_string(),
+        ID_MLDSA87_ECDSA_P521_SHA512 => "ml-dsa-87-ecdsa-p521".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }
@@ -931,7 +943,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
                                 Ok(pt) => {
                                     assert_eq!(pt, expected_plaintext);
                                     success += 1;
-                                },
+                                }
                                 Err(e) => {
                                     println!("ERROR processing {:?}: {e:?}", path.path());
                                     return Err(e);

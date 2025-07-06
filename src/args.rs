@@ -1,6 +1,7 @@
 //! Arguments for the `kemri_toy` utility
 
 use core::fmt;
+use pqckeys::pqc_oids::*;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -12,29 +13,26 @@ use slh_dsa::{
     Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
 };
 
-use const_oid::{
-    ObjectIdentifier,
-    db::rfc5911::{
-        ID_AES_128_CBC, ID_AES_128_GCM, ID_AES_128_WRAP, ID_AES_192_CBC, ID_AES_192_WRAP,
-        ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
-    },
-};
-use pqckeys::pqc_oids::{
-    ML_DSA_44, ML_DSA_65, ML_DSA_87, SLH_DSA_SHA2_128F, SLH_DSA_SHA2_128S, SLH_DSA_SHA2_192F,
-    SLH_DSA_SHA2_192S, SLH_DSA_SHA2_256F, SLH_DSA_SHA2_256S, SLH_DSA_SHAKE_128F,
-    SLH_DSA_SHAKE_128S, SLH_DSA_SHAKE_192F, SLH_DSA_SHAKE_192S, SLH_DSA_SHAKE_256F,
-    SLH_DSA_SHAKE_256S,
-};
-
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ML_KEM_512, ML_KEM_768, ML_KEM_1024, Result,
+    ID_KMAC256, Result,
     misc::{
         gen_certs::rand,
         signer::{PqcKeyPair, PqcSigner},
         utils::get_filename_from_oid,
     },
 };
+use const_oid::{
+    ObjectIdentifier,
+    db::fips203::*,
+    db::fips204::*,
+    db::fips205::*,
+    db::rfc5911::{
+        ID_AES_128_CBC, ID_AES_128_GCM, ID_AES_128_WRAP, ID_AES_192_CBC, ID_AES_192_WRAP,
+        ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
+    },
+};
+use rsa::RsaPrivateKey;
 
 /// KEM algorithms available via command line argument
 #[derive(Clone, Serialize, Deserialize, Debug, Default, clap::ValueEnum)]
@@ -43,6 +41,10 @@ pub enum KemAlgorithms {
     MlKem512,
     MlKem768,
     MlKem1024,
+    MlKem768Rsa2048HmacSha256,
+    MlKem768Rsa3072HmacSha256,
+    MlKem768Rsa4096HmacSha256,
+    MlKem768Rsa3072HmacSha512,
 }
 impl fmt::Display for KemAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -50,6 +52,10 @@ impl fmt::Display for KemAlgorithms {
             KemAlgorithms::MlKem512 => write!(f, "ml-kem512"),
             KemAlgorithms::MlKem768 => write!(f, "ml-kem768"),
             KemAlgorithms::MlKem1024 => write!(f, "ml-kem1024"),
+            KemAlgorithms::MlKem768Rsa2048HmacSha256 => write!(f, "ml-kem768-rsa2048-hmac-sha256"),
+            KemAlgorithms::MlKem768Rsa3072HmacSha256 => write!(f, "ml-kem768-rsa3072-hmac-sha256"),
+            KemAlgorithms::MlKem768Rsa4096HmacSha256 => write!(f, "ml-kem768-rsa4096-hmac-sha256"),
+            KemAlgorithms::MlKem768Rsa3072HmacSha512 => write!(f, "ml-kem768-rsa3072-hmac-sha512"),
         }
     }
 }
@@ -58,9 +64,13 @@ impl KemAlgorithms {
     /// Get KemAlgorithms instance from an object identifier.
     pub fn from_oid(oid: ObjectIdentifier) -> Result<KemAlgorithms> {
         match oid {
-            ML_KEM_512 => Ok(KemAlgorithms::MlKem512),
-            ML_KEM_768 => Ok(KemAlgorithms::MlKem768),
-            ML_KEM_1024 => Ok(KemAlgorithms::MlKem1024),
+            ID_ALG_ML_KEM_512 => Ok(KemAlgorithms::MlKem512),
+            ID_ALG_ML_KEM_768 => Ok(KemAlgorithms::MlKem768),
+            ID_ALG_ML_KEM_1024 => Ok(KemAlgorithms::MlKem1024),
+            ID_MLKEM768_RSA2048_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa2048HmacSha256),
+            ID_MLKEM768_RSA3072_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha256),
+            ID_MLKEM768_RSA4096_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa4096HmacSha256),
+            ID_MLKEM768_RSA3072_HMAC_SHA512 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha512),
             _ => Err(Error::Unrecognized),
         }
     }
@@ -68,9 +78,13 @@ impl KemAlgorithms {
     /// Get object identifier from KemAlgorithms instance.
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
-            KemAlgorithms::MlKem512 => ML_KEM_512,
-            KemAlgorithms::MlKem768 => ML_KEM_768,
-            KemAlgorithms::MlKem1024 => ML_KEM_1024,
+            KemAlgorithms::MlKem512 => ID_ALG_ML_KEM_512,
+            KemAlgorithms::MlKem768 => ID_ALG_ML_KEM_768,
+            KemAlgorithms::MlKem1024 => ID_ALG_ML_KEM_1024,
+            KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_HMAC_SHA256,
+            KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
+            KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
+            KemAlgorithms::MlKem768Rsa3072HmacSha512 => ID_MLKEM768_RSA3072_HMAC_SHA512,
         }
     }
 
@@ -78,13 +92,53 @@ impl KemAlgorithms {
     pub fn filename(&self) -> String {
         match self {
             KemAlgorithms::MlKem512 => {
-                format!("{}-{}", get_filename_from_oid(ML_KEM_512), ML_KEM_512)
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_ALG_ML_KEM_512),
+                    ID_ALG_ML_KEM_512
+                )
             }
             KemAlgorithms::MlKem768 => {
-                format!("{}-{}", get_filename_from_oid(ML_KEM_768), ML_KEM_768)
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_ALG_ML_KEM_768),
+                    ID_ALG_ML_KEM_768
+                )
             }
             KemAlgorithms::MlKem1024 => {
-                format!("{}-{}", get_filename_from_oid(ML_KEM_1024), ML_KEM_1024)
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_ALG_ML_KEM_1024),
+                    ID_ALG_ML_KEM_1024
+                )
+            }
+            KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_RSA2048_HMAC_SHA256),
+                    ID_MLKEM768_RSA2048_HMAC_SHA256
+                )
+            }
+            KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_RSA3072_HMAC_SHA256),
+                    ID_MLKEM768_RSA3072_HMAC_SHA256
+                )
+            }
+            KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_RSA4096_HMAC_SHA256),
+                    ID_MLKEM768_RSA4096_HMAC_SHA256
+                )
+            }
+            KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_RSA3072_HMAC_SHA512),
+                    ID_MLKEM768_RSA3072_HMAC_SHA512
+                )
             }
         }
     }
@@ -109,6 +163,21 @@ pub enum SigAlgorithms {
     SlhDsaShake192f,
     SlhDsaShake256s,
     SlhDsaShake256f,
+    Mldsa44Rsa2048PssSha256,
+    Mldsa44Rsa2048Pkcs15Sha256,
+    Mldsa44Ed25519Sha512,
+    Mldsa44EcdsaP256Sha256,
+    Mldsa65Rsa3072PssSha512,
+    Mldsa65Rsa4096PssSha512,
+    Mldsa65Rsa4096Pkcs15Sha512,
+    Mldsa65EcdsaP256Sha512,
+    Mldsa65EcdsaP384Sha512,
+    Mldsa65Ed25519Sha512,
+    Mldsa87EcdsaP384Sha512,
+    Mldsa87Ed448Shake256,
+    Mldsa87Rsa3072PssSha512,
+    Mldsa87Rsa4096PssSha512,
+    Mldsa87EcdsaP521Sha512,
 }
 impl fmt::Display for SigAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -128,6 +197,51 @@ impl fmt::Display for SigAlgorithms {
             SigAlgorithms::SlhDsaShake192f => write!(f, "slh-dsa-shake-192f"),
             SigAlgorithms::SlhDsaShake256s => write!(f, "slh-dsa-shake-256s"),
             SigAlgorithms::SlhDsaShake256f => write!(f, "slh-dsa-shake-256f"),
+            SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
+                write!(f, "ml-dsa44-rsa2048-pss-sha256")
+            }
+            SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => {
+                write!(f, "ml-dsa44-rsa2048-pkcs15-sha256")
+            }
+            SigAlgorithms::Mldsa44Ed25519Sha512 => {
+                write!(f, "ml-dsa44-ed25519-sha512")
+            }
+            SigAlgorithms::Mldsa44EcdsaP256Sha256 => {
+                write!(f, "ml-dsa44-ecdsa-p256-sha256")
+            }
+            SigAlgorithms::Mldsa65Rsa3072PssSha512 => {
+                write!(f, "ml-dsa65-rsa3072-pss-sha512")
+            }
+            SigAlgorithms::Mldsa65Rsa4096PssSha512 => {
+                write!(f, "ml-dsa65-rsa4096-pss-sha512")
+            }
+            SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512 => {
+                write!(f, "ml-dsa65-rsa4096-pkcs15-sha512")
+            }
+            SigAlgorithms::Mldsa65EcdsaP256Sha512 => {
+                write!(f, "ml-dsa65-ecdsa-p256-sha512")
+            }
+            SigAlgorithms::Mldsa65EcdsaP384Sha512 => {
+                write!(f, "ml-dsa65-ecdsa-p384-sha512")
+            }
+            SigAlgorithms::Mldsa65Ed25519Sha512 => {
+                write!(f, "ml-dsa65-ed25519-sha5126")
+            }
+            SigAlgorithms::Mldsa87EcdsaP384Sha512 => {
+                write!(f, "ml-dsa87-ecdsa-p384-sha512")
+            }
+            SigAlgorithms::Mldsa87Ed448Shake256 => {
+                write!(f, "ml-dsa87-ed448-shake256")
+            }
+            SigAlgorithms::Mldsa87Rsa3072PssSha512 => {
+                write!(f, "ml-dsa87-rsa3072-pss-sha512")
+            }
+            SigAlgorithms::Mldsa87Rsa4096PssSha512 => {
+                write!(f, "ml-dsa87-rsa4096-pss-sha512")
+            }
+            SigAlgorithms::Mldsa87EcdsaP521Sha512 => {
+                write!(f, "ml-dsa87-ecdsa-p521-sha512")
+            }
         }
     }
 }
@@ -206,27 +320,141 @@ impl SigAlgorithms {
                 &[],
                 PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
             )),
+            SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 2048)?;
+                let mldsa = MlDsa44::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(Box::new((mldsa, rsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa44Ed25519Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
+                let mldsa = MlDsa44::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa44EcdsaP256Sha256 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = p256::ecdsa::SigningKey::random(&mut rng);
+                let mldsa = MlDsa44::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa44EcdsaP256Sha256(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa65Rsa3072PssSha512 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa65Rsa4096PssSha512 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 4096)?;
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(Box::new((mldsa, rsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa65EcdsaP256Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = p256::ecdsa::SigningKey::random(&mut rng);
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65EcdsaP256Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa65EcdsaP384Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = p384::ecdsa::SigningKey::random(&mut rng);
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65EcdsaP384Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa65Ed25519Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa87EcdsaP384Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = p384::ecdsa::SigningKey::random(&mut rng);
+                let mldsa = MlDsa87::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa87EcdsaP384Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
+            SigAlgorithms::Mldsa87Ed448Shake256 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa87Rsa3072PssSha512 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa87Rsa4096PssSha512 => {
+                todo!()
+            }
+            SigAlgorithms::Mldsa87EcdsaP521Sha512 => {
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let ecdsa = p521::ecdsa::SigningKey::random(&mut rng);
+                let mldsa = MlDsa87::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa87EcdsaP521Sha512(Box::new((mldsa, ecdsa))),
+                ))
+            }
         }
     }
 
     /// Get KemAlgorithms instance from an object identifier.
     pub fn from_oid(oid: ObjectIdentifier) -> Result<SigAlgorithms> {
         match oid {
-            ML_DSA_44 => Ok(SigAlgorithms::MlDsa44),
-            ML_DSA_65 => Ok(SigAlgorithms::MlDsa65),
-            ML_DSA_87 => Ok(SigAlgorithms::MlDsa87),
-            SLH_DSA_SHA2_128S => Ok(SigAlgorithms::SlhDsaSha2_128s),
-            SLH_DSA_SHA2_128F => Ok(SigAlgorithms::SlhDsaSha2_128f),
-            SLH_DSA_SHA2_192S => Ok(SigAlgorithms::SlhDsaSha2_192s),
-            SLH_DSA_SHA2_192F => Ok(SigAlgorithms::SlhDsaSha2_192f),
-            SLH_DSA_SHA2_256S => Ok(SigAlgorithms::SlhDsaSha2_256s),
-            SLH_DSA_SHA2_256F => Ok(SigAlgorithms::SlhDsaSha2_256f),
-            SLH_DSA_SHAKE_128S => Ok(SigAlgorithms::SlhDsaShake128s),
-            SLH_DSA_SHAKE_128F => Ok(SigAlgorithms::SlhDsaShake128f),
-            SLH_DSA_SHAKE_192S => Ok(SigAlgorithms::SlhDsaShake192s),
-            SLH_DSA_SHAKE_192F => Ok(SigAlgorithms::SlhDsaShake192f),
-            SLH_DSA_SHAKE_256S => Ok(SigAlgorithms::SlhDsaShake256s),
-            SLH_DSA_SHAKE_256F => Ok(SigAlgorithms::SlhDsaShake256f),
+            ID_ML_DSA_44 => Ok(SigAlgorithms::MlDsa44),
+            ID_ML_DSA_65 => Ok(SigAlgorithms::MlDsa65),
+            ID_ML_DSA_87 => Ok(SigAlgorithms::MlDsa87),
+            ID_SLH_DSA_SHA_2_128_S => Ok(SigAlgorithms::SlhDsaSha2_128s),
+            ID_SLH_DSA_SHA_2_128_F => Ok(SigAlgorithms::SlhDsaSha2_128f),
+            ID_SLH_DSA_SHA_2_192_S => Ok(SigAlgorithms::SlhDsaSha2_192s),
+            ID_SLH_DSA_SHA_2_192_F => Ok(SigAlgorithms::SlhDsaSha2_192f),
+            ID_SLH_DSA_SHA_2_256_S => Ok(SigAlgorithms::SlhDsaSha2_256s),
+            ID_SLH_DSA_SHA_2_256_F => Ok(SigAlgorithms::SlhDsaSha2_256f),
+            ID_SLH_DSA_SHAKE_128_S => Ok(SigAlgorithms::SlhDsaShake128s),
+            ID_SLH_DSA_SHAKE_128_F => Ok(SigAlgorithms::SlhDsaShake128f),
+            ID_SLH_DSA_SHAKE_192_S => Ok(SigAlgorithms::SlhDsaShake192s),
+            ID_SLH_DSA_SHAKE_192_F => Ok(SigAlgorithms::SlhDsaShake192f),
+            ID_SLH_DSA_SHAKE_256_S => Ok(SigAlgorithms::SlhDsaShake256s),
+            ID_SLH_DSA_SHAKE_256_F => Ok(SigAlgorithms::SlhDsaShake256f),
+            ID_MLDSA44_RSA2048_PSS_SHA256 => Ok(SigAlgorithms::Mldsa44Rsa2048PssSha256),
+            ID_MLDSA44_RSA2048_PKCS15_SHA256 => Ok(SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256),
+            ID_MLDSA44_ED25519_SHA512 => Ok(SigAlgorithms::Mldsa44Ed25519Sha512),
+            ID_MLDSA44_ECDSA_P256_SHA256 => Ok(SigAlgorithms::Mldsa44EcdsaP256Sha256),
+            ID_MLDSA65_RSA3072_PSS_SHA512 => Ok(SigAlgorithms::Mldsa65Rsa3072PssSha512),
+            ID_MLDSA65_RSA4096_PSS_SHA512 => Ok(SigAlgorithms::Mldsa65Rsa4096PssSha512),
+            ID_MLDSA65_RSA4096_PKCS15_SHA512 => Ok(SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512),
+            ID_MLDSA65_ECDSA_P256_SHA512 => Ok(SigAlgorithms::Mldsa65EcdsaP256Sha512),
+            ID_MLDSA65_ECDSA_P384_SHA512 => Ok(SigAlgorithms::Mldsa65EcdsaP384Sha512),
+            ID_MLDSA65_ED25519_SHA512 => Ok(SigAlgorithms::Mldsa65Ed25519Sha512),
+            ID_MLDSA87_ECDSA_P384_SHA512 => Ok(SigAlgorithms::Mldsa87EcdsaP384Sha512),
+            ID_MLDSA87_ED448_SHAKE256 => Ok(SigAlgorithms::Mldsa87Ed448Shake256),
+            ID_MLDSA87_RSA3072_PSS_SHA512 => Ok(SigAlgorithms::Mldsa87Rsa3072PssSha512),
+            ID_MLDSA87_RSA4096_PSS_SHA512 => Ok(SigAlgorithms::Mldsa87Rsa4096PssSha512),
+            ID_MLDSA87_ECDSA_P521_SHA512 => Ok(SigAlgorithms::Mldsa87EcdsaP521Sha512),
             _ => Err(Error::Unrecognized),
         }
     }
@@ -234,21 +462,36 @@ impl SigAlgorithms {
     /// Get object identifier from KemAlgorithms instance.
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
-            SigAlgorithms::MlDsa44 => ML_DSA_44,
-            SigAlgorithms::MlDsa65 => ML_DSA_65,
-            SigAlgorithms::MlDsa87 => ML_DSA_87,
-            SigAlgorithms::SlhDsaSha2_128s => SLH_DSA_SHA2_128S,
-            SigAlgorithms::SlhDsaSha2_128f => SLH_DSA_SHA2_128F,
-            SigAlgorithms::SlhDsaSha2_192s => SLH_DSA_SHA2_192S,
-            SigAlgorithms::SlhDsaSha2_192f => SLH_DSA_SHA2_192F,
-            SigAlgorithms::SlhDsaSha2_256s => SLH_DSA_SHA2_256S,
-            SigAlgorithms::SlhDsaSha2_256f => SLH_DSA_SHA2_256F,
-            SigAlgorithms::SlhDsaShake128s => SLH_DSA_SHAKE_128S,
-            SigAlgorithms::SlhDsaShake128f => SLH_DSA_SHAKE_128F,
-            SigAlgorithms::SlhDsaShake192s => SLH_DSA_SHAKE_192S,
-            SigAlgorithms::SlhDsaShake192f => SLH_DSA_SHAKE_192F,
-            SigAlgorithms::SlhDsaShake256s => SLH_DSA_SHAKE_256S,
-            SigAlgorithms::SlhDsaShake256f => SLH_DSA_SHAKE_256F,
+            SigAlgorithms::MlDsa44 => ID_ML_DSA_44,
+            SigAlgorithms::MlDsa65 => ID_ML_DSA_65,
+            SigAlgorithms::MlDsa87 => ID_ML_DSA_87,
+            SigAlgorithms::SlhDsaSha2_128s => ID_SLH_DSA_SHA_2_128_S,
+            SigAlgorithms::SlhDsaSha2_128f => ID_SLH_DSA_SHA_2_128_F,
+            SigAlgorithms::SlhDsaSha2_192s => ID_SLH_DSA_SHA_2_192_S,
+            SigAlgorithms::SlhDsaSha2_192f => ID_SLH_DSA_SHA_2_192_F,
+            SigAlgorithms::SlhDsaSha2_256s => ID_SLH_DSA_SHA_2_256_S,
+            SigAlgorithms::SlhDsaSha2_256f => ID_SLH_DSA_SHA_2_256_F,
+            SigAlgorithms::SlhDsaShake128s => ID_SLH_DSA_SHAKE_128_S,
+            SigAlgorithms::SlhDsaShake128f => ID_SLH_DSA_SHAKE_128_F,
+            SigAlgorithms::SlhDsaShake192s => ID_SLH_DSA_SHAKE_192_S,
+            SigAlgorithms::SlhDsaShake192f => ID_SLH_DSA_SHAKE_192_F,
+            SigAlgorithms::SlhDsaShake256s => ID_SLH_DSA_SHAKE_256_S,
+            SigAlgorithms::SlhDsaShake256f => ID_SLH_DSA_SHAKE_256_F,
+            SigAlgorithms::Mldsa44Rsa2048PssSha256 => ID_MLDSA44_RSA2048_PSS_SHA256,
+            SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => ID_MLDSA44_RSA2048_PKCS15_SHA256,
+            SigAlgorithms::Mldsa44Ed25519Sha512 => ID_MLDSA44_ED25519_SHA512,
+            SigAlgorithms::Mldsa44EcdsaP256Sha256 => ID_MLDSA44_ECDSA_P256_SHA256,
+            SigAlgorithms::Mldsa65Rsa3072PssSha512 => ID_MLDSA65_RSA3072_PSS_SHA512,
+            SigAlgorithms::Mldsa65Rsa4096PssSha512 => ID_MLDSA65_RSA4096_PSS_SHA512,
+            SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512 => ID_MLDSA65_RSA4096_PKCS15_SHA512,
+            SigAlgorithms::Mldsa65EcdsaP256Sha512 => ID_MLDSA65_ECDSA_P256_SHA512,
+            SigAlgorithms::Mldsa65EcdsaP384Sha512 => ID_MLDSA65_ECDSA_P384_SHA512,
+            SigAlgorithms::Mldsa65Ed25519Sha512 => ID_MLDSA65_ED25519_SHA512,
+            SigAlgorithms::Mldsa87EcdsaP384Sha512 => ID_MLDSA87_ECDSA_P384_SHA512,
+            SigAlgorithms::Mldsa87Ed448Shake256 => ID_MLDSA87_ED448_SHAKE256,
+            SigAlgorithms::Mldsa87Rsa3072PssSha512 => ID_MLDSA87_RSA3072_PSS_SHA512,
+            SigAlgorithms::Mldsa87Rsa4096PssSha512 => ID_MLDSA87_RSA4096_PSS_SHA512,
+            SigAlgorithms::Mldsa87EcdsaP521Sha512 => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
 
@@ -256,96 +499,201 @@ impl SigAlgorithms {
     pub fn filename(&self) -> String {
         match self {
             SigAlgorithms::MlDsa44 => {
-                format!("{}-{}", get_filename_from_oid(ML_DSA_44), ML_DSA_44)
+                format!("{}-{}", get_filename_from_oid(ID_ML_DSA_44), ID_ML_DSA_44)
             }
             SigAlgorithms::MlDsa65 => {
-                format!("{}-{}", get_filename_from_oid(ML_DSA_65), ML_DSA_65)
+                format!("{}-{}", get_filename_from_oid(ID_ML_DSA_65), ID_ML_DSA_65)
             }
             SigAlgorithms::MlDsa87 => {
-                format!("{}-{}", get_filename_from_oid(ML_DSA_87), ML_DSA_87)
+                format!("{}-{}", get_filename_from_oid(ID_ML_DSA_87), ID_ML_DSA_87)
             }
             SigAlgorithms::SlhDsaSha2_128s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_128S),
-                    SLH_DSA_SHA2_128S
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_128_S),
+                    ID_SLH_DSA_SHA_2_128_S
                 )
             }
             SigAlgorithms::SlhDsaSha2_128f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_128F),
-                    SLH_DSA_SHA2_128F
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_128_F),
+                    ID_SLH_DSA_SHA_2_128_F
                 )
             }
             SigAlgorithms::SlhDsaSha2_192s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_192S),
-                    SLH_DSA_SHA2_192S,
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_192_S),
+                    ID_SLH_DSA_SHA_2_192_S,
                 )
             }
             SigAlgorithms::SlhDsaSha2_192f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_192F),
-                    SLH_DSA_SHA2_192F
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_192_F),
+                    ID_SLH_DSA_SHA_2_192_F
                 )
             }
             SigAlgorithms::SlhDsaSha2_256s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_256S),
-                    SLH_DSA_SHA2_256S
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_256_S),
+                    ID_SLH_DSA_SHA_2_256_S
                 )
             }
             SigAlgorithms::SlhDsaSha2_256f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHA2_256F),
-                    SLH_DSA_SHA2_256F
+                    get_filename_from_oid(ID_SLH_DSA_SHA_2_256_F),
+                    ID_SLH_DSA_SHA_2_256_F
                 )
             }
             SigAlgorithms::SlhDsaShake128s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_128S),
-                    SLH_DSA_SHAKE_128S
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_128_S),
+                    ID_SLH_DSA_SHAKE_128_S
                 )
             }
             SigAlgorithms::SlhDsaShake128f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_128F),
-                    SLH_DSA_SHAKE_128F,
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_128_F),
+                    ID_SLH_DSA_SHAKE_128_F,
                 )
             }
             SigAlgorithms::SlhDsaShake192s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_192S),
-                    SLH_DSA_SHAKE_192S,
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_192_S),
+                    ID_SLH_DSA_SHAKE_192_S,
                 )
             }
             SigAlgorithms::SlhDsaShake192f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_192F),
-                    SLH_DSA_SHAKE_192F,
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_192_F),
+                    ID_SLH_DSA_SHAKE_192_F,
                 )
             }
             SigAlgorithms::SlhDsaShake256s => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_256S),
-                    SLH_DSA_SHAKE_256S,
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_256_S),
+                    ID_SLH_DSA_SHAKE_256_S,
                 )
             }
             SigAlgorithms::SlhDsaShake256f => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(SLH_DSA_SHAKE_256F),
-                    SLH_DSA_SHAKE_256F
+                    get_filename_from_oid(ID_SLH_DSA_SHAKE_256_F),
+                    ID_SLH_DSA_SHAKE_256_F
+                )
+            }
+            SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA44_RSA2048_PSS_SHA256),
+                    ID_MLDSA44_RSA2048_PSS_SHA256
+                )
+            }
+            SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA44_RSA2048_PKCS15_SHA256),
+                    ID_MLDSA44_RSA2048_PKCS15_SHA256
+                )
+            }
+            SigAlgorithms::Mldsa44Ed25519Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA44_ED25519_SHA512),
+                    ID_MLDSA44_ED25519_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa44EcdsaP256Sha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA44_ECDSA_P256_SHA256),
+                    ID_MLDSA44_ECDSA_P256_SHA256
+                )
+            }
+            SigAlgorithms::Mldsa65Rsa3072PssSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_RSA3072_PSS_SHA512),
+                    ID_MLDSA65_RSA3072_PSS_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa65Rsa4096PssSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_RSA4096_PSS_SHA512),
+                    ID_MLDSA65_RSA4096_PSS_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_RSA4096_PKCS15_SHA512),
+                    ID_MLDSA65_RSA4096_PKCS15_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa65EcdsaP256Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_ECDSA_P256_SHA512),
+                    ID_MLDSA65_ECDSA_P256_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa65EcdsaP384Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_ECDSA_P384_SHA512),
+                    ID_MLDSA65_ECDSA_P384_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa65Ed25519Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA65_ED25519_SHA512),
+                    ID_MLDSA65_ED25519_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa87EcdsaP384Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA87_ECDSA_P384_SHA512),
+                    ID_MLDSA87_ECDSA_P384_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa87Ed448Shake256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA87_ED448_SHAKE256),
+                    ID_MLDSA87_ED448_SHAKE256
+                )
+            }
+            SigAlgorithms::Mldsa87Rsa3072PssSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA87_RSA3072_PSS_SHA512),
+                    ID_MLDSA87_RSA3072_PSS_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa87Rsa4096PssSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA87_RSA4096_PSS_SHA512),
+                    ID_MLDSA87_RSA4096_PSS_SHA512
+                )
+            }
+            SigAlgorithms::Mldsa87EcdsaP521Sha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLDSA87_ECDSA_P521_SHA512),
+                    ID_MLDSA87_ECDSA_P521_SHA512
                 )
             }
         }
