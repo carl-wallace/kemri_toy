@@ -899,7 +899,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512.to_string(),
+        ID_ALG_ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
@@ -908,7 +908,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         )))?,
     );
     key_map.insert(
-        ML_KEM_768.to_string(),
+        ID_ALG_ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
@@ -917,7 +917,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024.to_string(),
+        ID_ALG_ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}{}_priv.der",
             key_folder,
@@ -1040,7 +1040,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
     key_map.insert(
-        ML_KEM_512.to_string(),
+        ID_ALG_ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_expandedkey_priv.der",
             key_folder,
@@ -1048,7 +1048,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_768.to_string(),
+        ID_ALG_ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_expandedkey_priv.der",
             key_folder,
@@ -1056,7 +1056,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     key_map.insert(
-        ML_KEM_1024.to_string(),
+        ID_ALG_ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_expandedkey_priv.der",
             key_folder,
@@ -1066,7 +1066,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
 
     let mut cert_map = BTreeMap::new();
     cert_map.insert(
-        ML_KEM_512.to_string(),
+        ID_ALG_ML_KEM_512.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -1074,7 +1074,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_768.to_string(),
+        ID_ALG_ML_KEM_768.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,
@@ -1082,7 +1082,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         )))?,
     );
     cert_map.insert(
-        ML_KEM_1024.to_string(),
+        ID_ALG_ML_KEM_1024.to_string(),
         get_file_as_byte_vec(Path::new(&format!(
             "{}/{}_ee.der",
             key_folder,

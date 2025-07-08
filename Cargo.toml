@@ -41,6 +41,7 @@ serde = { version = "1.0.219", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 zerocopy = "0.8.26"
 hex-literal = "1.0.0"
+lazy_static = "1.5.0"
 
 [patch.crates-io]
 aes-gcm       = { git="https://github.com/RustCrypto/AEADs.git" }
