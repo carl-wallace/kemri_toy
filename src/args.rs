@@ -321,7 +321,13 @@ impl SigAlgorithms {
                 PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
             )),
             SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
-                todo!()
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 2048)?;
+                let mldsa = MlDsa44::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa44Rsa2048PssSha256(Box::new((mldsa, rsa))),
+                ))
             }
             SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
@@ -351,10 +357,22 @@ impl SigAlgorithms {
                 ))
             }
             SigAlgorithms::Mldsa65Rsa3072PssSha512 => {
-                todo!()
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 3072)?;
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65Rsa3072PssSha512(Box::new((mldsa, rsa))),
+                ))
             }
             SigAlgorithms::Mldsa65Rsa4096PssSha512 => {
-                todo!()
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 4096)?;
+                let mldsa = MlDsa65::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa65Rsa4096PssSha512(Box::new((mldsa, rsa))),
+                ))
             }
             SigAlgorithms::Mldsa65Rsa4096Pkcs15Sha512 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
@@ -405,10 +423,22 @@ impl SigAlgorithms {
                 todo!()
             }
             SigAlgorithms::Mldsa87Rsa3072PssSha512 => {
-                todo!()
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 3072)?;
+                let mldsa = MlDsa87::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa87Rsa3072PssSha512(Box::new((mldsa, rsa))),
+                ))
             }
             SigAlgorithms::Mldsa87Rsa4096PssSha512 => {
-                todo!()
+                let xi: ml_dsa::B32 = rand(&mut rng);
+                let rsa = RsaPrivateKey::new(&mut rng, 4096)?;
+                let mldsa = MlDsa87::key_gen_internal(&xi);
+                Ok(PqcSigner::new(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::Mldsa87Rsa3072PssSha512(Box::new((mldsa, rsa))),
+                ))
             }
             SigAlgorithms::Mldsa87EcdsaP521Sha512 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
