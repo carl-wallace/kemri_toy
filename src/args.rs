@@ -44,7 +44,7 @@ pub enum KemAlgorithms {
     MlKem768Rsa2048HmacSha256,
     MlKem768Rsa3072HmacSha256,
     MlKem768Rsa4096HmacSha256,
-    MlKem768Rsa3072HmacSha512,
+    MlKem1024Rsa3072HmacSha512,
     MlKem768X25519SHA3_256,
     MlKem768EcdhP256HmacSha256,
     MlKem768EcdhP384HmacSha256,
@@ -61,7 +61,9 @@ impl fmt::Display for KemAlgorithms {
             KemAlgorithms::MlKem768Rsa2048HmacSha256 => write!(f, "ml-kem768-rsa2048-hmac-sha256"),
             KemAlgorithms::MlKem768Rsa3072HmacSha256 => write!(f, "ml-kem768-rsa3072-hmac-sha256"),
             KemAlgorithms::MlKem768Rsa4096HmacSha256 => write!(f, "ml-kem768-rsa4096-hmac-sha256"),
-            KemAlgorithms::MlKem768Rsa3072HmacSha512 => write!(f, "ml-kem768-rsa3072-hmac-sha512"),
+            KemAlgorithms::MlKem1024Rsa3072HmacSha512 => {
+                write!(f, "ml-kem1024-rsa3072-hmac-sha512")
+            }
             KemAlgorithms::MlKem768X25519SHA3_256 => write!(f, "ml-kem768-x25519-sha3-256"),
             KemAlgorithms::MlKem768EcdhP256HmacSha256 => {
                 write!(f, "ml-kem768-ecdh-p256-hmac-sha256")
@@ -90,7 +92,7 @@ impl KemAlgorithms {
             ID_MLKEM768_RSA2048_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa2048HmacSha256),
             ID_MLKEM768_RSA3072_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha256),
             ID_MLKEM768_RSA4096_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa4096HmacSha256),
-            ID_MLKEM768_RSA3072_HMAC_SHA512 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha512),
+            ID_MLKEM1024_RSA3072_HMAC_SHA512 => Ok(KemAlgorithms::MlKem1024Rsa3072HmacSha512),
             ID_MLKEM768_X25519_SHA3_256 => Ok(KemAlgorithms::MlKem768X25519SHA3_256),
             ID_MLKEM768_ECDH_P256_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768EcdhP256HmacSha256),
             ID_MLKEM768_ECDH_P384_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768EcdhP384HmacSha256),
@@ -110,7 +112,7 @@ impl KemAlgorithms {
             KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_HMAC_SHA256,
             KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
             KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
-            KemAlgorithms::MlKem768Rsa3072HmacSha512 => ID_MLKEM768_RSA3072_HMAC_SHA512,
+            KemAlgorithms::MlKem1024Rsa3072HmacSha512 => ID_MLKEM1024_RSA3072_HMAC_SHA512,
             KemAlgorithms::MlKem768X25519SHA3_256 => ID_MLKEM768_X25519_SHA3_256,
             KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_HMAC_SHA256,
             KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_HMAC_SHA256,
@@ -165,11 +167,11 @@ impl KemAlgorithms {
                     ID_MLKEM768_RSA4096_HMAC_SHA256
                 )
             }
-            KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+            KemAlgorithms::MlKem1024Rsa3072HmacSha512 => {
                 format!(
                     "{}-{}",
-                    get_filename_from_oid(ID_MLKEM768_RSA3072_HMAC_SHA512),
-                    ID_MLKEM768_RSA3072_HMAC_SHA512
+                    get_filename_from_oid(ID_MLKEM1024_RSA3072_HMAC_SHA512),
+                    ID_MLKEM1024_RSA3072_HMAC_SHA512
                 )
             }
             KemAlgorithms::MlKem768X25519SHA3_256 => {

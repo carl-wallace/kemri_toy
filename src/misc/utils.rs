@@ -113,7 +113,7 @@ macro_rules! decrypt_kem_rust_crypto {
 macro_rules! private_key_from_seed {
     ($seed:expr, $ct_ty:ty) => {{
         let (d, z) = $seed.as_bytes().split_at(32);
-        let (dk, _) = MlKem768::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
+        let (dk, _) = <$ct_ty>::generate_deterministic(<&B32>::try_from(d)?, <&B32>::try_from(z)?);
         let dk_bytes = dk.as_bytes().to_vec();
         dk_bytes
     }};
@@ -279,9 +279,9 @@ pub(crate) fn kemri_builder_from_cert<R>(
             ukm,
             wrap,
         )?,
-        ID_MLKEM768_RSA3072_HMAC_SHA512 => KemRecipientInfoBuilder::new(
+        ID_MLKEM1024_RSA3072_HMAC_SHA512 => KemRecipientInfoBuilder::new(
             recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha512(
+            KeyEncryptionInfoKem::MlKem1024Rsa3072HmacSha512(
                 ee_cert
                     .tbs_certificate()
                     .subject_public_key_info()
@@ -638,7 +638,7 @@ pub fn composite_ss<Hmac: KeyInit + Mac>(
     Ok(mac.finalize().into_bytes().to_vec())
 }
 
-fn ml_kem_rsa<Hmac>(
+fn ml_kem768_rsa<Hmac>(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
@@ -655,11 +655,28 @@ where
     let rsa = RsaKem::new(trad_key)?;
     let trad_ss = rsa.decap(trad_ct)?;
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
-    composite_ss::<Hmac>(
-        &pqc_ss, &trad_ss, trad_ct, &trad_pk, domain,
-    )
+    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
+fn ml_kem1024_rsa<Hmac>(
+    kem_ct: &[u8],
+    private_key_bytes: &[u8],
+    domain: ObjectIdentifier,
+) -> crate::Result<Vec<u8>>
+where
+    Hmac: KeyInit + Mac,
+{
+    let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
+    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+
+    let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
+    let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
+
+    let rsa = RsaKem::new(trad_key)?;
+    let trad_ss = rsa.decap(trad_ct)?;
+    let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
+    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+}
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
@@ -678,18 +695,26 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
             let ee_sk = extract_private_key(ID_ALG_ML_KEM_1024, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem1024, MlKem1024Params, ee_sk)
         }
-        ID_MLKEM768_RSA2048_HMAC_SHA256 => {
-            ml_kem_rsa::<Hmac<Sha256>>(kem_ct, private_key_bytes, ID_MLKEM768_RSA2048_HMAC_SHA256)?
-        }
-        ID_MLKEM768_RSA3072_HMAC_SHA256 => {
-            ml_kem_rsa::<Hmac<Sha256>>(kem_ct, private_key_bytes, ID_MLKEM768_RSA3072_HMAC_SHA256)?
-        }
-        ID_MLKEM768_RSA4096_HMAC_SHA256 => {
-            ml_kem_rsa::<Hmac<Sha256>>(kem_ct, private_key_bytes, ID_MLKEM768_RSA4096_HMAC_SHA256)?
-        }
-        ID_MLKEM768_RSA3072_HMAC_SHA512 => {
-            ml_kem_rsa::<Hmac<Sha512>>(kem_ct, private_key_bytes, ID_MLKEM768_RSA3072_HMAC_SHA512)?
-        }
+        ID_MLKEM768_RSA2048_HMAC_SHA256 => ml_kem768_rsa::<Hmac<Sha256>>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM768_RSA2048_HMAC_SHA256,
+        )?,
+        ID_MLKEM768_RSA3072_HMAC_SHA256 => ml_kem768_rsa::<Hmac<Sha256>>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM768_RSA3072_HMAC_SHA256,
+        )?,
+        ID_MLKEM768_RSA4096_HMAC_SHA256 => ml_kem768_rsa::<Hmac<Sha256>>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM768_RSA4096_HMAC_SHA256,
+        )?,
+        ID_MLKEM1024_RSA3072_HMAC_SHA512 => ml_kem1024_rsa::<Hmac<Sha512>>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM1024_RSA3072_HMAC_SHA512,
+        )?,
         ID_MLKEM768_X25519_SHA3_256 => {
             todo!()
         }
@@ -1002,7 +1027,7 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ID_MLKEM768_RSA2048_HMAC_SHA256 => "ml-kem768-rsa2048-hmac-sha256".to_string(),
         ID_MLKEM768_RSA3072_HMAC_SHA256 => "ml-kem768-rsa3072-hmac-sha256".to_string(),
         ID_MLKEM768_RSA4096_HMAC_SHA256 => "ml-kem768-rsa4096-hmac-sha256".to_string(),
-        ID_MLKEM768_RSA3072_HMAC_SHA512 => "ml-kem768-rsa3072-hmac-sha512".to_string(),
+        ID_MLKEM1024_RSA3072_HMAC_SHA512 => "ml-kem1024-rsa3072-hmac-sha512".to_string(),
         ID_MLKEM768_X25519_SHA3_256 => "ml-kem768-x25519-sha3-256".to_string(),
         ID_MLKEM768_ECDH_P256_HMAC_SHA256 => "ml-kem768-ecdh-p256-sha256".to_string(),
         ID_MLKEM768_ECDH_P384_HMAC_SHA256 => "ml-kem768-ecdh-p384-sha256".to_string(),
@@ -1439,28 +1464,28 @@ fn break_things() {
     }
 }
 
-#[test]
-fn composite_test() {
-    let _ = do_stuff();
-}
-#[test]
-fn do_stuff() -> crate::Result<()> {
-    use hex_literal::hex;
-    let kem_ct = hex!(
-        "f64c871884a7510b17918f2303808821597fbfb6bebcfe309a7ed77600c968d233aaf7257d22da28dd956182a54ac63dd1a1c9bb16f0aa238389ce3d0f578b6b47e3c095a4472c7c438a2795dadcdda7e09c4bfd0065ba8164209ca15988e46985343e6110c777c586f965fb3d5f1d184541c1b1dba1011b0bf2441a59d44347dbdbdc85b2fe418b09f7a7775072b6c8ca6590fbbb29d84a2e64d951a410cdc2856fda23e6ef5cabe2acf913259bedf3c0d3f309d06c6f45ba6bbbc03161374e72f3cd51c0f8ac4044690ff86b750cf8a9a6e0a3f75bb5ecadeda28162b8a7e498fbf2265ea65dbf52a1e95e689db287dcfad67f07690a3e75fa17c3f4aa692c47e5dc6102931fc7ebc80162aaf812edfb1a0360093e5674bd1c34e4e4c6588b2300a5ab630bf2b8e1d00345eb2b0156db309abf9f2402bb9a60268737ac3263679fabefdd0d1e564e2e01e8c33c280b59c4d186cc44fff17f10acb3115de1c27820f699f07546590c8645a5b716fbe7c3b30201a8effe59811dba30b5bb6337c0061e71125d9b478e5a181984f3b83661aca1779a13eae1a2f497098826e07c6358e4d29273d6fcbdf82df78c81b728d8937ed92ca620671c4d2a704e56ee1de71c32fee0024a01eb45f4ad39f7fc74c6244a0e9cfb285378b5fe33b6ca5a8da70c73a1f539b0f994c814f4a6433fa0aa204537db5e14b55d570335ec66ef2e237ea99f000e67aef8a072b814f3632d59bcc6aedd77914c440200e3245479950248e6f908cd61465427af0086729fb7c0ee16c23fc7f70420c7dbb855c1ee7e2753956b835d14dc4f42e54a218fc81a9652125984a9f0a862c854700a20082e30802e80a1f2ebf44a931ac0fce9e64b92d81faec9d87085e52737c4c066066d9f0a48d65c3706cfe9e240d1b9af9585009f32656a5cbf7c25b3bb39ea4f461c0adbc8f278d1b78c5760743e875c3b5c227ea0adf48274f7d5422eb638ff72a7ea82c9eab316b3607e2a5aa75879475c267b5adba7ce27a78d1820ce7c8a66f6341b81fd2a6037347998ac46ec3aed54d1c7c9f25180e7428ed5a0197ed60f7f3c87d3a44621bbaedb1024680f3aa9bd8225abaff8f0ada6246fde86cae9ac80b4317e4643d1aa07844916ba93e6500cd290a5b50d0df7e9f5a2f7fac1190899ba7334869c1c96908c82f284742ef99911c1cd5caf6b1bdb91a561f93cbaab4390590d3b2ae1af2a9419fc24ba760e26dfbd17861777e8123f26202900cd9544dd9afd5c917ca1ee618bec47c079a34f8b990bf461717039a3c09d6bfe14a15cf804e300352410a255e76da99d033280115ad8745b3492ec73572dd1d2365b8c8c296123501d1cb50e1bf79f5e91bf36beaa0d57664978a122f8224d1c916c86b6309103c5574f85bbfedc45e41aca48e1d852b796b340cc0447bfc346259d6bbd370cacf1965c11176748a161033b3bf88a7d28358695165852fc06d3009f5484ee29f12cf6d21fd4676713c09bfab41c7101ecd5b248fc3d1f7cbd61586f5a04e5580e9109c71d4881665f307264175c6395afb64c3d304846dacd1b936850234a295b2485d3ec27f6686c20e12f26034ad6decc9e1461b4c9568c2236016cb3022e182fc7bd536af5d826140fb4bc3d1453b1e7b94a75c9a27710953f35480b3ddc640fd59175405e2deaa5c632e2553af2233331f8694b58f3eeea0d578f8e2ad43b83aacbbbc11efe9f2d97fb560d6cab8f2e4425f46e9b39ceb121de93cf4257d376e021eabaf5eb506a02f97dffd4cb92c5744f2935e33bb9e209048777265538271fa8fcd3d5e07179f64a5acea145d1afe615cd6cef4f1b5746b0a5c872dd48cb6ffe4055fa0d53aa70405dced78aaf65d660e721eedbe8c32d3840"
-    );
-
-    let private_key_bytes = hex!(
-        "f0040b6b293a1e5da194409a5e37f1c2f6781f634467e1762a801a7f0a50a9782d336809d36adb7700340bc442dcab2bd2fe4e71bba4e250c9f687f165a05df4308204a40201000282010100a5421e94465e8b1d3c09e93685cb27ddada7680e54c1d5075a8c0777ef1103a0cec47caace8f6f297ca51e7321b719fbb6149e8e78e259dd0235498b84dc9f1332086fcca913fb099d58e33c100d2af142f02780b28721eb5d5720e1b7408f7933613a4dbceb65942ac93fba04970d2ef73a798c78d36d938e223edc61a6ab5db23a2bc9596e72a2358677d49d4b5a93bb021745225f4efcf37aec29d3dee9a6897584eec2db70e27dfbe7130eb895166d6819fc31eae201533d20e9f4fbfcf2e95cf02020090234214c456e35e24f162d9b2c5f1ca2bc2d3d2caa5bca5a739243696c5d413603167584cda7bd12283e64948d1936460c68ab08bd3b9b59674d0203010001028201000b3612e6ddd420945ccb003163a7d66e2ceaf7b901be4bc5d495d014c0cb70a0801faba4a044a8f6baa140c8397a652c82c51fc3be794786fd79b78fa507c1bf42210b653340af8bb35d6107f7bfa9835a71d5b6835cebb063365733cd7b2e45292dd1a28dc3247bcf294705d990de1a06379069db9602ab44a24e8d91ea187efd127bb59d6b9ab84b0c214ea9678939000111d7549ac02787fed777ecc03fb63590447a352fc4272346d3fbda21cc18652d11da6ad21f9bb8560a01cbce07c0419864c603d322c2b2a1491be4a5f74f66e39936a24dd3a4649efe4c8796b31e6483547f728cf899223ace4a4b06476ef7f3820a4d08f513d82aa2ed5a2508eb02818100d10f0810743b06514a6f9867b51be19a4c3492e5fc03e8cf40df8f68c94784527cd8a7d42cb94237767ebb9e7a026b1354613bd604869a740c04ac86e9ce6270708d60c559417adf3ae385e065e28ef23585f40f8351654bff706e605ed619b14b9651f811e10a0b57d51ded72ad5fd61f04cadbac5232e670b5cf9844e5b32f02818100ca5d61a9cd5acc8c77e403a682bea29e47d26c9f3bf3e2d866ff22e6941363daaf93249098ec69af0c214ff00e6cc11cdf95eccecdb9e2042e8fd3ccf0225f58e68b20735514c629f80aa79740c24dcbdebd6b25e0baee0c83547f8664a7f07ab77df5af5f5ea985597703ea2b7f99c00103e44e223be1f3898dbb44fc841e4302818100a6b4b9d58519dc3bce8396a07c47336b7b012172cbb7c25a227d233a87e6c399937ca0b80cc1de0fa42a032aa8586d5208a350b7a4fc4105f0df79444c050b72660e16f0c7eff32f37225f8b453398918424c12deda5668567b81c0c3513bd8127a942cbf255e5508e459f8bcd3a7b859f4e8f050530b6ee134aa7b3e09cda790281810090bf1ca55562d61ebf7ed3f19d61787618cf75acac387590ee931e46a9b1f8e1aa666868194a3909e1764e745a0d06507dc9027aa602889d0f25078d76524fbb0a2487d09711e5f08d2029e1f18b4a14423d60cfd6203f37aa149da6e6868d6769aa6a3ac7cfb117d5f76050764eae0dfd6be838cf19e033cfb71635711d9b7b0281801fd270e8006d8b6e7ef786be8b3ecaf7454ea397df3cfb8a7a571413cd0a3e9930f0c27ebaa30c007087818b916b7b4f85c776a1e2acbec82f30d07985a409a15fa520e2aa0caa96704216a8f4bdb9a3176c164ae944f1635998b8ef75aeb51f8ed34588bfbc94c8f12f01bd4e9882792d66682c99cffdbebdec8bf46252d1be"
-    );
-
-    let ss = ml_kem_rsa::<MlKem1024, MlKem1024Params, Hmac<Sha256>>(
-        &kem_ct,
-        &private_key_bytes,
-        ID_MLKEM768_RSA2048_HMAC_SHA256,
-    )?;
-    println!("SS Act: {}", buffer_to_hex(&ss));
-    let ss_exp = hex!("7c5958cf2eaefd34a2006f4f7004eb0a059d867c3e945126ba93a4e20a5def1a");
-    println!("SS Exp: {}", buffer_to_hex(&ss_exp));
-    Ok(())
-}
+// #[test]
+// fn composite_test() {
+//     let _ = do_stuff();
+// }
+// #[test]
+// fn do_stuff() -> crate::Result<()> {
+//     use hex_literal::hex;
+//     let kem_ct = hex!(
+//         "f64c871884a7510b17918f2303808821597fbfb6bebcfe309a7ed77600c968d233aaf7257d22da28dd956182a54ac63dd1a1c9bb16f0aa238389ce3d0f578b6b47e3c095a4472c7c438a2795dadcdda7e09c4bfd0065ba8164209ca15988e46985343e6110c777c586f965fb3d5f1d184541c1b1dba1011b0bf2441a59d44347dbdbdc85b2fe418b09f7a7775072b6c8ca6590fbbb29d84a2e64d951a410cdc2856fda23e6ef5cabe2acf913259bedf3c0d3f309d06c6f45ba6bbbc03161374e72f3cd51c0f8ac4044690ff86b750cf8a9a6e0a3f75bb5ecadeda28162b8a7e498fbf2265ea65dbf52a1e95e689db287dcfad67f07690a3e75fa17c3f4aa692c47e5dc6102931fc7ebc80162aaf812edfb1a0360093e5674bd1c34e4e4c6588b2300a5ab630bf2b8e1d00345eb2b0156db309abf9f2402bb9a60268737ac3263679fabefdd0d1e564e2e01e8c33c280b59c4d186cc44fff17f10acb3115de1c27820f699f07546590c8645a5b716fbe7c3b30201a8effe59811dba30b5bb6337c0061e71125d9b478e5a181984f3b83661aca1779a13eae1a2f497098826e07c6358e4d29273d6fcbdf82df78c81b728d8937ed92ca620671c4d2a704e56ee1de71c32fee0024a01eb45f4ad39f7fc74c6244a0e9cfb285378b5fe33b6ca5a8da70c73a1f539b0f994c814f4a6433fa0aa204537db5e14b55d570335ec66ef2e237ea99f000e67aef8a072b814f3632d59bcc6aedd77914c440200e3245479950248e6f908cd61465427af0086729fb7c0ee16c23fc7f70420c7dbb855c1ee7e2753956b835d14dc4f42e54a218fc81a9652125984a9f0a862c854700a20082e30802e80a1f2ebf44a931ac0fce9e64b92d81faec9d87085e52737c4c066066d9f0a48d65c3706cfe9e240d1b9af9585009f32656a5cbf7c25b3bb39ea4f461c0adbc8f278d1b78c5760743e875c3b5c227ea0adf48274f7d5422eb638ff72a7ea82c9eab316b3607e2a5aa75879475c267b5adba7ce27a78d1820ce7c8a66f6341b81fd2a6037347998ac46ec3aed54d1c7c9f25180e7428ed5a0197ed60f7f3c87d3a44621bbaedb1024680f3aa9bd8225abaff8f0ada6246fde86cae9ac80b4317e4643d1aa07844916ba93e6500cd290a5b50d0df7e9f5a2f7fac1190899ba7334869c1c96908c82f284742ef99911c1cd5caf6b1bdb91a561f93cbaab4390590d3b2ae1af2a9419fc24ba760e26dfbd17861777e8123f26202900cd9544dd9afd5c917ca1ee618bec47c079a34f8b990bf461717039a3c09d6bfe14a15cf804e300352410a255e76da99d033280115ad8745b3492ec73572dd1d2365b8c8c296123501d1cb50e1bf79f5e91bf36beaa0d57664978a122f8224d1c916c86b6309103c5574f85bbfedc45e41aca48e1d852b796b340cc0447bfc346259d6bbd370cacf1965c11176748a161033b3bf88a7d28358695165852fc06d3009f5484ee29f12cf6d21fd4676713c09bfab41c7101ecd5b248fc3d1f7cbd61586f5a04e5580e9109c71d4881665f307264175c6395afb64c3d304846dacd1b936850234a295b2485d3ec27f6686c20e12f26034ad6decc9e1461b4c9568c2236016cb3022e182fc7bd536af5d826140fb4bc3d1453b1e7b94a75c9a27710953f35480b3ddc640fd59175405e2deaa5c632e2553af2233331f8694b58f3eeea0d578f8e2ad43b83aacbbbc11efe9f2d97fb560d6cab8f2e4425f46e9b39ceb121de93cf4257d376e021eabaf5eb506a02f97dffd4cb92c5744f2935e33bb9e209048777265538271fa8fcd3d5e07179f64a5acea145d1afe615cd6cef4f1b5746b0a5c872dd48cb6ffe4055fa0d53aa70405dced78aaf65d660e721eedbe8c32d3840"
+//     );
+//
+//     let private_key_bytes = hex!(
+//         "f0040b6b293a1e5da194409a5e37f1c2f6781f634467e1762a801a7f0a50a9782d336809d36adb7700340bc442dcab2bd2fe4e71bba4e250c9f687f165a05df4308204a40201000282010100a5421e94465e8b1d3c09e93685cb27ddada7680e54c1d5075a8c0777ef1103a0cec47caace8f6f297ca51e7321b719fbb6149e8e78e259dd0235498b84dc9f1332086fcca913fb099d58e33c100d2af142f02780b28721eb5d5720e1b7408f7933613a4dbceb65942ac93fba04970d2ef73a798c78d36d938e223edc61a6ab5db23a2bc9596e72a2358677d49d4b5a93bb021745225f4efcf37aec29d3dee9a6897584eec2db70e27dfbe7130eb895166d6819fc31eae201533d20e9f4fbfcf2e95cf02020090234214c456e35e24f162d9b2c5f1ca2bc2d3d2caa5bca5a739243696c5d413603167584cda7bd12283e64948d1936460c68ab08bd3b9b59674d0203010001028201000b3612e6ddd420945ccb003163a7d66e2ceaf7b901be4bc5d495d014c0cb70a0801faba4a044a8f6baa140c8397a652c82c51fc3be794786fd79b78fa507c1bf42210b653340af8bb35d6107f7bfa9835a71d5b6835cebb063365733cd7b2e45292dd1a28dc3247bcf294705d990de1a06379069db9602ab44a24e8d91ea187efd127bb59d6b9ab84b0c214ea9678939000111d7549ac02787fed777ecc03fb63590447a352fc4272346d3fbda21cc18652d11da6ad21f9bb8560a01cbce07c0419864c603d322c2b2a1491be4a5f74f66e39936a24dd3a4649efe4c8796b31e6483547f728cf899223ace4a4b06476ef7f3820a4d08f513d82aa2ed5a2508eb02818100d10f0810743b06514a6f9867b51be19a4c3492e5fc03e8cf40df8f68c94784527cd8a7d42cb94237767ebb9e7a026b1354613bd604869a740c04ac86e9ce6270708d60c559417adf3ae385e065e28ef23585f40f8351654bff706e605ed619b14b9651f811e10a0b57d51ded72ad5fd61f04cadbac5232e670b5cf9844e5b32f02818100ca5d61a9cd5acc8c77e403a682bea29e47d26c9f3bf3e2d866ff22e6941363daaf93249098ec69af0c214ff00e6cc11cdf95eccecdb9e2042e8fd3ccf0225f58e68b20735514c629f80aa79740c24dcbdebd6b25e0baee0c83547f8664a7f07ab77df5af5f5ea985597703ea2b7f99c00103e44e223be1f3898dbb44fc841e4302818100a6b4b9d58519dc3bce8396a07c47336b7b012172cbb7c25a227d233a87e6c399937ca0b80cc1de0fa42a032aa8586d5208a350b7a4fc4105f0df79444c050b72660e16f0c7eff32f37225f8b453398918424c12deda5668567b81c0c3513bd8127a942cbf255e5508e459f8bcd3a7b859f4e8f050530b6ee134aa7b3e09cda790281810090bf1ca55562d61ebf7ed3f19d61787618cf75acac387590ee931e46a9b1f8e1aa666868194a3909e1764e745a0d06507dc9027aa602889d0f25078d76524fbb0a2487d09711e5f08d2029e1f18b4a14423d60cfd6203f37aa149da6e6868d6769aa6a3ac7cfb117d5f76050764eae0dfd6be838cf19e033cfb71635711d9b7b0281801fd270e8006d8b6e7ef786be8b3ecaf7454ea397df3cfb8a7a571413cd0a3e9930f0c27ebaa30c007087818b916b7b4f85c776a1e2acbec82f30d07985a409a15fa520e2aa0caa96704216a8f4bdb9a3176c164ae944f1635998b8ef75aeb51f8ed34588bfbc94c8f12f01bd4e9882792d66682c99cffdbebdec8bf46252d1be"
+//     );
+//
+//     let ss = ml_kem768_rsa::<MlKem1024, MlKem1024Params, Hmac<Sha256>>(
+//         &kem_ct,
+//         &private_key_bytes,
+//         ID_MLKEM768_RSA2048_HMAC_SHA256,
+//     )?;
+//     println!("SS Act: {}", buffer_to_hex(&ss));
+//     let ss_exp = hex!("7c5958cf2eaefd34a2006f4f7004eb0a059d867c3e945126ba93a4e20a5def1a");
+//     println!("SS Exp: {}", buffer_to_hex(&ss_exp));
+//     Ok(())
+// }

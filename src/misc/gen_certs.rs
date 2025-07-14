@@ -6,6 +6,7 @@ use crate::misc::utils::composite_ss;
 use hmac::Hmac;
 use ml_kem::Encoded;
 use ml_kem::MlKem768Params;
+use ml_kem::MlKem1024Params;
 use sha2::Sha256;
 use sha2::Sha512;
 use std::{
@@ -186,7 +187,7 @@ pub fn generate_ml_kem_cert(
         KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_HMAC_SHA256,
         KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
         KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
-        KemAlgorithms::MlKem768Rsa3072HmacSha512 => ID_MLKEM768_RSA3072_HMAC_SHA512,
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => ID_MLKEM1024_RSA3072_HMAC_SHA512,
         KemAlgorithms::MlKem768X25519SHA3_256 => ID_MLKEM768_X25519_SHA3_256,
         KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_HMAC_SHA256,
         KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_HMAC_SHA256,
@@ -406,22 +407,22 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem768Rsa3072HmacSha512 => {
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_key!(MlKem768::generate_deterministic, 3072);
+                generate_composite_key!(MlKem1024::generate_deterministic, 3072);
             let (ss, ct, _oid) = comp_encap!(
                 composite_pub_key,
-                1184,
-                ID_MLKEM768_RSA3072_HMAC_SHA512,
+                1568,
+                ID_MLKEM1024_RSA3072_HMAC_SHA512,
                 &mut rng,
-                MlKem768Params
+                MlKem1024Params
             );
             let cert = generate_ml_kem_cert(
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768Rsa3072HmacSha512,
+                KemAlgorithms::MlKem1024Rsa3072HmacSha512,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
@@ -492,7 +493,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         KemAlgorithms::MlKem768Rsa2048HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa3072HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa4096HmacSha256 => private_key.clone(),
-        KemAlgorithms::MlKem768Rsa3072HmacSha512 => private_key.clone(),
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => private_key.clone(),
         KemAlgorithms::MlKem768X25519SHA3_256 => {
             todo!("serialize expanded as private key")
         }
@@ -545,7 +546,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         KemAlgorithms::MlKem768Rsa2048HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa3072HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa4096HmacSha256 => private_key.clone(),
-        KemAlgorithms::MlKem768Rsa3072HmacSha512 => private_key.clone(),
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => private_key.clone(),
         KemAlgorithms::MlKem768X25519SHA3_256 => {
             todo!("serialize seed as private key")
         }
@@ -601,7 +602,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         KemAlgorithms::MlKem768Rsa2048HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa3072HmacSha256 => private_key.clone(),
         KemAlgorithms::MlKem768Rsa4096HmacSha256 => private_key.clone(),
-        KemAlgorithms::MlKem768Rsa3072HmacSha512 => private_key.clone(),
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => private_key.clone(),
         KemAlgorithms::MlKem768X25519SHA3_256 => {
             todo!("serialize both as private key")
         }

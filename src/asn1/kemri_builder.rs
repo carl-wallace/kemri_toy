@@ -28,9 +28,9 @@ use const_oid::{
 use der::{Any, Decode, Encode, asn1::OctetString};
 use hmac::Hmac;
 use pqckeys::pqc_oids::{
-    ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA3072_HMAC_SHA512,
-    ID_MLKEM768_RSA4096_HMAC_SHA256, ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
-    ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+    ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA4096_HMAC_SHA256,
+    ID_MLKEM1024_ECDH_P384_HMAC_SHA512, ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+    ID_MLKEM1024_RSA3072_HMAC_SHA512,
 };
 use spki::AlgorithmIdentifier;
 
@@ -52,7 +52,7 @@ pub enum KeyEncryptionInfoKem {
     MlKem768Rsa2048HmacSha256(Vec<u8>),
     MlKem768Rsa3072HmacSha256(Vec<u8>),
     MlKem768Rsa4096HmacSha256(Vec<u8>),
-    MlKem768Rsa3072HmacSha512(Vec<u8>),
+    MlKem1024Rsa3072HmacSha512(Vec<u8>),
     MlKem768X25519SHA3_256(Vec<u8>),
     MlKem768EcdhP256HmacSha256(Vec<u8>),
     MlKem768EcdhP384HmacSha256(Vec<u8>),
@@ -104,7 +104,7 @@ macro_rules! encrypt_wrap {
 }
 
 pub fn is_sha512(oid: ObjectIdentifier) -> bool {
-    ID_MLKEM768_RSA3072_HMAC_SHA512 == oid
+    ID_MLKEM1024_RSA3072_HMAC_SHA512 == oid
         || ID_MLKEM1024_ECDH_P384_HMAC_SHA512 == oid
         || ID_MLKEM1024_ECDH_P521_HMAC_SHA512 == oid
 }
@@ -237,13 +237,13 @@ where
                     MlKem768Params
                 )
             }
-            KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha512(pk) => {
+            KeyEncryptionInfoKem::MlKem1024Rsa3072HmacSha512(pk) => {
                 comp_encap!(
                     pk,
-                    1184,
-                    ID_MLKEM768_RSA3072_HMAC_SHA512,
+                    1568,
+                    ID_MLKEM1024_RSA3072_HMAC_SHA512,
                     rng,
-                    MlKem768Params
+                    MlKem1024Params
                 )
             }
             KeyEncryptionInfoKem::MlKem768X25519SHA3_256(_) => {
