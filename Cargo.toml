@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85.0"
 
 [dependencies]
+base64ct = { version="1.8.0", features = ["alloc"] }
 cms = { version = "0.3.0-pre.0", features = ["builder"] }
 const-oid = { version = "0.10.1", default-features = false, features = ["db"] }
 der = { version="0.8.0-rc.6", features = ["alloc", "derive", "flagset", "oid"] }
@@ -31,6 +32,7 @@ ed448-goldilocks = {version = "0.14.0-pre.1", default-features = false}
 p256 = {version = "0.14.0-pre.8", default-features = false, features = ["ecdsa"]}
 p384 = {version = "0.14.0-pre.8", default-features = false, features = ["ecdsa"]}
 p521 = {version = "0.14.0-pre.8", default-features = false, features = ["ecdsa"]}
+hmac = "0.13.0-rc.0"
 
 clap = {version = "4.4.40", features = ["std", "derive"] }
 log = "0.4.27"

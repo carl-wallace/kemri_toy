@@ -8,7 +8,8 @@ use aes_kw::AesKw;
 use cipher::{KeyInit, KeySizeUser, rand_core::CryptoRng};
 use hkdf::Hkdf;
 use ml_kem::{
-    Encoded, EncodedSizeUser, MlKem512Params, MlKem768Params, MlKem1024Params, kem::Encapsulate,
+    Encoded, EncodedSizeUser, KemCore, MlKem512Params, MlKem768Params, MlKem1024Params,
+    kem::Encapsulate,
 };
 use sha2::{Sha256, Sha384, Sha512};
 use tari_tiny_keccak::{Hasher, Kmac};
@@ -25,8 +26,16 @@ use const_oid::{
     db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
 };
 use der::{Any, Decode, Encode, asn1::OctetString};
+use hmac::Hmac;
+use pqckeys::pqc_oids::{
+    ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA3072_HMAC_SHA512,
+    ID_MLKEM768_RSA4096_HMAC_SHA256, ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+    ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+};
 use spki::AlgorithmIdentifier;
 
+use crate::misc::rsa::RsaKem;
+use crate::misc::utils::composite_ss;
 use crate::{
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ID_ORI_KEM,
@@ -35,12 +44,21 @@ use crate::{
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum KeyEncryptionInfoKem {
-    MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey>>),
-    MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey>>),
-    MlKem1024(
-        Box<Encoded<<ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey>>,
-    ),
+    MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey>>),
+    MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey>>),
+    MlKem1024(Box<Encoded<<ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey>>),
+    MlKem768Rsa2048HmacSha256(Vec<u8>),
+    MlKem768Rsa3072HmacSha256(Vec<u8>),
+    MlKem768Rsa4096HmacSha256(Vec<u8>),
+    MlKem768Rsa3072HmacSha512(Vec<u8>),
+    MlKem768X25519SHA3_256(Vec<u8>),
+    MlKem768EcdhP256HmacSha256(Vec<u8>),
+    MlKem768EcdhP384HmacSha256(Vec<u8>),
+    MlKem1024EcdhP384HmacSha512(Vec<u8>),
+    MlKem1024X448Sha3_256(Vec<u8>),
+    MlKem1024EcdhP521HmacSha512(Vec<u8>),
 }
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
@@ -85,6 +103,57 @@ macro_rules! encrypt_wrap {
     }};
 }
 
+pub fn is_sha512(oid: ObjectIdentifier) -> bool {
+    ID_MLKEM768_RSA3072_HMAC_SHA512 == oid
+        || ID_MLKEM1024_ECDH_P384_HMAC_SHA512 == oid
+        || ID_MLKEM1024_ECDH_P521_HMAC_SHA512 == oid
+}
+
+/// Prepare and return composite shared secret, composite ciphertext and OID.
+#[macro_export]
+macro_rules! comp_encap {
+    ($pk:expr, $pqc_size:expr, $domain:expr, $rng:expr, $params:ty) => {{
+        let (pqc_pk, trad_pk) = $pk.split_at($pqc_size);
+        let pk = match Encoded::<<ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey,>::try_from(pqc_pk,) {
+            Ok(pk) => pk,
+            Err(e) => {
+                return Err(Error::Builder(format!("Encapsulate failed: {e:?}")))
+            }
+        };
+        let ek = <ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey::from_bytes(&pk);
+        let (mut pqc_ct, pqc_ss) = match ek.encapsulate($rng) {
+            Ok((ct, ss)) => (ct.to_vec(), ss.to_vec()),
+            Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+        };
+        let (trad_ss, mut trad_ct) = match RsaKem::encap(trad_pk) {
+            Ok((trad_ss, trad_ct)) => (trad_ss, trad_ct.to_vec()),
+            Err(e) => {
+                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+            }
+        };
+
+        let ss = if is_sha512($domain) {
+            match composite_ss::<Hmac<Sha512>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+                Ok(ss) => ss,
+                Err(e) => {
+                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+                }
+            }
+        } else {
+            match composite_ss::<Hmac<Sha256>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+                Ok(ss) => ss,
+                Err(e) => {
+                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+                }
+            }
+        };
+        let mut ct = vec![];
+        ct.append(&mut pqc_ct);
+        ct.append(&mut trad_ct);
+        (ss, ct, $domain)
+    }};
+}
+
 impl<R: ?Sized> RecipientInfoBuilder for KemRecipientInfoBuilder<R>
 where
     R: CryptoRng,
@@ -113,7 +182,8 @@ where
         // The recipient's public key is used with the KEM Encapsulate() function to obtain a pairwise shared secret (ss) and the ciphertext for the recipient.
         let (ss, ct, oid) = match &self.key_encryption_info {
             KeyEncryptionInfoKem::MlKem512(pk) => {
-                let ek = <ml_kem::kem::Kem<MlKem512Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let ek =
+                    <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey::from_bytes(pk);
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
@@ -121,7 +191,8 @@ where
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_512)
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
-                let ek = <ml_kem::kem::Kem<MlKem768Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let ek =
+                    <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey::from_bytes(pk);
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
@@ -129,12 +200,69 @@ where
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_768)
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
-                let ek = <ml_kem::kem::Kem<MlKem1024Params> as ml_kem::KemCore>::EncapsulationKey::from_bytes(pk);
+                let ek =
+                    <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey::from_bytes(
+                        pk,
+                    );
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
                     Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
                 };
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
+            }
+            KeyEncryptionInfoKem::MlKem768Rsa2048HmacSha256(pk) => {
+                comp_encap!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_RSA2048_HMAC_SHA256,
+                    rng,
+                    MlKem768Params
+                )
+            }
+            KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha256(pk) => {
+                comp_encap!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_RSA2048_HMAC_SHA256,
+                    rng,
+                    MlKem768Params
+                )
+            }
+            KeyEncryptionInfoKem::MlKem768Rsa4096HmacSha256(pk) => {
+                comp_encap!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_RSA4096_HMAC_SHA256,
+                    rng,
+                    MlKem768Params
+                )
+            }
+            KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha512(pk) => {
+                comp_encap!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_RSA3072_HMAC_SHA512,
+                    rng,
+                    MlKem768Params
+                )
+            }
+            KeyEncryptionInfoKem::MlKem768X25519SHA3_256(_) => {
+                todo!()
+            }
+            KeyEncryptionInfoKem::MlKem768EcdhP256HmacSha256(_) => {
+                todo!()
+            }
+            KeyEncryptionInfoKem::MlKem768EcdhP384HmacSha256(_) => {
+                todo!()
+            }
+            KeyEncryptionInfoKem::MlKem1024EcdhP384HmacSha512(_) => {
+                todo!()
+            }
+            KeyEncryptionInfoKem::MlKem1024X448Sha3_256(_) => {
+                todo!()
+            }
+            KeyEncryptionInfoKem::MlKem1024EcdhP521HmacSha512(_) => {
+                todo!()
             }
         };
 

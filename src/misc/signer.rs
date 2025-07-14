@@ -41,7 +41,7 @@ fn hash_message(composite_oid: ObjectIdentifier, message: &[u8]) -> crate::Resul
     {
         Ok(Sha256::digest(message).as_slice().to_vec())
     } else if composite_oid == ID_MLDSA87_ED448_SHAKE256 {
-        todo!()
+        todo!("support hashing for ID_MLDSA87_ED448_SHAKE256")
     } else {
         Ok(Sha512::digest(message).as_slice().to_vec())
     }
@@ -280,7 +280,9 @@ impl PqcVerifyingKey {
                 retval.append(&mut ecdsa.as_bytes().to_vec());
                 retval
             }
-            PqcVerifyingKey::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcVerifyingKey::Mldsa87Ed448Shake256(_) => {
+                todo!("support serializing Mldsa87Ed448Shake256 public key")
+            }
             PqcVerifyingKey::Mldsa87Rsa3072PssSha512(vk) => {
                 let rsa = vk.1.to_public_key_der().unwrap();
                 let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
@@ -478,7 +480,9 @@ impl PqcSignature {
                 retval.append(&mut ecdsa);
                 retval
             }
-            PqcSignature::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcSignature::Mldsa87Ed448Shake256(_) => {
+                todo!("support serializing Mldsa87Ed448Shake256 signature")
+            }
             PqcSignature::Mldsa87Rsa3072PssSha512(sig) => {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
@@ -688,7 +692,9 @@ impl PqcSigner {
                 retval.append(&mut ecdsa.as_bytes().to_vec());
                 retval
             }
-            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => {
+                todo!("support serializing Mldsa87Ed448Shake256 public key")
+            }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
                 let rsa = sk.1.to_public_key().to_public_key_der().unwrap();
                 let spki = SubjectPublicKeyInfo::from_der(&rsa.to_vec()).unwrap();
@@ -838,7 +844,9 @@ impl PqcSigner {
                 retval.append(&mut ecdsa.as_bytes().to_vec());
                 retval
             }
-            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => {
+                todo!("support serializing Mldsa87Ed448Shake256 private key")
+            }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
                 let mut mldsa = sk.0.signing_key().encode().as_bytes().to_vec();
                 let rsa = sk.1.to_pkcs1_der().unwrap();
@@ -973,7 +981,9 @@ impl PqcSigner {
                 let ecdsa = sk.1.verifying_key();
                 PqcVerifyingKey::Mldsa87EcdsaP384Sha512(Box::new((mldsa, *ecdsa)))
             }
-            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => {
+                todo!("support serializing Mldsa87Ed448Shake256 public key")
+            }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
                 let mldsa = sk.0.verifying_key().clone();
                 let rsa_private = sk.1.clone();
@@ -1189,7 +1199,9 @@ impl PqcSigner {
                     mldsa, ecdsa, r,
                 ))))
             }
-            PqcKeyPair::Mldsa87Ed448Shake256(_) => todo!(),
+            PqcKeyPair::Mldsa87Ed448Shake256(_) => {
+                todo!("support signing with Mldsa87Ed448Shake256")
+            }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
                 let (r, msg_rep) = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);

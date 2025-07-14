@@ -45,6 +45,12 @@ pub enum KemAlgorithms {
     MlKem768Rsa3072HmacSha256,
     MlKem768Rsa4096HmacSha256,
     MlKem768Rsa3072HmacSha512,
+    MlKem768X25519SHA3_256,
+    MlKem768EcdhP256HmacSha256,
+    MlKem768EcdhP384HmacSha256,
+    MlKem1024EcdhP384HmacSha512,
+    MlKem1024X448Sha3_256,
+    MlKem1024EcdhP521HmacSha512,
 }
 impl fmt::Display for KemAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -56,6 +62,20 @@ impl fmt::Display for KemAlgorithms {
             KemAlgorithms::MlKem768Rsa3072HmacSha256 => write!(f, "ml-kem768-rsa3072-hmac-sha256"),
             KemAlgorithms::MlKem768Rsa4096HmacSha256 => write!(f, "ml-kem768-rsa4096-hmac-sha256"),
             KemAlgorithms::MlKem768Rsa3072HmacSha512 => write!(f, "ml-kem768-rsa3072-hmac-sha512"),
+            KemAlgorithms::MlKem768X25519SHA3_256 => write!(f, "ml-kem768-x25519-sha3-256"),
+            KemAlgorithms::MlKem768EcdhP256HmacSha256 => {
+                write!(f, "ml-kem768-ecdh-p256-hmac-sha256")
+            }
+            KemAlgorithms::MlKem768EcdhP384HmacSha256 => {
+                write!(f, "ml-kem768-ecdh-p384-hmac-sha256")
+            }
+            KemAlgorithms::MlKem1024EcdhP384HmacSha512 => {
+                write!(f, "ml-kem1024-ecdh-p384-hmac-sha512")
+            }
+            KemAlgorithms::MlKem1024X448Sha3_256 => write!(f, "ml-kem1024-x448-sha3-256"),
+            KemAlgorithms::MlKem1024EcdhP521HmacSha512 => {
+                write!(f, "ml-kem1024-ecdh-p521-hmac-sha512")
+            }
         }
     }
 }
@@ -71,6 +91,12 @@ impl KemAlgorithms {
             ID_MLKEM768_RSA3072_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha256),
             ID_MLKEM768_RSA4096_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768Rsa4096HmacSha256),
             ID_MLKEM768_RSA3072_HMAC_SHA512 => Ok(KemAlgorithms::MlKem768Rsa3072HmacSha512),
+            ID_MLKEM768_X25519_SHA3_256 => Ok(KemAlgorithms::MlKem768X25519SHA3_256),
+            ID_MLKEM768_ECDH_P256_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768EcdhP256HmacSha256),
+            ID_MLKEM768_ECDH_P384_HMAC_SHA256 => Ok(KemAlgorithms::MlKem768EcdhP384HmacSha256),
+            ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => Ok(KemAlgorithms::MlKem1024EcdhP384HmacSha512),
+            ID_MLKEM1024_X448_SHA3_256 => Ok(KemAlgorithms::MlKem1024X448Sha3_256),
+            ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => Ok(KemAlgorithms::MlKem1024EcdhP521HmacSha512),
             _ => Err(Error::Unrecognized),
         }
     }
@@ -85,6 +111,12 @@ impl KemAlgorithms {
             KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
             KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
             KemAlgorithms::MlKem768Rsa3072HmacSha512 => ID_MLKEM768_RSA3072_HMAC_SHA512,
+            KemAlgorithms::MlKem768X25519SHA3_256 => ID_MLKEM768_X25519_SHA3_256,
+            KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_HMAC_SHA256,
+            KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_HMAC_SHA256,
+            KemAlgorithms::MlKem1024EcdhP384HmacSha512 => ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+            KemAlgorithms::MlKem1024X448Sha3_256 => ID_MLKEM1024_X448_SHA3_256,
+            KemAlgorithms::MlKem1024EcdhP521HmacSha512 => ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
         }
     }
 
@@ -140,6 +172,48 @@ impl KemAlgorithms {
                     ID_MLKEM768_RSA3072_HMAC_SHA512
                 )
             }
+            KemAlgorithms::MlKem768X25519SHA3_256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_X25519_SHA3_256),
+                    ID_MLKEM768_X25519_SHA3_256
+                )
+            }
+            KemAlgorithms::MlKem768EcdhP256HmacSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_ECDH_P256_HMAC_SHA256),
+                    ID_MLKEM768_ECDH_P256_HMAC_SHA256
+                )
+            }
+            KemAlgorithms::MlKem768EcdhP384HmacSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM768_ECDH_P384_HMAC_SHA256),
+                    ID_MLKEM768_ECDH_P384_HMAC_SHA256
+                )
+            }
+            KemAlgorithms::MlKem1024EcdhP384HmacSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM1024_ECDH_P384_HMAC_SHA512),
+                    ID_MLKEM1024_ECDH_P384_HMAC_SHA512
+                )
+            }
+            KemAlgorithms::MlKem1024X448Sha3_256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM1024_X448_SHA3_256),
+                    ID_MLKEM1024_X448_SHA3_256
+                )
+            }
+            KemAlgorithms::MlKem1024EcdhP521HmacSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_MLKEM1024_ECDH_P521_HMAC_SHA512),
+                    ID_MLKEM1024_ECDH_P521_HMAC_SHA512
+                )
+            }
         }
     }
 }
@@ -178,6 +252,7 @@ pub enum SigAlgorithms {
     Mldsa87Rsa3072PssSha512,
     Mldsa87Rsa4096PssSha512,
     Mldsa87EcdsaP521Sha512,
+    // omitting Brainpool as unsupported
 }
 impl fmt::Display for SigAlgorithms {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -420,7 +495,7 @@ impl SigAlgorithms {
                 ))
             }
             SigAlgorithms::Mldsa87Ed448Shake256 => {
-                todo!()
+                todo!("Add support for Ed448")
             }
             SigAlgorithms::Mldsa87Rsa3072PssSha512 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
@@ -452,7 +527,7 @@ impl SigAlgorithms {
         }
     }
 
-    /// Get KemAlgorithms instance from an object identifier.
+    /// Get SigAlgorithms instance from an object identifier.
     pub fn from_oid(oid: ObjectIdentifier) -> Result<SigAlgorithms> {
         match oid {
             ID_ML_DSA_44 => Ok(SigAlgorithms::MlDsa44),
@@ -489,7 +564,7 @@ impl SigAlgorithms {
         }
     }
 
-    /// Get object identifier from KemAlgorithms instance.
+    /// Get object identifier from SigAlgorithms instance.
     pub fn oid(&self) -> ObjectIdentifier {
         match self {
             SigAlgorithms::MlDsa44 => ID_ML_DSA_44,
@@ -525,7 +600,7 @@ impl SigAlgorithms {
         }
     }
 
-    /// Get filename component for KemAlgorithms instance.
+    /// Get filename component for SigAlgorithms instance.
     pub fn filename(&self) -> String {
         match self {
             SigAlgorithms::MlDsa44 => {

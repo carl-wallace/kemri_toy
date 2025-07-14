@@ -226,7 +226,7 @@ fn main() -> Result<()> {
     };
 
     if args.generate_signed_data {
-        todo!()
+        todo!("Add support for generating SignedData messages")
     }
 
     if args.pub_key_file.is_some() {
