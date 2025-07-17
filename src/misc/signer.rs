@@ -74,12 +74,7 @@ pub enum PqcKeyPair {
     Mldsa65EcdsaP384Sha512(Box<(KeyPair<MlDsa65>, p384::ecdsa::SigningKey)>),
     Mldsa65Ed25519Sha512(Box<(KeyPair<MlDsa65>, ed25519_dalek::SigningKey)>),
     Mldsa87EcdsaP384Sha512(Box<(KeyPair<MlDsa87>, p384::ecdsa::SigningKey)>),
-    Mldsa87Ed448Shake256(
-        Box<(
-            KeyPair<MlDsa87>,
-            ed448_goldilocks::elliptic_curve::SecretKey<Ed448>,
-        )>,
-    ),
+    Mldsa87Ed448Shake256(Box<(KeyPair<MlDsa87>, elliptic_curve::SecretKey<Ed448>)>),
     Mldsa87Rsa3072PssSha512(Box<(KeyPair<MlDsa87>, RsaPrivateKey)>),
     Mldsa87Rsa4096PssSha512(Box<(KeyPair<MlDsa87>, RsaPrivateKey)>),
     Mldsa87EcdsaP521Sha512(Box<(KeyPair<MlDsa87>, p521::ecdsa::SigningKey)>),
@@ -113,12 +108,7 @@ pub enum PqcVerifyingKey {
     Mldsa65EcdsaP384Sha512(Box<(VerifyingKey<MlDsa65>, p384::ecdsa::VerifyingKey)>),
     Mldsa65Ed25519Sha512(Box<(VerifyingKey<MlDsa65>, ed25519_dalek::VerifyingKey)>),
     Mldsa87EcdsaP384Sha512(Box<(VerifyingKey<MlDsa87>, p384::ecdsa::VerifyingKey)>),
-    Mldsa87Ed448Shake256(
-        Box<(
-            VerifyingKey<MlDsa87>,
-            ed448_goldilocks::elliptic_curve::PublicKey<Ed448>,
-        )>,
-    ),
+    Mldsa87Ed448Shake256(Box<(VerifyingKey<MlDsa87>, elliptic_curve::PublicKey<Ed448>)>),
     Mldsa87Rsa3072PssSha512(Box<(VerifyingKey<MlDsa87>, RsaPublicKey)>),
     Mldsa87Rsa4096PssSha512(Box<(VerifyingKey<MlDsa87>, RsaPublicKey)>),
     Mldsa87EcdsaP521Sha512(Box<(VerifyingKey<MlDsa87>, p521::ecdsa::VerifyingKey)>),

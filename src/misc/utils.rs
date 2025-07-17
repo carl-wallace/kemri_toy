@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use elliptic_curve::sec1::FromEncodedPoint;
 use log::{debug, error};
 use rand::rngs::OsRng;
 use zerocopy::IntoBytes;
@@ -43,7 +44,7 @@ use const_oid::db::{
     rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA},
 };
 use const_oid::{
-    ObjectIdentifier,
+    AssociatedOid, ObjectIdentifier,
     db::{
         rfc5280::ID_CE_SUBJECT_KEY_IDENTIFIER,
         rfc5911::{
@@ -53,8 +54,11 @@ use const_oid::{
     },
 };
 use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
+use elliptic_curve::sec1::{ModulusSize, ToEncodedPoint, ValidatePublicKey};
+use elliptic_curve::{CurveArithmetic, FieldBytesSize};
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 
+use crate::misc::ecdh::EcdhKem;
 use crate::misc::rsa::RsaKem;
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
@@ -294,23 +298,67 @@ pub(crate) fn kemri_builder_from_cert<R>(
             wrap,
         )?,
         ID_MLKEM768_X25519_SHA3_256 => {
-            todo!()
+            todo!("Support recip info builder prep for EC variants")
         }
-        ID_MLKEM768_ECDH_P256_HMAC_SHA256 => {
-            todo!()
-        }
-        ID_MLKEM768_ECDH_P384_HMAC_SHA256 => {
-            todo!()
-        }
-        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => {
-            todo!()
-        }
+        ID_MLKEM768_ECDH_P256_HMAC_SHA256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768EcdhP256HmacSha256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM768_ECDH_P384_HMAC_SHA256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768EcdhP384HmacSha256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem1024EcdhP384HmacSha512(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
         ID_MLKEM1024_X448_SHA3_256 => {
-            todo!()
+            todo!("Support recip info builder prep for EC variants")
         }
-        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => {
-            todo!()
-        }
+        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem1024EcdhP521HmacSha512(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
         _ => return Err(Error::Unrecognized),
     };
     Ok(recipient_info_builder)
@@ -677,6 +725,62 @@ where
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
     composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
+
+fn ml_kem768_ecdh<Hmac, C>(
+    kem_ct: &[u8],
+    private_key_bytes: &[u8],
+    domain: ObjectIdentifier,
+) -> crate::Result<Vec<u8>>
+where
+    Hmac: KeyInit + Mac,
+    C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
+    FieldBytesSize<C>: ModulusSize,
+    <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
+    <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
+{
+    let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
+    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+
+    let dk_bytes = private_key_from_seed!(pqc_seed, MlKem768);
+    let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem768, MlKem768Params, dk_bytes);
+
+    let ecdh = EcdhKem::<C>::new(trad_key)?;
+    let trad_ss = ecdh.decap(trad_ct)?;
+    let trad_pk = ecdh
+        .to_public_key()
+        .to_encoded_point(false)
+        .as_bytes()
+        .to_vec();
+    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+}
+
+fn ml_kem1024_ecdh<Hmac, C>(
+    kem_ct: &[u8],
+    private_key_bytes: &[u8],
+    domain: ObjectIdentifier,
+) -> crate::Result<Vec<u8>>
+where
+    Hmac: KeyInit + Mac,
+    C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
+    FieldBytesSize<C>: ModulusSize,
+    <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
+    <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
+{
+    let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
+    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+
+    let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
+    let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
+
+    let ecdh = EcdhKem::<C>::new(trad_key)?;
+    let trad_ss = ecdh.decap(trad_ct)?;
+    let trad_pk = ecdh
+        .to_public_key()
+        .to_encoded_point(false)
+        .as_bytes()
+        .to_vec();
+    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+}
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
@@ -716,23 +820,31 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
             ID_MLKEM1024_RSA3072_HMAC_SHA512,
         )?,
         ID_MLKEM768_X25519_SHA3_256 => {
-            todo!()
+            todo!("Decrypt with EC variants")
         }
-        ID_MLKEM768_ECDH_P256_HMAC_SHA256 => {
-            todo!()
-        }
-        ID_MLKEM768_ECDH_P384_HMAC_SHA256 => {
-            todo!()
-        }
-        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => {
-            todo!()
-        }
+        ID_MLKEM768_ECDH_P256_HMAC_SHA256 => ml_kem768_ecdh::<Hmac<Sha256>, p256::NistP256>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM768_ECDH_P256_HMAC_SHA256,
+        )?,
+        ID_MLKEM768_ECDH_P384_HMAC_SHA256 => ml_kem768_ecdh::<Hmac<Sha256>, p384::NistP384>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM768_ECDH_P384_HMAC_SHA256,
+        )?,
+        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => ml_kem1024_ecdh::<Hmac<Sha512>, p384::NistP384>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+        )?,
         ID_MLKEM1024_X448_SHA3_256 => {
-            todo!()
+            todo!("Decrypt with EC variants")
         }
-        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => {
-            todo!()
-        }
+        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => ml_kem1024_ecdh::<Hmac<Sha512>, p521::NistP521>(
+            kem_ct,
+            private_key_bytes,
+            ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+        )?,
         _ => {
             error!("Unrecognized KEM algorithm: {}", kemri.kem.oid);
             return Err(Error::Unrecognized);
@@ -1031,9 +1143,9 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ID_MLKEM768_X25519_SHA3_256 => "ml-kem768-x25519-sha3-256".to_string(),
         ID_MLKEM768_ECDH_P256_HMAC_SHA256 => "ml-kem768-ecdh-p256-sha256".to_string(),
         ID_MLKEM768_ECDH_P384_HMAC_SHA256 => "ml-kem768-ecdh-p384-sha256".to_string(),
-        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => "ml-kem768-ecdh-p384-sha512".to_string(),
+        ID_MLKEM1024_ECDH_P384_HMAC_SHA512 => "ml-kem1024-ecdh-p384-sha512".to_string(),
         ID_MLKEM1024_X448_SHA3_256 => "ml-kem768-rsa2048-hmac-sha256".to_string(),
-        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => "ml-kem768-ecdh-p521-sha512".to_string(),
+        ID_MLKEM1024_ECDH_P521_HMAC_SHA512 => "ml-kem1024-ecdh-p521-sha512".to_string(),
         ID_ML_DSA_44 => "ml-dsa-44".to_string(),
         ID_ML_DSA_65 => "ml-dsa-65".to_string(),
         ID_ML_DSA_87 => "ml-dsa-87".to_string(),

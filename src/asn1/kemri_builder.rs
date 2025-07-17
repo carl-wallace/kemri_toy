@@ -1,5 +1,6 @@
 //! Builder for `KemRecipientInfo` based on `RecipientInfoBuilder` trait from the cms crate
 
+use crate::misc::ecdh::EcdhKem;
 use log::debug;
 use std::marker::PhantomData;
 
@@ -27,11 +28,7 @@ use const_oid::{
 };
 use der::{Any, Decode, Encode, asn1::OctetString};
 use hmac::Hmac;
-use pqckeys::pqc_oids::{
-    ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA4096_HMAC_SHA256,
-    ID_MLKEM1024_ECDH_P384_HMAC_SHA512, ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
-    ID_MLKEM1024_RSA3072_HMAC_SHA512,
-};
+use pqckeys::pqc_oids::{ID_MLKEM768_ECDH_P256_HMAC_SHA256, ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA4096_HMAC_SHA256, ID_MLKEM1024_ECDH_P384_HMAC_SHA512, ID_MLKEM1024_ECDH_P521_HMAC_SHA512, ID_MLKEM1024_RSA3072_HMAC_SHA512, ID_MLKEM768_ECDH_P384_HMAC_SHA256};
 use spki::AlgorithmIdentifier;
 
 use crate::misc::rsa::RsaKem;
@@ -111,7 +108,7 @@ pub fn is_sha512(oid: ObjectIdentifier) -> bool {
 
 /// Prepare and return composite shared secret, composite ciphertext and OID.
 #[macro_export]
-macro_rules! comp_encap {
+macro_rules! comp_encap_rsa {
     ($pk:expr, $pqc_size:expr, $domain:expr, $rng:expr, $params:ty) => {{
         let (pqc_pk, trad_pk) = $pk.split_at($pqc_size);
         let pk = match Encoded::<<ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey,>::try_from(pqc_pk,) {
@@ -154,6 +151,50 @@ macro_rules! comp_encap {
     }};
 }
 
+/// comp_encap_ecdh
+#[macro_export]
+macro_rules! comp_encap_ecdh {
+    ($pk:expr, $pqc_size:expr, $domain:expr, $rng:expr, $params:ty, $ec:ty) => {{
+        let (pqc_pk, trad_pk) = $pk.split_at($pqc_size);
+        let pk = match Encoded::<<ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey,>::try_from(pqc_pk,) {
+            Ok(pk) => pk,
+            Err(e) => {
+                return Err(Error::Builder(format!("Encapsulate failed: {e:?}")))
+            }
+        };
+        let ek = <ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey::from_bytes(&pk);
+        let (mut pqc_ct, pqc_ss) = match ek.encapsulate($rng) {
+            Ok((ct, ss)) => (ct.to_vec(), ss.to_vec()),
+            Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+        };
+        let (trad_ss, trad_ct) = match EcdhKem::<$ec>::encap(trad_pk) {
+            Ok((trad_ss, trad_ct)) => (trad_ss, trad_ct.to_vec()),
+            Err(e) => {
+                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+            }
+        };
+
+        let ss = if is_sha512($domain) {
+            match composite_ss::<Hmac<Sha512>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+                Ok(ss) => ss,
+                Err(e) => {
+                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+                }
+            }
+        } else {
+            match composite_ss::<Hmac<Sha256>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+                Ok(ss) => ss,
+                Err(e) => {
+                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
+                }
+            }
+        };
+        let mut ct = vec![];
+        ct.append(&mut pqc_ct);
+        ct.append(&mut trad_ct.to_vec());
+        (ss, ct, $domain)
+    }};
+}
 impl<R: ?Sized> RecipientInfoBuilder for KemRecipientInfoBuilder<R>
 where
     R: CryptoRng,
@@ -211,7 +252,7 @@ where
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
             KeyEncryptionInfoKem::MlKem768Rsa2048HmacSha256(pk) => {
-                comp_encap!(
+                comp_encap_rsa!(
                     pk,
                     1184,
                     ID_MLKEM768_RSA2048_HMAC_SHA256,
@@ -220,7 +261,7 @@ where
                 )
             }
             KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha256(pk) => {
-                comp_encap!(
+                comp_encap_rsa!(
                     pk,
                     1184,
                     ID_MLKEM768_RSA2048_HMAC_SHA256,
@@ -229,7 +270,7 @@ where
                 )
             }
             KeyEncryptionInfoKem::MlKem768Rsa4096HmacSha256(pk) => {
-                comp_encap!(
+                comp_encap_rsa!(
                     pk,
                     1184,
                     ID_MLKEM768_RSA4096_HMAC_SHA256,
@@ -238,7 +279,7 @@ where
                 )
             }
             KeyEncryptionInfoKem::MlKem1024Rsa3072HmacSha512(pk) => {
-                comp_encap!(
+                comp_encap_rsa!(
                     pk,
                     1568,
                     ID_MLKEM1024_RSA3072_HMAC_SHA512,
@@ -247,22 +288,50 @@ where
                 )
             }
             KeyEncryptionInfoKem::MlKem768X25519SHA3_256(_) => {
-                todo!()
+                todo!("Support encap for EC variants")
             }
-            KeyEncryptionInfoKem::MlKem768EcdhP256HmacSha256(_) => {
-                todo!()
+            KeyEncryptionInfoKem::MlKem768EcdhP256HmacSha256(pk) => {
+                comp_encap_ecdh!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_ECDH_P256_HMAC_SHA256,
+                    rng,
+                    MlKem768Params,
+                    p256::NistP256
+                )
             }
-            KeyEncryptionInfoKem::MlKem768EcdhP384HmacSha256(_) => {
-                todo!()
+            KeyEncryptionInfoKem::MlKem768EcdhP384HmacSha256(pk) => {
+                comp_encap_ecdh!(
+                    pk,
+                    1184,
+                    ID_MLKEM768_ECDH_P384_HMAC_SHA256,
+                    rng,
+                    MlKem768Params,
+                    p384::NistP384
+                )
             }
-            KeyEncryptionInfoKem::MlKem1024EcdhP384HmacSha512(_) => {
-                todo!()
+            KeyEncryptionInfoKem::MlKem1024EcdhP384HmacSha512(pk) => {
+                comp_encap_ecdh!(
+                    pk,
+                    1568,
+                    ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+                    rng,
+                    MlKem1024Params,
+                    p384::NistP384
+                )
             }
             KeyEncryptionInfoKem::MlKem1024X448Sha3_256(_) => {
-                todo!()
+                todo!("Support encap for EC variants")
             }
-            KeyEncryptionInfoKem::MlKem1024EcdhP521HmacSha512(_) => {
-                todo!()
+            KeyEncryptionInfoKem::MlKem1024EcdhP521HmacSha512(pk) => {
+                comp_encap_ecdh!(
+                    pk,
+                    1568,
+                    ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+                    rng,
+                    MlKem1024Params,
+                    p521::NistP521
+                )
             }
         };
 

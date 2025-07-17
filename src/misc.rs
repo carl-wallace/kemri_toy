@@ -6,5 +6,6 @@ pub mod signer;
 pub mod gen_certs;
 mod builder_profiles;
 pub mod check_private_key;
+pub mod ecdh;
 pub mod rsa;
 pub mod utils;
