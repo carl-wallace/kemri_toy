@@ -16,6 +16,7 @@ use const_oid::{
     db::{fips204::*, fips205::*},
 };
 use der::{Decode, Document, Encode, asn1::BitString};
+use ed25519_dalek::Signer as OtherSigner;
 use ed448_goldilocks::Ed448;
 use lazy_static::lazy_static;
 use rsa::{RsaPrivateKey, RsaPublicKey, pkcs1::EncodeRsaPrivateKey};
@@ -391,7 +392,7 @@ impl PqcSignature {
             }
             PqcSignature::Mldsa44Ed25519Sha512(sig) => {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
-                let mut ecdsa = sig.1.to_vec();
+                let mut ecdsa = sig.1.to_bytes().to_vec();
                 let mut retval = vec![];
                 retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
@@ -454,7 +455,7 @@ impl PqcSignature {
             }
             PqcSignature::Mldsa65Ed25519Sha512(sig) => {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
-                let mut ecdsa = sig.1.to_vec();
+                let mut ecdsa = sig.1.to_bytes().to_vec();
                 let mut retval = vec![];
                 retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);

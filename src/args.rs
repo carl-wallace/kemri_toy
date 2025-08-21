@@ -1,5 +1,6 @@
 //! Arguments for the `kemri_toy` utility
 
+use rand::rngs::OsRng;
 use core::fmt;
 use pqckeys::pqc_oids::*;
 use std::path::PathBuf;
@@ -32,6 +33,7 @@ use const_oid::{
         ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
     },
 };
+use rand_core::TryRngCore;
 use rsa::RsaPrivateKey;
 
 /// KEM algorithms available via command line argument
@@ -325,7 +327,7 @@ impl fmt::Display for SigAlgorithms {
 
 impl SigAlgorithms {
     pub fn generate_key_pair(&self) -> Result<PqcSigner> {
-        let mut rng = rand::rng();
+        let mut rng = &mut OsRng.unwrap_err();
 
         match self {
             SigAlgorithms::MlDsa44 => {
@@ -416,13 +418,14 @@ impl SigAlgorithms {
                 ))
             }
             SigAlgorithms::Mldsa44Ed25519Sha512 => {
-                let xi: ml_dsa::B32 = rand(&mut rng);
-                let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
-                let mldsa = MlDsa44::key_gen_internal(&xi);
-                Ok(PqcSigner::new(
-                    xi.clone().as_slice(),
-                    PqcKeyPair::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))),
-                ))
+                todo!()
+                // let xi: ml_dsa::B32 = rand(&mut rng);
+                // let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
+                // let mldsa = MlDsa44::key_gen_internal(&xi);
+                // Ok(PqcSigner::new(
+                //     xi.clone().as_slice(),
+                //     PqcKeyPair::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))),
+                // ))
             }
             SigAlgorithms::Mldsa44EcdsaP256Sha256 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
@@ -479,13 +482,14 @@ impl SigAlgorithms {
                 ))
             }
             SigAlgorithms::Mldsa65Ed25519Sha512 => {
-                let xi: ml_dsa::B32 = rand(&mut rng);
-                let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
-                let mldsa = MlDsa65::key_gen_internal(&xi);
-                Ok(PqcSigner::new(
-                    xi.clone().as_slice(),
-                    PqcKeyPair::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))),
-                ))
+                todo!()
+                // let xi: ml_dsa::B32 = rand(&mut rng);
+                // let ecdsa = ed25519_dalek::SigningKey::generate(&mut rng);
+                // let mldsa = MlDsa65::key_gen_internal(&xi);
+                // Ok(PqcSigner::new(
+                //     xi.clone().as_slice(),
+                //     PqcKeyPair::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))),
+                // ))
             }
             SigAlgorithms::Mldsa87EcdsaP384Sha512 => {
                 let xi: ml_dsa::B32 = rand(&mut rng);
