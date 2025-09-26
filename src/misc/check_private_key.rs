@@ -139,6 +139,6 @@ pub(crate) fn check_private_key(
         check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
     } else {
         println!("Unrecognized algorithm");
-        return Err(Error::Unrecognized);
+        Err(Error::Unrecognized)
     }
 }

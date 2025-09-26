@@ -520,7 +520,8 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &composite_pub_key,
                 KemAlgorithms::MlKem1024EcdhP521HmacSha512,
             )?;
-            (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)        }
+            (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
+        }
     };
 
     let cert = match new_cert {

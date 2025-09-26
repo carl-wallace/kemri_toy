@@ -1,8 +1,8 @@
 //! Arguments for the `kemri_toy` utility
 
-use rand::rngs::OsRng;
 use core::fmt;
 use pqckeys::pqc_oids::*;
+use rand::rngs::OsRng;
 use std::path::PathBuf;
 
 use clap::Parser;

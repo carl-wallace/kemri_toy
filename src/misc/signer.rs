@@ -1,6 +1,5 @@
 //! Signer implementation for mldsa44 key pairs
 
-use rand_core::{RngCore, TryRngCore};
 use sha2::{Sha384, Sha512};
 use zerocopy::IntoBytes;
 
@@ -16,8 +15,8 @@ use const_oid::{
     db::{fips204::*, fips205::*},
 };
 use der::{Decode, Document, Encode, asn1::BitString};
-use ed25519_dalek::Signer as OtherSigner;
 use ed448_goldilocks::Ed448;
+use ed25519_dalek::Signer as OtherSigner;
 use lazy_static::lazy_static;
 use rsa::{RsaPrivateKey, RsaPublicKey, pkcs1::EncodeRsaPrivateKey};
 use spki::{
@@ -26,11 +25,11 @@ use spki::{
 };
 
 use pqckeys::pqc_oids::*;
-use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use x509_cert::SubjectPublicKeyInfo;
 
 lazy_static! {
+    // CompositeAlgorithmSignatures2025
     static ref PREFIX: [u8; 32] =
         hex_literal::hex!("436F6D706F73697465416C676F726974686D5369676E61747572657332303235");
 }
@@ -337,21 +336,21 @@ pub enum PqcSignature {
     Shake192s(Box<slh_dsa::Signature<Shake192s>>),
     Shake256f(Box<slh_dsa::Signature<Shake256f>>),
     Shake256s(Box<slh_dsa::Signature<Shake256s>>),
-    Mldsa44Rsa2048PssSha256(Box<(Signature<MlDsa44>, Vec<u8>, Vec<u8>)>),
-    Mldsa44Rsa2048Pkcs15Sha256(Box<(Signature<MlDsa44>, Vec<u8>, Vec<u8>)>),
-    Mldsa44Ed25519Sha512(Box<(Signature<MlDsa44>, ed25519_dalek::Signature, Vec<u8>)>),
-    Mldsa44EcdsaP256Sha256(Box<(Signature<MlDsa44>, p256::ecdsa::Signature, Vec<u8>)>),
-    Mldsa65Rsa3072PssSha512(Box<(Signature<MlDsa65>, Vec<u8>, Vec<u8>)>),
-    Mldsa65Rsa4096PssSha512(Box<(Signature<MlDsa65>, Vec<u8>, Vec<u8>)>),
-    Mldsa65Rsa4096Pkcs15Sha512(Box<(Signature<MlDsa65>, Vec<u8>, Vec<u8>)>),
-    Mldsa65EcdsaP256Sha512(Box<(Signature<MlDsa65>, p256::ecdsa::Signature, Vec<u8>)>),
-    Mldsa65EcdsaP384Sha512(Box<(Signature<MlDsa65>, p384::ecdsa::Signature, Vec<u8>)>),
-    Mldsa65Ed25519Sha512(Box<(Signature<MlDsa65>, ed25519_dalek::Signature, Vec<u8>)>),
-    Mldsa87EcdsaP384Sha512(Box<(Signature<MlDsa87>, p384::ecdsa::Signature, Vec<u8>)>),
-    Mldsa87Ed448Shake256(Box<(Signature<MlDsa87>, Vec<u8>, Vec<u8>)>), //todo fix
-    Mldsa87Rsa3072PssSha512(Box<(Signature<MlDsa87>, Vec<u8>, Vec<u8>)>),
-    Mldsa87Rsa4096PssSha512(Box<(Signature<MlDsa87>, Vec<u8>, Vec<u8>)>),
-    Mldsa87EcdsaP521Sha512(Box<(Signature<MlDsa87>, p521::ecdsa::Signature, Vec<u8>)>),
+    Mldsa44Rsa2048PssSha256(Box<(Signature<MlDsa44>, Vec<u8>)>),
+    Mldsa44Rsa2048Pkcs15Sha256(Box<(Signature<MlDsa44>, Vec<u8>)>),
+    Mldsa44Ed25519Sha512(Box<(Signature<MlDsa44>, ed25519_dalek::Signature)>),
+    Mldsa44EcdsaP256Sha256(Box<(Signature<MlDsa44>, p256::ecdsa::Signature)>),
+    Mldsa65Rsa3072PssSha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65Rsa4096PssSha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65Rsa4096Pkcs15Sha512(Box<(Signature<MlDsa65>, Vec<u8>)>),
+    Mldsa65EcdsaP256Sha512(Box<(Signature<MlDsa65>, p256::ecdsa::Signature)>),
+    Mldsa65EcdsaP384Sha512(Box<(Signature<MlDsa65>, p384::ecdsa::Signature)>),
+    Mldsa65Ed25519Sha512(Box<(Signature<MlDsa65>, ed25519_dalek::Signature)>),
+    Mldsa87EcdsaP384Sha512(Box<(Signature<MlDsa87>, p384::ecdsa::Signature)>),
+    Mldsa87Ed448Shake256(Box<(Signature<MlDsa87>, Vec<u8>)>), //todo fix
+    Mldsa87Rsa3072PssSha512(Box<(Signature<MlDsa87>, Vec<u8>)>),
+    Mldsa87Rsa4096PssSha512(Box<(Signature<MlDsa87>, Vec<u8>)>),
+    Mldsa87EcdsaP521Sha512(Box<(Signature<MlDsa87>, p521::ecdsa::Signature)>),
 }
 
 impl PqcSignature {
@@ -376,7 +375,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -385,7 +383,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -394,7 +391,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -403,7 +399,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_der().as_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -412,7 +407,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -421,7 +415,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -430,7 +423,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -439,7 +431,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_der().as_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -448,7 +439,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_der().as_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -457,7 +447,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -466,7 +455,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_der().as_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -478,7 +466,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -487,7 +474,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut rsa = sig.1.clone();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut rsa);
                 retval
@@ -496,7 +482,6 @@ impl PqcSignature {
                 let mut mldsa = sig.0.encode().as_bytes().to_vec();
                 let mut ecdsa = sig.1.to_der().as_bytes().to_vec();
                 let mut retval = vec![];
-                retval.append(&mut sig.2.clone());
                 retval.append(&mut mldsa);
                 retval.append(&mut ecdsa);
                 retval
@@ -995,23 +980,20 @@ impl PqcSigner {
         }
     }
 
-    fn prepare_message_rep(&self, message_to_verify: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>)> {
+    fn prepare_message_rep(&self, message_to_verify: &[u8]) -> crate::Result<Vec<u8>> {
         let oid = self.oid();
         let domain = oid.to_der()?;
         let ctx_len = [0x00];
-        let mut r = [0u8; 32];
-        OsRng.unwrap_err().fill_bytes(&mut r);
         let hash = hash_message(oid, message_to_verify)?;
 
-        //Prefix || Domain || len(ctx) || ctx || r || PH( M )
+        // Prefix || Label || len(ctx) || ctx || PH( M )
         let mut message_rep = vec![];
         message_rep.append(&mut PREFIX.to_vec());
         message_rep.append(&mut domain.to_vec());
         message_rep.append(&mut ctx_len.to_vec());
-        message_rep.append(&mut r.to_vec());
         message_rep.append(&mut hash.to_vec());
 
-        Ok((r.to_vec(), message_rep))
+        Ok(message_rep)
     }
 
     pub(crate) fn sign(&self, msg: &[u8]) -> crate::Result<PqcSignature> {
@@ -1098,125 +1080,121 @@ impl PqcSigner {
                 )))
             }
             PqcKeyPair::Mldsa44Rsa2048PssSha256(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let rsa_sk = rsa::pss::SigningKey::<Sha256>::new(sk.1.clone());
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa44Rsa2048PssSha256(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha256>::new(sk.1.clone());
                 let rsa = rsa_sk.sign(&msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa44Rsa2048Pkcs15Sha256(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa44Ed25519Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
-                Ok(PqcSignature::Mldsa44Ed25519Sha512(Box::new((
-                    mldsa, ecdsa, r,
-                ))))
+                Ok(PqcSignature::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))))
             }
             PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa44EcdsaP256Sha256(Box::new((
-                    mldsa, ecdsa, r,
+                    mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa3072PssSha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha512>::new(sk.1.clone());
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa3072PssSha512(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa4096PssSha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha512>::new(sk.1.clone());
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa4096PssSha512(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign(&msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa4096Pkcs15Sha512(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa65EcdsaP256Sha512(Box::new((
-                    mldsa, ecdsa, r,
+                    mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa65EcdsaP384Sha512(Box::new((
-                    mldsa, ecdsa, r,
+                    mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Ed25519Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
-                Ok(PqcSignature::Mldsa65Ed25519Sha512(Box::new((
-                    mldsa, ecdsa, r,
-                ))))
+                Ok(PqcSignature::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))))
             }
             PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa87EcdsaP384Sha512(Box::new((
-                    mldsa, ecdsa, r,
+                    mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa87Ed448Shake256(_) => {
                 todo!("support signing with Mldsa87Ed448Shake256")
             }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha512>::new(sk.1.clone());
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa87Rsa3072PssSha512(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa87Rsa4096PssSha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha512>::new(sk.1.clone());
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa87Rsa4096PssSha512(Box::new((
-                    mldsa, rsa, r,
+                    mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
-                let (r, msg_rep) = self.prepare_message_rep(msg)?;
+                let msg_rep = self.prepare_message_rep(msg)?;
                 let mldsa = sk.0.signing_key().sign(&msg_rep);
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa87EcdsaP521Sha512(Box::new((
-                    mldsa, ecdsa, r,
+                    mldsa, ecdsa,
                 ))))
             }
         }
