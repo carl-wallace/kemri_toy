@@ -29,10 +29,10 @@ use const_oid::{
 use der::{Any, Decode, Encode, asn1::OctetString};
 use hmac::Hmac;
 use pqckeys::pqc_oids::{
-    ID_MLKEM768_ECDH_P256_HMAC_SHA256, ID_MLKEM768_ECDH_P384_HMAC_SHA256,
-    ID_MLKEM768_RSA2048_HMAC_SHA256, ID_MLKEM768_RSA4096_HMAC_SHA256,
-    ID_MLKEM1024_ECDH_P384_HMAC_SHA512, ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
-    ID_MLKEM1024_RSA3072_HMAC_SHA512,
+    ID_MLKEM768_ECDH_P256_SHA3_256, ID_MLKEM768_ECDH_P384_SHA3_256,
+    ID_MLKEM768_RSA2048_SHA3_256, ID_MLKEM768_RSA4096_SHA3_256,
+    ID_MLKEM1024_ECDH_P384_SHA3_256, ID_MLKEM1024_ECDH_P521_SHA3_256,
+    ID_MLKEM1024_RSA3072_SHA3_256,
 };
 use spki::AlgorithmIdentifier;
 
@@ -51,16 +51,16 @@ pub enum KeyEncryptionInfoKem {
     MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey>>),
     MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey>>),
     MlKem1024(Box<Encoded<<ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey>>),
-    MlKem768Rsa2048HmacSha256(Vec<u8>),
-    MlKem768Rsa3072HmacSha256(Vec<u8>),
-    MlKem768Rsa4096HmacSha256(Vec<u8>),
-    MlKem1024Rsa3072HmacSha512(Vec<u8>),
-    MlKem768X25519SHA3_256(Vec<u8>),
-    MlKem768EcdhP256HmacSha256(Vec<u8>),
-    MlKem768EcdhP384HmacSha256(Vec<u8>),
-    MlKem1024EcdhP384HmacSha512(Vec<u8>),
+    MlKem768Rsa2048Sha3_256(Vec<u8>),
+    MlKem768Rsa3072Sha3_256(Vec<u8>),
+    MlKem768Rsa4096Sha3_256(Vec<u8>),
+    MlKem1024Rsa3072Sha3_256(Vec<u8>),
+    MlKem768X25519Sha3_256(Vec<u8>),
+    MlKem768EcdhP256Sha3_256(Vec<u8>),
+    MlKem768EcdhP384Sha3_256(Vec<u8>),
+    MlKem1024EcdhP384Sha3_256(Vec<u8>),
     MlKem1024X448Sha3_256(Vec<u8>),
-    MlKem1024EcdhP521HmacSha512(Vec<u8>),
+    MlKem1024EcdhP521Sha3_256(Vec<u8>),
 }
 
 /// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
@@ -106,9 +106,9 @@ macro_rules! encrypt_wrap {
 }
 
 pub fn is_sha512(oid: ObjectIdentifier) -> bool {
-    ID_MLKEM1024_RSA3072_HMAC_SHA512 == oid
-        || ID_MLKEM1024_ECDH_P384_HMAC_SHA512 == oid
-        || ID_MLKEM1024_ECDH_P521_HMAC_SHA512 == oid
+    ID_MLKEM1024_RSA3072_SHA3_256 == oid
+        || ID_MLKEM1024_ECDH_P384_SHA3_256 == oid
+        || ID_MLKEM1024_ECDH_P521_SHA3_256 == oid
 }
 
 /// Prepare and return composite shared secret, composite ciphertext and OID.
@@ -256,70 +256,70 @@ where
                 };
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
-            KeyEncryptionInfoKem::MlKem768Rsa2048HmacSha256(pk) => {
+            KeyEncryptionInfoKem::MlKem768Rsa2048Sha3_256(pk) => {
                 comp_encap_rsa!(
                     pk,
                     1184,
-                    ID_MLKEM768_RSA2048_HMAC_SHA256,
+                    ID_MLKEM768_RSA2048_SHA3_256,
                     rng,
                     MlKem768Params
                 )
             }
-            KeyEncryptionInfoKem::MlKem768Rsa3072HmacSha256(pk) => {
+            KeyEncryptionInfoKem::MlKem768Rsa3072Sha3_256(pk) => {
                 comp_encap_rsa!(
                     pk,
                     1184,
-                    ID_MLKEM768_RSA2048_HMAC_SHA256,
+                    ID_MLKEM768_RSA2048_SHA3_256,
                     rng,
                     MlKem768Params
                 )
             }
-            KeyEncryptionInfoKem::MlKem768Rsa4096HmacSha256(pk) => {
+            KeyEncryptionInfoKem::MlKem768Rsa4096Sha3_256(pk) => {
                 comp_encap_rsa!(
                     pk,
                     1184,
-                    ID_MLKEM768_RSA4096_HMAC_SHA256,
+                    ID_MLKEM768_RSA4096_SHA3_256,
                     rng,
                     MlKem768Params
                 )
             }
-            KeyEncryptionInfoKem::MlKem1024Rsa3072HmacSha512(pk) => {
+            KeyEncryptionInfoKem::MlKem1024Rsa3072Sha3_256(pk) => {
                 comp_encap_rsa!(
                     pk,
                     1568,
-                    ID_MLKEM1024_RSA3072_HMAC_SHA512,
+                    ID_MLKEM1024_RSA3072_SHA3_256,
                     rng,
                     MlKem1024Params
                 )
             }
-            KeyEncryptionInfoKem::MlKem768X25519SHA3_256(_) => {
+            KeyEncryptionInfoKem::MlKem768X25519Sha3_256(_) => {
                 todo!("Support encap for EC variants")
             }
-            KeyEncryptionInfoKem::MlKem768EcdhP256HmacSha256(pk) => {
+            KeyEncryptionInfoKem::MlKem768EcdhP256Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
                     1184,
-                    ID_MLKEM768_ECDH_P256_HMAC_SHA256,
+                    ID_MLKEM768_ECDH_P256_SHA3_256,
                     rng,
                     MlKem768Params,
                     p256::NistP256
                 )
             }
-            KeyEncryptionInfoKem::MlKem768EcdhP384HmacSha256(pk) => {
+            KeyEncryptionInfoKem::MlKem768EcdhP384Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
                     1184,
-                    ID_MLKEM768_ECDH_P384_HMAC_SHA256,
+                    ID_MLKEM768_ECDH_P384_SHA3_256,
                     rng,
                     MlKem768Params,
                     p384::NistP384
                 )
             }
-            KeyEncryptionInfoKem::MlKem1024EcdhP384HmacSha512(pk) => {
+            KeyEncryptionInfoKem::MlKem1024EcdhP384Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
                     1568,
-                    ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+                    ID_MLKEM1024_ECDH_P384_SHA3_256,
                     rng,
                     MlKem1024Params,
                     p384::NistP384
@@ -328,11 +328,11 @@ where
             KeyEncryptionInfoKem::MlKem1024X448Sha3_256(_) => {
                 todo!("Support encap for EC variants")
             }
-            KeyEncryptionInfoKem::MlKem1024EcdhP521HmacSha512(pk) => {
+            KeyEncryptionInfoKem::MlKem1024EcdhP521Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
                     1568,
-                    ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+                    ID_MLKEM1024_ECDH_P521_SHA3_256,
                     rng,
                     MlKem1024Params,
                     p521::NistP521

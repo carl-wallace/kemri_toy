@@ -208,16 +208,16 @@ pub fn generate_ml_kem_cert(
         OtherMlKem512 => ID_ALG_ML_KEM_512,
         OtherMlKem768 => ID_ALG_ML_KEM_768,
         OtherMlKem1024 => ID_ALG_ML_KEM_1024,
-        KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_HMAC_SHA256,
-        KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_HMAC_SHA256,
-        KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_HMAC_SHA256,
-        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => ID_MLKEM1024_RSA3072_HMAC_SHA512,
+        KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_SHA3_256,
+        KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_SHA3_256,
+        KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_SHA3_256,
+        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => ID_MLKEM1024_RSA3072_SHA3_256,
         KemAlgorithms::MlKem768X25519SHA3_256 => ID_MLKEM768_X25519_SHA3_256,
-        KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_HMAC_SHA256,
-        KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_HMAC_SHA256,
-        KemAlgorithms::MlKem1024EcdhP384HmacSha512 => ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+        KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_SHA3_256,
+        KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_SHA3_256,
+        KemAlgorithms::MlKem1024EcdhP384HmacSha512 => ID_MLKEM1024_ECDH_P384_SHA3_256,
         KemAlgorithms::MlKem1024X448Sha3_256 => ID_MLKEM1024_X448_SHA3_256,
-        KemAlgorithms::MlKem1024EcdhP521HmacSha512 => ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+        KemAlgorithms::MlKem1024EcdhP521HmacSha512 => ID_MLKEM1024_ECDH_P521_SHA3_256,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -363,7 +363,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
-                ID_MLKEM768_RSA2048_HMAC_SHA256,
+                ID_MLKEM768_RSA2048_SHA3_256,
                 &mut rng,
                 MlKem768Params
             );
@@ -382,7 +382,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
-                ID_MLKEM768_RSA3072_HMAC_SHA256,
+                ID_MLKEM768_RSA3072_SHA3_256,
                 &mut rng,
                 MlKem768Params
             );
@@ -401,7 +401,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
-                ID_MLKEM768_RSA4096_HMAC_SHA256,
+                ID_MLKEM768_RSA4096_SHA3_256,
                 &mut rng,
                 MlKem768Params
             );
@@ -420,7 +420,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1568,
-                ID_MLKEM1024_RSA3072_HMAC_SHA512,
+                ID_MLKEM1024_RSA3072_SHA3_256,
                 &mut rng,
                 MlKem1024Params
             );
@@ -443,7 +443,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1184,
-                ID_MLKEM768_ECDH_P256_HMAC_SHA256,
+                ID_MLKEM768_ECDH_P256_SHA3_256,
                 &mut rng,
                 MlKem768Params,
                 p256::NistP256
@@ -464,7 +464,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1184,
-                ID_MLKEM768_ECDH_P384_HMAC_SHA256,
+                ID_MLKEM768_ECDH_P384_SHA3_256,
                 &mut rng,
                 MlKem768Params,
                 p384::NistP384
@@ -485,7 +485,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1568,
-                ID_MLKEM1024_ECDH_P384_HMAC_SHA512,
+                ID_MLKEM1024_ECDH_P384_SHA3_256,
                 &mut rng,
                 MlKem1024Params,
                 p384::NistP384
@@ -509,7 +509,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1568,
-                ID_MLKEM1024_ECDH_P521_HMAC_SHA512,
+                ID_MLKEM1024_ECDH_P521_SHA3_256,
                 &mut rng,
                 MlKem1024Params,
                 p521::NistP521
