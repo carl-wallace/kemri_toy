@@ -853,6 +853,7 @@ dependencies = [
  "rsa",
  "serde",
  "sha2 0.11.0-rc.0",
+ "sha3",
  "signature 3.0.0-rc.2",
  "slh-dsa",
  "spki 0.8.0-rc.4",
@@ -1114,7 +1115,7 @@ dependencies = [
 [[package]]
 name = "pqckeys"
 version = "0.1.1"
-source = "git+https://github.com/carl-wallace/pqckeys?branch=kemri#cf8125c7f0b42ced0905243baca3a22b24a522b5"
+source = "git+https://github.com/carl-wallace/pqckeys?branch=kemri#d46b5bb6bb98cc39db2bd3ef5c6e4b8a6dcbbc53"
 dependencies = [
  "const-oid 0.10.1",
  "der 0.8.0-rc.8",

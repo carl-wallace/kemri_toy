@@ -1,15 +1,5 @@
 //! Utilities to generate test certificates features ML_KEM_XXX_IPD keys signed with ML_DSA_44_IPD
 
-use crate::asn1::kemri_builder::is_sha512;
-use crate::misc::ecdh::EcdhKem;
-use crate::misc::rsa::RsaKem;
-use crate::misc::utils::composite_ss;
-use hmac::Hmac;
-use ml_kem::Encoded;
-use ml_kem::MlKem768Params;
-use ml_kem::MlKem1024Params;
-use sha2::Sha256;
-use sha2::Sha512;
 use std::{
     fs::File,
     io::Write,
@@ -19,23 +9,28 @@ use std::{
 };
 
 use log::error;
-use rand::RngCore;
-use rand::rngs::OsRng;
+use rand::{RngCore, rngs::OsRng};
 use rand_core::TryRngCore;
 
 use cipher::rand_core::CryptoRng;
-use const_oid::db::fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024};
 use ml_kem::{
-    ArraySize, B32, EncodedSizeUser, KemCore, MlKem512, MlKem768, MlKem1024,
+    ArraySize, B32, Encoded, EncodedSizeUser, KemCore, MlKem512, MlKem768, MlKem768Params,
+    MlKem1024, MlKem1024Params,
     array::Array,
     kem::{Decapsulate, Encapsulate},
 };
+use p256::elliptic_curve::sec1::ToEncodedPoint;
+use rsa::pkcs1::EncodeRsaPublicKey;
 
+use const_oid::{
+    DynAssociatedOid,
+    db::fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
+};
 use der::{
     Encode,
-    asn1::{BitString, UtcTime},
+    asn1::{BitString, OctetString, UtcTime},
 };
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+
 use spki::{AlgorithmIdentifier, AlgorithmIdentifierOwned, SubjectPublicKeyInfoOwned};
 use x509_cert::{
     Certificate,
@@ -43,6 +38,11 @@ use x509_cert::{
     name::Name,
     serial_number::SerialNumber,
     time::{Time, Validity},
+};
+
+use pqckeys::{
+    oak::{OneAsymmetricKey, PrivateKey},
+    pqc_oids::*,
 };
 
 use crate::{
@@ -54,16 +54,19 @@ use crate::{
         },
         SigAlgorithms,
     },
-    asn1::private_key::{
-        MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded,
-        MlKem768PrivateKey, MlKem1024Both, MlKem1024Expanded, MlKem1024PrivateKey, MlKemSeed,
+    asn1::{
+        EcPrivateKey, EcPrivateKeyVersion,
+        private_key::{
+            MlKem512Both, MlKem512Expanded, MlKem512PrivateKey, MlKem768Both, MlKem768Expanded,
+            MlKem768PrivateKey, MlKem1024Both, MlKem1024Expanded, MlKem1024PrivateKey, MlKemSeed,
+        },
     },
     comp_encap_ecdh, comp_encap_rsa,
-    misc::{builder_profiles::KemCert, signer::PqcSigner},
+    misc::{
+        builder_profiles::KemCert, ecdh::EcdhKem, rsa::RsaKem, signer::PqcSigner,
+        utils::composite_ss,
+    },
 };
-use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
-use pqckeys::pqc_oids::*;
-use rsa::pkcs1::EncodeRsaPublicKey;
 
 /// Buffer to hex conversion for logging
 pub fn buffer_to_hex(buffer: &[u8]) -> String {
@@ -160,10 +163,10 @@ macro_rules! generate_composite_rsa_key {
         let z: B32 = rand(&mut rng);
         let (_ee_sk, ee_pk) = $keypair(&d, &z);
         let rsa_priv = RsaKem::keygen($trad_size)?;
-        let mut rsa_pub = rsa_priv.to_public_key().to_pkcs1_der().unwrap().to_vec();
+        let rsa_pub = rsa_priv.to_public_key().to_pkcs1_der().unwrap().to_vec();
         let mut composite_pub_key = vec![];
         composite_pub_key.append(&mut ee_pk.as_bytes().as_slice().to_vec());
-        composite_pub_key.append(&mut rsa_pub);
+        composite_pub_key.append(&mut rsa_pub.clone());
 
         let mut mlkem = vec![];
         mlkem.append(&mut d.to_vec());
@@ -171,6 +174,9 @@ macro_rules! generate_composite_rsa_key {
         let mut rsa = rsa_priv.to_pkcs1_der().unwrap();
         let mut composite_sk = vec![];
         composite_sk.append(&mut mlkem);
+        let l = u16::to_le_bytes(rsa_pub.len() as u16);
+        composite_sk.append(&mut l.to_vec());
+        composite_sk.append(&mut rsa_pub.clone());
         composite_sk.append(&mut rsa);
         (composite_sk, composite_pub_key, d, z)
     }};
@@ -184,17 +190,30 @@ macro_rules! generate_composite_ecdh_key {
         let (_ee_sk, ee_pk) = $keypair(&d, &z);
         let ee_sk = EcdhKem::<$ec>::keygen().unwrap();
         let ec_pk = ee_sk.to_public_key();
+        let ec_pub = ec_pk.to_encoded_point(false).as_bytes().to_vec();
+
         let mut composite_pub_key = vec![];
         composite_pub_key.append(&mut ee_pk.as_bytes().as_slice().to_vec());
-        composite_pub_key.append(&mut ec_pk.to_encoded_point(false).as_bytes().to_vec());
+        composite_pub_key.append(&mut ec_pub.clone());
 
         let mut mlkem = vec![];
         mlkem.append(&mut d.to_vec());
         mlkem.append(&mut z.to_vec());
-        let mut ecdsa = ee_sk.to_bytes().unwrap();
+        let ecdsa = ee_sk.to_bytes().unwrap();
         let mut composite_sk = vec![];
         composite_sk.append(&mut mlkem);
-        composite_sk.append(&mut ecdsa);
+        let l = u16::to_le_bytes(ec_pub.len() as u16);
+        composite_sk.append(&mut l.to_vec());
+        composite_sk.append(&mut ec_pub.clone());
+
+        let ec_priv = EcPrivateKey {
+            version: EcPrivateKeyVersion::V1,
+            private_key: OctetString::new(ecdsa)?,
+            parameters: ee_sk.oid(),
+            public_key: None,
+        };
+        let mut ec_priv_bytes = ec_priv.to_der().unwrap();
+        composite_sk.append(&mut ec_priv_bytes);
         (composite_sk, composite_pub_key, d, z)
     }};
 }
@@ -208,16 +227,16 @@ pub fn generate_ml_kem_cert(
         OtherMlKem512 => ID_ALG_ML_KEM_512,
         OtherMlKem768 => ID_ALG_ML_KEM_768,
         OtherMlKem1024 => ID_ALG_ML_KEM_1024,
-        KemAlgorithms::MlKem768Rsa2048HmacSha256 => ID_MLKEM768_RSA2048_SHA3_256,
-        KemAlgorithms::MlKem768Rsa3072HmacSha256 => ID_MLKEM768_RSA3072_SHA3_256,
-        KemAlgorithms::MlKem768Rsa4096HmacSha256 => ID_MLKEM768_RSA4096_SHA3_256,
-        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => ID_MLKEM1024_RSA3072_SHA3_256,
-        KemAlgorithms::MlKem768X25519SHA3_256 => ID_MLKEM768_X25519_SHA3_256,
-        KemAlgorithms::MlKem768EcdhP256HmacSha256 => ID_MLKEM768_ECDH_P256_SHA3_256,
-        KemAlgorithms::MlKem768EcdhP384HmacSha256 => ID_MLKEM768_ECDH_P384_SHA3_256,
-        KemAlgorithms::MlKem1024EcdhP384HmacSha512 => ID_MLKEM1024_ECDH_P384_SHA3_256,
+        KemAlgorithms::MlKem768Rsa2048Sha3_256 => ID_MLKEM768_RSA2048_SHA3_256,
+        KemAlgorithms::MlKem768Rsa3072Sha3_256 => ID_MLKEM768_RSA3072_SHA3_256,
+        KemAlgorithms::MlKem768Rsa4096Sha3_256 => ID_MLKEM768_RSA4096_SHA3_256,
+        KemAlgorithms::MlKem1024Rsa3072Sha3_256 => ID_MLKEM1024_RSA3072_SHA3_256,
+        KemAlgorithms::MlKem768X25519Sha3_256 => ID_MLKEM768_X25519_SHA3_256,
+        KemAlgorithms::MlKem768EcdhP256Sha3_256 => ID_MLKEM768_ECDH_P256_SHA3_256,
+        KemAlgorithms::MlKem768EcdhP384Sha3_256 => ID_MLKEM768_ECDH_P384_SHA3_256,
+        KemAlgorithms::MlKem1024EcdhP384Sha3_256 => ID_MLKEM1024_ECDH_P384_SHA3_256,
         KemAlgorithms::MlKem1024X448Sha3_256 => ID_MLKEM1024_X448_SHA3_256,
-        KemAlgorithms::MlKem1024EcdhP521HmacSha512 => ID_MLKEM1024_ECDH_P521_SHA3_256,
+        KemAlgorithms::MlKem1024EcdhP521Sha3_256 => ID_MLKEM1024_ECDH_P521_SHA3_256,
     };
 
     let spki_algorithm = AlgorithmIdentifierOwned {
@@ -356,7 +375,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 ss.as_slice().to_vec(),
             )
         }
-        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa2048Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_rsa_key!(MlKem768::generate_deterministic, 2048);
@@ -371,11 +390,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768Rsa2048HmacSha256,
+                KemAlgorithms::MlKem768Rsa2048Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa3072Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_rsa_key!(MlKem768::generate_deterministic, 3072);
@@ -390,11 +409,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768Rsa3072HmacSha256,
+                KemAlgorithms::MlKem768Rsa3072Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa4096Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_rsa_key!(MlKem768::generate_deterministic, 4096);
@@ -409,11 +428,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768Rsa2048HmacSha256,
+                KemAlgorithms::MlKem768Rsa2048Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => {
+        KemAlgorithms::MlKem1024Rsa3072Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_rsa_key!(MlKem1024::generate_deterministic, 3072);
@@ -428,14 +447,14 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem1024Rsa3072HmacSha512,
+                KemAlgorithms::MlKem1024Rsa3072Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem768X25519SHA3_256 => {
+        KemAlgorithms::MlKem768X25519Sha3_256 => {
             todo!("generate_kem_cert for EC variants")
         }
-        KemAlgorithms::MlKem768EcdhP256HmacSha256 => {
+        KemAlgorithms::MlKem768EcdhP256Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_ecdh_key!(MlKem768::generate_deterministic, p256::NistP256);
@@ -452,11 +471,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768EcdhP256HmacSha256,
+                KemAlgorithms::MlKem768EcdhP256Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem768EcdhP384HmacSha256 => {
+        KemAlgorithms::MlKem768EcdhP384Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_ecdh_key!(MlKem768::generate_deterministic, p384::NistP384);
@@ -473,11 +492,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768EcdhP384HmacSha256,
+                KemAlgorithms::MlKem768EcdhP384Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
-        KemAlgorithms::MlKem1024EcdhP384HmacSha512 => {
+        KemAlgorithms::MlKem1024EcdhP384Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_ecdh_key!(MlKem1024::generate_deterministic, p384::NistP384);
@@ -494,14 +513,14 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem1024EcdhP384HmacSha512,
+                KemAlgorithms::MlKem1024EcdhP384Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem1024X448Sha3_256 => {
             todo!("generate_kem_cert for EC variants")
         }
-        KemAlgorithms::MlKem1024EcdhP521HmacSha512 => {
+        KemAlgorithms::MlKem1024EcdhP521Sha3_256 => {
             let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
                 generate_composite_ecdh_key!(MlKem1024::generate_deterministic, p521::NistP521);
@@ -518,7 +537,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem1024EcdhP521HmacSha512,
+                KemAlgorithms::MlKem1024EcdhP521Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
@@ -569,34 +588,34 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             );
             pk.to_der()?
         }
-        KemAlgorithms::MlKem768Rsa2048HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa2048Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem768Rsa3072HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa3072Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem768Rsa4096HmacSha256 => {
+        KemAlgorithms::MlKem768Rsa4096Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem1024Rsa3072HmacSha512 => {
+        KemAlgorithms::MlKem1024Rsa3072Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem768X25519SHA3_256 => {
+        KemAlgorithms::MlKem768X25519Sha3_256 => {
             todo!("serialize expanded as private key")
         }
-        KemAlgorithms::MlKem768EcdhP256HmacSha256 => {
+        KemAlgorithms::MlKem768EcdhP256Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem768EcdhP384HmacSha256 => {
+        KemAlgorithms::MlKem768EcdhP384Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem1024EcdhP384HmacSha512 => {
+        KemAlgorithms::MlKem1024EcdhP384Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
@@ -604,7 +623,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
             is_composite_kem = true;
             private_key.clone()
         }
-        KemAlgorithms::MlKem1024EcdhP521HmacSha512 => {
+        KemAlgorithms::MlKem1024EcdhP521Sha3_256 => {
             is_composite_kem = true;
             private_key.clone()
         }
@@ -640,18 +659,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 );
                 pk.to_der()?
             }
-            KemAlgorithms::MlKem768Rsa2048HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768Rsa3072HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768Rsa4096HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem1024Rsa3072HmacSha512 => private_key.clone(),
-            KemAlgorithms::MlKem768X25519SHA3_256 => {
+            KemAlgorithms::MlKem768Rsa2048Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768Rsa3072Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768Rsa4096Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem1024Rsa3072Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768X25519Sha3_256 => {
                 todo!("serialize expanded as private key")
             }
-            KemAlgorithms::MlKem768EcdhP256HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768EcdhP384HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem1024EcdhP384HmacSha512 => private_key.clone(),
+            KemAlgorithms::MlKem768EcdhP256Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768EcdhP384Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem1024EcdhP384Sha3_256 => private_key.clone(),
             KemAlgorithms::MlKem1024X448Sha3_256 => private_key.clone(),
-            KemAlgorithms::MlKem1024EcdhP521HmacSha512 => private_key.clone(),
+            KemAlgorithms::MlKem1024EcdhP521Sha3_256 => private_key.clone(),
         };
 
         let der_oak_seed = encode_kem_private_key(kem, &private_key_bytes_seed)
@@ -686,18 +705,18 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 };
                 pk.to_der()?
             }
-            KemAlgorithms::MlKem768Rsa2048HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768Rsa3072HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768Rsa4096HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem1024Rsa3072HmacSha512 => private_key.clone(),
-            KemAlgorithms::MlKem768X25519SHA3_256 => {
+            KemAlgorithms::MlKem768Rsa2048Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768Rsa3072Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768Rsa4096Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem1024Rsa3072Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768X25519Sha3_256 => {
                 todo!("serialize expanded as private key")
             }
-            KemAlgorithms::MlKem768EcdhP256HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem768EcdhP384HmacSha256 => private_key.clone(),
-            KemAlgorithms::MlKem1024EcdhP384HmacSha512 => private_key.clone(),
+            KemAlgorithms::MlKem768EcdhP256Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem768EcdhP384Sha3_256 => private_key.clone(),
+            KemAlgorithms::MlKem1024EcdhP384Sha3_256 => private_key.clone(),
             KemAlgorithms::MlKem1024X448Sha3_256 => private_key.clone(),
-            KemAlgorithms::MlKem1024EcdhP521HmacSha512 => private_key.clone(),
+            KemAlgorithms::MlKem1024EcdhP521Sha3_256 => private_key.clone(),
         };
 
         let der_oak_both = encode_kem_private_key(kem, &private_key_bytes_both)

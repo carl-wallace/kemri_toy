@@ -1,10 +1,16 @@
-use const_oid::AssociatedOid;
-use elliptic_curve::ecdh::{EphemeralSecret, diffie_hellman};
-use elliptic_curve::sec1::FromEncodedPoint;
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::sec1::{ModulusSize, ValidatePublicKey};
-use elliptic_curve::{Curve, CurveArithmetic, FieldBytesSize, PublicKey, SecretKey};
+//! ECDH KEM implementation
+
+use log::error;
 use rand::rng;
+
+use const_oid::{AssociatedOid, ObjectIdentifier};
+use elliptic_curve::{
+    Curve, CurveArithmetic, FieldBytesSize, PublicKey, SecretKey,
+    ecdh::{EphemeralSecret, diffie_hellman},
+    sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint, ValidatePublicKey},
+};
+
+use crate::Error;
 
 pub struct EcdhKem<C>
 where
@@ -14,13 +20,30 @@ where
     sk: SecretKey<C>,
 }
 
+impl AssociatedOid for EcdhKem<p256::NistP256> {
+    const OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.10045.3.1.7");
+}
+
+impl AssociatedOid for EcdhKem<p384::NistP384> {
+    const OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.132.0.34");
+}
+impl AssociatedOid for EcdhKem<p521::NistP521> {
+    const OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.3.132.0.35");
+}
+
 impl<C> EcdhKem<C>
 where
     C: AssociatedOid + Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
 {
     pub fn new(der_sk: &[u8]) -> crate::Result<Self> {
-        let sk = SecretKey::<C>::from_slice(der_sk).unwrap();
+        let sk = match SecretKey::<C>::from_slice(der_sk) {
+            Ok(sk) => sk,
+            Err(e) => {
+                error!("Failed to decrypt ECDH secret key: {e}");
+                return Err(Error::Unrecognized);
+            }
+        };
         Ok(Self { sk })
     }
     pub fn keygen() -> crate::Result<Self> {
@@ -67,7 +90,7 @@ where
 #[test]
 fn test_ecdh_kem() {
     let sender = EcdhKem::<p256::NistP256>::keygen().unwrap();
-    let sender_pub = sender.to_public_key();
+    let _sender_pub = sender.to_public_key();
     let recip = EcdhKem::<p256::NistP256>::keygen().unwrap();
     let recip_pub = recip.to_public_key();
     let recip_pub_key_bytes = recip_pub.to_encoded_point(false).as_bytes().to_vec();

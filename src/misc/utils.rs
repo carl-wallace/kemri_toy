@@ -12,19 +12,21 @@ use rand::rngs::OsRng;
 use zerocopy::IntoBytes;
 
 use aes::{Aes128, Aes192, Aes256};
-use aes_gcm::aead::{AeadInOut, Nonce};
-use aes_gcm::{Aes128Gcm, Aes256Gcm, Key};
+use aes_gcm::{
+    Aes128Gcm, Aes256Gcm, Key,
+    aead::{AeadInOut, Nonce},
+};
 use aes_kw::AesKw;
 use cipher::{BlockModeDecrypt, Iv, KeyInit, KeyIvInit};
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
 use ml_dsa::{KeyGen, MlDsa44, MlDsa65, MlDsa87};
 use ml_kem::{
     B32, Encoded, EncodedSizeUser, KemCore, MlKem512, MlKem512Params, MlKem768, MlKem768Params,
     MlKem1024, MlKem1024Params, kem::Decapsulate,
 };
-use rsa::rand_core::TryRngCore;
+use rsa::{pkcs1::EncodeRsaPublicKey, rand_core::TryRngCore};
 use sha2::{Digest, Sha256, Sha384, Sha512};
+use sha3::Sha3_256;
 use tari_tiny_keccak::{Hasher, Kmac};
 
 use cms::{
@@ -37,33 +39,34 @@ use cms::{
     },
     kemri::CmsOriForKemOtherInfo,
 };
-use const_oid::db::{
-    fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
-    fips204::*,
-    fips205::*,
-    rfc5911::{ID_CT_AUTH_ENVELOPED_DATA, ID_ENVELOPED_DATA},
-};
 use const_oid::{
     AssociatedOid, ObjectIdentifier,
     db::{
+        fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
+        fips204::*,
+        fips205::*,
         rfc5280::ID_CE_SUBJECT_KEY_IDENTIFIER,
         rfc5911::{
             ID_AES_128_CBC, ID_AES_128_GCM, ID_AES_128_WRAP, ID_AES_192_CBC, ID_AES_192_WRAP,
-            ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP,
+            ID_AES_256_CBC, ID_AES_256_GCM, ID_AES_256_WRAP, ID_CT_AUTH_ENVELOPED_DATA,
+            ID_ENVELOPED_DATA,
         },
     },
 };
 use der::{Any, AnyRef, Decode, DecodePem, Encode, asn1::OctetString};
-use elliptic_curve::sec1::{ModulusSize, ToEncodedPoint, ValidatePublicKey};
-use elliptic_curve::{CurveArithmetic, FieldBytesSize};
+use elliptic_curve::{
+    CurveArithmetic, FieldBytesSize,
+    sec1::{ModulusSize, ToEncodedPoint, ValidatePublicKey},
+};
 use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 
-use crate::misc::ecdh::EcdhKem;
-use crate::misc::rsa::RsaKem;
+use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
+
 use crate::{
     Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256,
     asn1::{
+        EcPrivateKey,
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
         kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
@@ -72,10 +75,8 @@ use crate::{
             MlKem768PrivateKey, MlKem1024PrivateKey,
         },
     },
-    misc::gen_certs::buffer_to_hex,
+    misc::{ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem},
 };
-use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
-use rsa::pkcs1::EncodeRsaPublicKey;
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -661,7 +662,37 @@ pub(crate) fn extract_private_key(
     }
 }
 
-pub fn composite_ss<Hmac: KeyInit + Mac>(
+fn get_domain(oid: ObjectIdentifier) -> crate::Result<Vec<u8>> {
+    if oid == ID_MLKEM768_RSA2048_SHA3_256 {
+        Ok(DS_MLKEM768_RSA2048_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_RSA3072_SHA3_256 {
+        Ok(DS_MLKEM768_RSA3072_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_RSA4096_SHA3_256 {
+        Ok(DS_MLKEM768_RSA4096_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_X25519_SHA3_256 {
+        Ok(DS_MLKEM768_X25519_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_ECDH_P256_SHA3_256 {
+        Ok(DS_MLKEM768_ECDH_P256_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_ECDH_P384_SHA3_256 {
+        Ok(DS_MLKEM768_ECDH_P384_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256 {
+        Ok(DS_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM1024_RSA3072_SHA3_256 {
+        Ok(DS_MLKEM1024_RSA3072_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM1024_ECDH_P384_SHA3_256 {
+        Ok(DS_MLKEM1024_ECDH_P384_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256 {
+        Ok(DS_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM1024_X448_SHA3_256 {
+        Ok(DS_MLKEM1024_X448_SHA3_256.to_vec())
+    } else if oid == ID_MLKEM1024_ECDH_P521_SHA3_256 {
+        Ok(DS_MLKEM1024_ECDH_P521_SHA3_256.to_vec())
+    } else {
+        Err(Error::Unrecognized)
+    }
+}
+
+pub fn composite_ss(
     pqc_ss: &[u8],
     trad_ss: &[u8],
     trad_ct: &[u8],
@@ -669,117 +700,120 @@ pub fn composite_ss<Hmac: KeyInit + Mac>(
     domain: ObjectIdentifier,
 ) -> crate::Result<Vec<u8>> {
     // mlkemSS || tradSS || tradCT || tradPK || Domain
-    //type HmacSha256 = Hmac<Sha256>;
-    let mac_key: [u8; 32] = [0x00; 32];
-    let mut mac = Hmac::new_from_slice(&mac_key).unwrap();
-    let enc_domain = domain.to_der()?;
+    let mut hasher = Sha3_256::default();
+    let enc_domain = get_domain(domain)?;
     debug!("pqc_ss: {}", buffer_to_hex(pqc_ss));
-    mac.update(pqc_ss);
+    hasher.update(pqc_ss);
     debug!("trad_ss: {}", buffer_to_hex(trad_ss));
-    mac.update(trad_ss);
+    hasher.update(trad_ss);
     debug!("trad_ct: {}", buffer_to_hex(trad_ct));
-    mac.update(trad_ct);
+    hasher.update(trad_ct);
     debug!("trad_pk: {}", buffer_to_hex(trad_pk));
-    mac.update(trad_pk);
+    hasher.update(trad_pk);
     debug!("enc_domain: {}", buffer_to_hex(&enc_domain));
-    mac.update(&enc_domain);
-    Ok(mac.finalize().into_bytes().to_vec())
+    hasher.update(&enc_domain);
+    Ok(hasher.finalize().to_vec())
 }
 
-fn ml_kem768_rsa<Hmac>(
+fn parse_composite_key(private_key_bytes: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+    // mlkemSeed || lenTradPK || tradPK || tradSK
+    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+    let (len_trad_pk, trad_parts) = trad_key.split_at(2);
+    let l = u16::from_le_bytes(len_trad_pk[..2].try_into()?);
+    let (trad_pk, trad_sk) = trad_parts.split_at(l as usize);
+    Ok((pqc_seed.to_vec(), trad_pk.to_vec(), trad_sk.to_vec()))
+}
+
+fn ml_kem768_rsa(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>>
-where
-    Hmac: KeyInit + Mac,
-{
+) -> crate::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
-    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem768);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem768, MlKem768Params, dk_bytes);
 
-    let rsa = RsaKem::new(trad_key)?;
+    let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
-    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
-fn ml_kem1024_rsa<Hmac>(
+fn ml_kem1024_rsa(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>>
-where
-    Hmac: KeyInit + Mac,
-{
+) -> crate::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
-    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
 
-    let rsa = RsaKem::new(trad_key)?;
+    let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
-    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
-fn ml_kem768_ecdh<Hmac, C>(
+fn ml_kem768_ecdh<C>(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
 ) -> crate::Result<Vec<u8>>
 where
-    Hmac: KeyInit + Mac,
     C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
     <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
     <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
 {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
-    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem768);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem768, MlKem768Params, dk_bytes);
 
-    let ecdh = EcdhKem::<C>::new(trad_key)?;
+    let oak = EcPrivateKey::from_der(&trad_sk)?;
+
+    let ecdh = EcdhKem::<C>::new(oak.private_key.as_bytes())?;
     let trad_ss = ecdh.decap(trad_ct)?;
     let trad_pk = ecdh
         .to_public_key()
         .to_encoded_point(false)
         .as_bytes()
         .to_vec();
-    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
-fn ml_kem1024_ecdh<Hmac, C>(
+fn ml_kem1024_ecdh<C>(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
 ) -> crate::Result<Vec<u8>>
 where
-    Hmac: KeyInit + Mac,
     C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
     <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
     <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
 {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
-    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
+    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
 
-    let ecdh = EcdhKem::<C>::new(trad_key)?;
+    let oak = EcPrivateKey::from_der(&trad_sk)?;
+
+    let ecdh = EcdhKem::<C>::new(oak.private_key.as_bytes())?;
     let trad_ss = ecdh.decap(trad_ct)?;
     let trad_pk = ecdh
         .to_public_key()
         .to_encoded_point(false)
         .as_bytes()
         .to_vec();
-    composite_ss::<Hmac>(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
@@ -799,40 +833,32 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
             let ee_sk = extract_private_key(ID_ALG_ML_KEM_1024, private_key_bytes)?;
             decrypt_kem_rust_crypto!(kem_ct, MlKem1024, MlKem1024Params, ee_sk)
         }
-        ID_MLKEM768_RSA2048_SHA3_256 => ml_kem768_rsa::<Hmac<Sha256>>(
-            kem_ct,
-            private_key_bytes,
-            ID_MLKEM768_RSA2048_SHA3_256,
-        )?,
-        ID_MLKEM768_RSA3072_SHA3_256 => ml_kem768_rsa::<Hmac<Sha256>>(
-            kem_ct,
-            private_key_bytes,
-            ID_MLKEM768_RSA3072_SHA3_256,
-        )?,
-        ID_MLKEM768_RSA4096_SHA3_256 => ml_kem768_rsa::<Hmac<Sha256>>(
-            kem_ct,
-            private_key_bytes,
-            ID_MLKEM768_RSA4096_SHA3_256,
-        )?,
-        ID_MLKEM1024_RSA3072_SHA3_256 => ml_kem1024_rsa::<Hmac<Sha512>>(
-            kem_ct,
-            private_key_bytes,
-            ID_MLKEM1024_RSA3072_SHA3_256,
-        )?,
+        ID_MLKEM768_RSA2048_SHA3_256 => {
+            ml_kem768_rsa(kem_ct, private_key_bytes, ID_MLKEM768_RSA2048_SHA3_256)?
+        }
+        ID_MLKEM768_RSA3072_SHA3_256 => {
+            ml_kem768_rsa(kem_ct, private_key_bytes, ID_MLKEM768_RSA3072_SHA3_256)?
+        }
+        ID_MLKEM768_RSA4096_SHA3_256 => {
+            ml_kem768_rsa(kem_ct, private_key_bytes, ID_MLKEM768_RSA4096_SHA3_256)?
+        }
+        ID_MLKEM1024_RSA3072_SHA3_256 => {
+            ml_kem1024_rsa(kem_ct, private_key_bytes, ID_MLKEM1024_RSA3072_SHA3_256)?
+        }
         ID_MLKEM768_X25519_SHA3_256 => {
             todo!("Decrypt with EC variants")
         }
-        ID_MLKEM768_ECDH_P256_SHA3_256 => ml_kem768_ecdh::<Hmac<Sha256>, p256::NistP256>(
+        ID_MLKEM768_ECDH_P256_SHA3_256 => ml_kem768_ecdh::<p256::NistP256>(
             kem_ct,
             private_key_bytes,
             ID_MLKEM768_ECDH_P256_SHA3_256,
         )?,
-        ID_MLKEM768_ECDH_P384_SHA3_256 => ml_kem768_ecdh::<Hmac<Sha256>, p384::NistP384>(
+        ID_MLKEM768_ECDH_P384_SHA3_256 => ml_kem768_ecdh::<p384::NistP384>(
             kem_ct,
             private_key_bytes,
             ID_MLKEM768_ECDH_P384_SHA3_256,
         )?,
-        ID_MLKEM1024_ECDH_P384_SHA3_256 => ml_kem1024_ecdh::<Hmac<Sha512>, p384::NistP384>(
+        ID_MLKEM1024_ECDH_P384_SHA3_256 => ml_kem1024_ecdh::<p384::NistP384>(
             kem_ct,
             private_key_bytes,
             ID_MLKEM1024_ECDH_P384_SHA3_256,
@@ -840,7 +866,7 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
         ID_MLKEM1024_X448_SHA3_256 => {
             todo!("Decrypt with EC variants")
         }
-        ID_MLKEM1024_ECDH_P521_SHA3_256 => ml_kem1024_ecdh::<Hmac<Sha512>, p521::NistP521>(
+        ID_MLKEM1024_ECDH_P521_SHA3_256 => ml_kem1024_ecdh::<p521::NistP521>(
             kem_ct,
             private_key_bytes,
             ID_MLKEM1024_ECDH_P521_SHA3_256,
@@ -1133,19 +1159,19 @@ pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Cert
 
 pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
     match oid {
-        ID_ALG_ML_KEM_512 => "ml-kem-512".to_string(),
-        ID_ALG_ML_KEM_768 => "ml-kem-768".to_string(),
-        ID_ALG_ML_KEM_1024 => "ml-kem-1024".to_string(),
-        ID_MLKEM768_RSA2048_SHA3_256 => "ml-kem768-rsa2048-hmac-sha256".to_string(),
-        ID_MLKEM768_RSA3072_SHA3_256 => "ml-kem768-rsa3072-hmac-sha256".to_string(),
-        ID_MLKEM768_RSA4096_SHA3_256 => "ml-kem768-rsa4096-hmac-sha256".to_string(),
-        ID_MLKEM1024_RSA3072_SHA3_256 => "ml-kem1024-rsa3072-hmac-sha512".to_string(),
-        ID_MLKEM768_X25519_SHA3_256 => "ml-kem768-x25519-sha3-256".to_string(),
-        ID_MLKEM768_ECDH_P256_SHA3_256 => "ml-kem768-ecdh-p256-sha256".to_string(),
-        ID_MLKEM768_ECDH_P384_SHA3_256 => "ml-kem768-ecdh-p384-sha256".to_string(),
-        ID_MLKEM1024_ECDH_P384_SHA3_256 => "ml-kem1024-ecdh-p384-sha512".to_string(),
-        ID_MLKEM1024_X448_SHA3_256 => "ml-kem768-rsa2048-hmac-sha256".to_string(),
-        ID_MLKEM1024_ECDH_P521_SHA3_256 => "ml-kem1024-ecdh-p521-sha512".to_string(),
+        ID_ALG_ML_KEM_512 => "mlkem512".to_string(),
+        ID_ALG_ML_KEM_768 => "mlkem768".to_string(),
+        ID_ALG_ML_KEM_1024 => "mlkem1024".to_string(),
+        ID_MLKEM768_RSA2048_SHA3_256 => "id-MLKEM768-RSA2048-SHA3-256".to_string(),
+        ID_MLKEM768_RSA3072_SHA3_256 => "id-MLKEM768-RSA3072-SHA3-256".to_string(),
+        ID_MLKEM768_RSA4096_SHA3_256 => "id-MLKEM768-RSA4096-SHA3-256".to_string(),
+        ID_MLKEM1024_RSA3072_SHA3_256 => "id-MLKEM1024-RSA3072-SHA3-256".to_string(),
+        ID_MLKEM768_X25519_SHA3_256 => "id-MLKEM768-x25519-SHA3-256".to_string(),
+        ID_MLKEM768_ECDH_P256_SHA3_256 => "id-MLKEM768-ECDH-P256-SHA3-256".to_string(),
+        ID_MLKEM768_ECDH_P384_SHA3_256 => "id-MLKEM768-ECDH-P384-SHA3-256".to_string(),
+        ID_MLKEM1024_ECDH_P384_SHA3_256 => "id-MLKEM1024-ECDH-P384-SHA3-256".to_string(),
+        ID_MLKEM1024_X448_SHA3_256 => "id-MLKEM768-RSA2048-SHA3-256".to_string(),
+        ID_MLKEM1024_ECDH_P521_SHA3_256 => "id-MLKEM1024-ECDH-P521-SHA3-256".to_string(),
         ID_ML_DSA_44 => "ml-dsa-44".to_string(),
         ID_ML_DSA_65 => "ml-dsa-65".to_string(),
         ID_ML_DSA_87 => "ml-dsa-87".to_string(),
@@ -1188,6 +1214,30 @@ fn get_kem_oid_from_file_name(file_name: &str) -> Option<String> {
         Some("2.16.840.1.101.3.4.4.2".to_string())
     } else if file_name.contains("2.16.840.1.101.3.4.4.3") {
         Some("2.16.840.1.101.3.4.4.3".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.74") {
+        Some("2.16.840.1.114027.80.5.2.74".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.75") {
+        Some("2.16.840.1.114027.80.5.2.75".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.76") {
+        Some("2.16.840.1.114027.80.5.2.76".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.77") {
+        Some("2.16.840.1.114027.80.5.2.77".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.78") {
+        Some("2.16.840.1.114027.80.5.2.78".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.79") {
+        Some("2.16.840.1.114027.80.5.2.79".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.80") {
+        Some("2.16.840.1.114027.80.5.2.80".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.81") {
+        Some("2.16.840.1.114027.80.5.2.81".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.82") {
+        Some("2.16.840.1.114027.80.5.2.82".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.83") {
+        Some("2.16.840.1.114027.80.5.2.83".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.84") {
+        Some("2.16.840.1.114027.80.5.2.84".to_string())
+    } else if file_name.contains("2.16.840.1.114027.80.5.2.85") {
+        Some("2.16.840.1.114027.80.5.2.85".to_string())
     } else {
         None
     }
@@ -1207,56 +1257,133 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
 
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
-    key_map.insert(
-        ID_ALG_ML_KEM_512.to_string(),
-        get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}{}_priv.der",
-            key_folder,
-            KemAlgorithms::MlKem512.filename(),
-            key_type_part
-        )))?,
-    );
-    key_map.insert(
-        ID_ALG_ML_KEM_768.to_string(),
-        get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}{}_priv.der",
-            key_folder,
-            KemAlgorithms::MlKem768.filename(),
-            key_type_part
-        )))?,
-    );
-    key_map.insert(
-        ID_ALG_ML_KEM_1024.to_string(),
-        get_file_as_byte_vec(Path::new(&format!(
-            "{}/{}{}_priv.der",
-            key_folder,
-            KemAlgorithms::MlKem1024.filename(),
-            key_type_part
-        )))?,
-    );
+    if !key_type_part.is_empty() {
+        key_map.insert(
+            ID_ALG_ML_KEM_512.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem512.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_ALG_ML_KEM_768.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_ALG_ML_KEM_1024.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem1024.filename(),
+                key_type_part
+            )))?,
+        );
+    } else {
+        key_map.insert(
+            ID_MLKEM768_RSA2048_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768Rsa2048Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM768_RSA3072_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768Rsa3072Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM768_RSA4096_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768Rsa4096Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM768_ECDH_P256_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768EcdhP256Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM768_ECDH_P384_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem768EcdhP384Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM1024_RSA3072_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem1024Rsa3072Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM1024_ECDH_P384_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem1024EcdhP384Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+        key_map.insert(
+            ID_MLKEM1024_ECDH_P521_SHA3_256.to_string(),
+            get_file_as_byte_vec(Path::new(&format!(
+                "{}/{}{}_priv.der",
+                key_folder,
+                KemAlgorithms::MlKem1024EcdhP521Sha3_256.filename(),
+                key_type_part
+            )))?,
+        );
+
+
+    }
+
     let paths = std::fs::read_dir(artifact_folder).unwrap();
     let mut success = 0;
     for path in paths.flatten() {
         if let Some(file_name) = path.file_name().to_str() {
             if file_name.contains("_priv")
                 || file_name.contains("_ee")
+                || file_name.contains("_ss.bin")
                 || file_name.contains(".txt")
             {
                 continue;
-            } else {
-                if let Some(oid) = get_kem_oid_from_file_name(file_name) {
-                    if let Some(key) = key_map.get(&oid.to_string()) {
-                        if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
-                            println!("Processing {:?}", path.path());
-                            match process_content_info(&ci, key) {
-                                Ok(pt) => {
-                                    assert_eq!(pt, expected_plaintext);
-                                    success += 1;
-                                }
-                                Err(e) => {
-                                    println!("ERROR processing {:?}: {e:?}", path.path());
-                                    return Err(e);
-                                }
+            } else if let Some(oid) = get_kem_oid_from_file_name(file_name) {
+                if let Some(key) = key_map.get(&oid.to_string()) {
+                    if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
+                        println!("Processing {:?}", path.path());
+                        match process_content_info(&ci, key) {
+                            Ok(pt) => {
+                                assert_eq!(pt, expected_plaintext);
+                                success += 1;
+                            }
+                            Err(e) => {
+                                println!("ERROR processing {:?}: {e:?}", path.path());
+                                return Err(e);
                             }
                         }
                     }
@@ -1266,6 +1393,18 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
     }
     assert!(success > 0);
     Ok(())
+}
+
+#[test]
+fn decrypt_cryptonext_composite() {
+    assert!(
+        test_decrypt(
+            "tests/artifacts/cryptonext",
+            "tests/artifacts/cryptonext",
+            ""
+        )
+            .is_ok()
+    );
 }
 
 #[test]

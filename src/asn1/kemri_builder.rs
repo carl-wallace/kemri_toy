@@ -1,6 +1,5 @@
 //! Builder for `KemRecipientInfo` based on `RecipientInfoBuilder` trait from the cms crate
 
-use crate::misc::ecdh::EcdhKem;
 use log::debug;
 use std::marker::PhantomData;
 
@@ -27,21 +26,21 @@ use const_oid::{
     db::rfc5911::{ID_AES_128_WRAP, ID_AES_192_WRAP, ID_AES_256_WRAP},
 };
 use der::{Any, Decode, Encode, asn1::OctetString};
-use hmac::Hmac;
-use pqckeys::pqc_oids::{
-    ID_MLKEM768_ECDH_P256_SHA3_256, ID_MLKEM768_ECDH_P384_SHA3_256,
-    ID_MLKEM768_RSA2048_SHA3_256, ID_MLKEM768_RSA4096_SHA3_256,
-    ID_MLKEM1024_ECDH_P384_SHA3_256, ID_MLKEM1024_ECDH_P521_SHA3_256,
-    ID_MLKEM1024_RSA3072_SHA3_256,
-};
 use spki::AlgorithmIdentifier;
 
-use crate::misc::rsa::RsaKem;
-use crate::misc::utils::composite_ss;
+use pqckeys::pqc_oids::{
+    ID_MLKEM768_ECDH_P256_SHA3_256, ID_MLKEM768_ECDH_P384_SHA3_256, ID_MLKEM768_RSA2048_SHA3_256,
+    ID_MLKEM768_RSA4096_SHA3_256, ID_MLKEM1024_ECDH_P384_SHA3_256, ID_MLKEM1024_ECDH_P521_SHA3_256,
+    ID_MLKEM1024_RSA3072_SHA3_256,
+};
+
 use crate::{
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ID_ORI_KEM,
-    misc::{gen_certs::buffer_to_hex, utils::get_block_size},
+    misc::{
+        ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem, utils::composite_ss,
+        utils::get_block_size,
+    },
 };
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
@@ -105,12 +104,6 @@ macro_rules! encrypt_wrap {
     }};
 }
 
-pub fn is_sha512(oid: ObjectIdentifier) -> bool {
-    ID_MLKEM1024_RSA3072_SHA3_256 == oid
-        || ID_MLKEM1024_ECDH_P384_SHA3_256 == oid
-        || ID_MLKEM1024_ECDH_P521_SHA3_256 == oid
-}
-
 /// Prepare and return composite shared secret, composite ciphertext and OID.
 #[macro_export]
 macro_rules! comp_encap_rsa {
@@ -134,19 +127,10 @@ macro_rules! comp_encap_rsa {
             }
         };
 
-        let ss = if is_sha512($domain) {
-            match composite_ss::<Hmac<Sha512>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-                Ok(ss) => ss,
-                Err(e) => {
-                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-                }
-            }
-        } else {
-            match composite_ss::<Hmac<Sha256>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-                Ok(ss) => ss,
-                Err(e) => {
-                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-                }
+        let ss = match composite_ss(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+            Ok(ss) => ss,
+            Err(e) => {
+                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
             }
         };
         let mut ct = vec![];
@@ -179,19 +163,10 @@ macro_rules! comp_encap_ecdh {
             }
         };
 
-        let ss = if is_sha512($domain) {
-            match composite_ss::<Hmac<Sha512>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-                Ok(ss) => ss,
-                Err(e) => {
-                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-                }
-            }
-        } else {
-            match composite_ss::<Hmac<Sha256>>(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-                Ok(ss) => ss,
-                Err(e) => {
-                    return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-                }
+        let ss = match composite_ss(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
+            Ok(ss) => ss,
+            Err(e) => {
+                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
             }
         };
         let mut ct = vec![];
@@ -257,31 +232,13 @@ where
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
             KeyEncryptionInfoKem::MlKem768Rsa2048Sha3_256(pk) => {
-                comp_encap_rsa!(
-                    pk,
-                    1184,
-                    ID_MLKEM768_RSA2048_SHA3_256,
-                    rng,
-                    MlKem768Params
-                )
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, rng, MlKem768Params)
             }
             KeyEncryptionInfoKem::MlKem768Rsa3072Sha3_256(pk) => {
-                comp_encap_rsa!(
-                    pk,
-                    1184,
-                    ID_MLKEM768_RSA2048_SHA3_256,
-                    rng,
-                    MlKem768Params
-                )
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, rng, MlKem768Params)
             }
             KeyEncryptionInfoKem::MlKem768Rsa4096Sha3_256(pk) => {
-                comp_encap_rsa!(
-                    pk,
-                    1184,
-                    ID_MLKEM768_RSA4096_SHA3_256,
-                    rng,
-                    MlKem768Params
-                )
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA4096_SHA3_256, rng, MlKem768Params)
             }
             KeyEncryptionInfoKem::MlKem1024Rsa3072Sha3_256(pk) => {
                 comp_encap_rsa!(
