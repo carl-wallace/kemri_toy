@@ -1369,6 +1369,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
             if file_name.contains("_priv")
                 || file_name.contains("_ee")
                 || file_name.contains("_ss.bin")
+                || file_name.contains("_ciphertext.bin")
                 || file_name.contains(".txt")
             {
                 continue;
@@ -1418,26 +1419,16 @@ fn decrypt_cryptonext_expandedkey() {
         .is_ok()
     );
 }
+
 #[test]
-fn decrypt_cryptonext_seed() {
+fn decrypt_kemri_toy_composite() {
     assert!(
         test_decrypt(
-            "tests/artifacts/cryptonext",
-            "tests/artifacts/cryptonext",
-            "_seed"
+            "tests/artifacts/kemri_toy",
+            "tests/artifacts/kemri_toy",
+            ""
         )
-        .is_ok()
-    );
-}
-#[test]
-fn decrypt_cryptonext_both() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/cryptonext",
-            "tests/artifacts/cryptonext",
-            "_both"
-        )
-        .is_ok()
+            .is_ok()
     );
 }
 
@@ -1646,10 +1637,10 @@ fn break_things() {
     let expected_plaintext =
         include_bytes!("../../tests/artifacts/kemri_toy/expected_plaintext.txt");
     let ml_kem_512_key = include_bytes!(
-        "../../tests/artifacts/kemri_toy/ml-kem-512-2.16.840.1.101.3.4.4.1_expandedkey_priv.der"
+        "../../tests/artifacts/kemri_toy/mlkem512-2.16.840.1.101.3.4.4.1_expandedkey_priv.der"
     );
     let auth_data_bytes = include_bytes!(
-        "../../tests/artifacts/kemri_toy/ml-kem-512-2.16.840.1.101.3.4.4.1_kemri_auth_id-alg-hkdf-with-sha256.der"
+        "../../tests/artifacts/kemri_toy/mlkem512-2.16.840.1.101.3.4.4.1_kemri_auth_id-alg-hkdf-with-sha256.der"
     );
 
     let pt = process_content_info(auth_data_bytes, ml_kem_512_key).unwrap();

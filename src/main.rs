@@ -582,15 +582,17 @@ fn main() -> Result<()> {
         let ukm = args.ukm.map(|ukm| ukm.as_bytes().to_vec());
 
         if args.auth_env_data {
+            let kem_from_cert = KemAlgorithms::from_oid(cert.tbs_certificate().subject_public_key_info().algorithm.oid)?;
+
             let output_file_name = match &ukm {
                 Some(_) => format!(
                     "{}_kemri_auth_{}_ukm.der",
-                    args.kem.filename(),
+                    kem_from_cert.filename(),
                     args.kdf.filename()
                 ),
                 None => format!(
                     "{}_kemri_auth_{}.der",
-                    args.kem.filename(),
+                    kem_from_cert.filename(),
                     args.kdf.filename()
                 ),
             };

@@ -428,7 +428,7 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
                 &signer,
                 &ta_cert,
                 &composite_pub_key,
-                KemAlgorithms::MlKem768Rsa2048Sha3_256,
+                KemAlgorithms::MlKem768Rsa4096Sha3_256,
             )?;
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
@@ -635,11 +635,11 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     let der_oak = encode_kem_private_key(kem, &private_key_bytes)
         .expect("Failed to encode private key w/expanded key as OneAsymmetricKey");
 
-    let mut ee_key_file =
-        File::create(output_folder.join(format!("{}_expandedkey_priv.der", kem.filename())))?;
-    let _ = ee_key_file.write_all(&der_oak);
 
     if !is_composite_kem {
+        let mut ee_key_file =
+            File::create(output_folder.join(format!("{}_expandedkey_priv.der", kem.filename())))?;
+        let _ = ee_key_file.write_all(&der_oak);
         let private_key_bytes_seed = match kem {
             KemAlgorithms::MlKem512 => {
                 let pk = MlKem512PrivateKey::Seed(
@@ -725,6 +725,10 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
         let mut ee_key_file =
             File::create(output_folder.join(format!("{}_both_priv.der", kem.filename())))?;
         let _ = ee_key_file.write_all(&der_oak_both);
+    } else {
+        let mut ee_key_file =
+            File::create(output_folder.join(format!("{}_priv.der", kem.filename())))?;
+        let _ = ee_key_file.write_all(&der_oak);
     }
 
     Ok(cert)
