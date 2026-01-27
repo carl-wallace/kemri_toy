@@ -715,13 +715,10 @@ pub fn composite_ss(
     Ok(hasher.finalize().to_vec())
 }
 
-fn parse_composite_key(private_key_bytes: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
-    // mlkemSeed || lenTradPK || tradPK || tradSK
-    let (pqc_seed, trad_key) = private_key_bytes.split_at(64);
-    let (len_trad_pk, trad_parts) = trad_key.split_at(2);
-    let l = u16::from_le_bytes(len_trad_pk[..2].try_into()?);
-    let (trad_pk, trad_sk) = trad_parts.split_at(l as usize);
-    Ok((pqc_seed.to_vec(), trad_pk.to_vec(), trad_sk.to_vec()))
+fn parse_composite_key(private_key_bytes: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>)> {
+    // mlkemSeed || tradSK
+    let (pqc_seed, trad_sk) = private_key_bytes.split_at(64);
+    Ok((pqc_seed.to_vec(), trad_sk.to_vec()))
 }
 
 fn ml_kem768_rsa(
@@ -730,7 +727,7 @@ fn ml_kem768_rsa(
     domain: ObjectIdentifier,
 ) -> crate::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
-    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
+    let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem768);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem768, MlKem768Params, dk_bytes);
@@ -747,7 +744,7 @@ fn ml_kem1024_rsa(
     domain: ObjectIdentifier,
 ) -> crate::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
-    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
+    let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
@@ -770,7 +767,7 @@ where
     <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
 {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
-    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
+    let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem768);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem768, MlKem768Params, dk_bytes);
@@ -799,7 +796,7 @@ where
     <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
 {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
-    let (pqc_seed, _trad_pk, trad_sk) = parse_composite_key(private_key_bytes)?;
+    let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
     let dk_bytes = private_key_from_seed!(pqc_seed, MlKem1024);
     let pqc_ss = decrypt_kem_rust_crypto!(pqc_ct, MlKem1024, MlKem1024Params, dk_bytes);
@@ -1208,36 +1205,30 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
 
 #[cfg(test)]
 fn get_kem_oid_from_file_name(file_name: &str) -> Option<String> {
-    if file_name.contains("2.16.840.1.101.3.4.4.1") {
-        Some("2.16.840.1.101.3.4.4.1".to_string())
-    } else if file_name.contains("2.16.840.1.101.3.4.4.2") {
-        Some("2.16.840.1.101.3.4.4.2".to_string())
-    } else if file_name.contains("2.16.840.1.101.3.4.4.3") {
-        Some("2.16.840.1.101.3.4.4.3".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.74") {
-        Some("2.16.840.1.114027.80.5.2.74".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.75") {
-        Some("2.16.840.1.114027.80.5.2.75".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.76") {
-        Some("2.16.840.1.114027.80.5.2.76".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.77") {
-        Some("2.16.840.1.114027.80.5.2.77".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.78") {
-        Some("2.16.840.1.114027.80.5.2.78".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.79") {
-        Some("2.16.840.1.114027.80.5.2.79".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.80") {
-        Some("2.16.840.1.114027.80.5.2.80".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.81") {
-        Some("2.16.840.1.114027.80.5.2.81".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.82") {
-        Some("2.16.840.1.114027.80.5.2.82".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.83") {
-        Some("2.16.840.1.114027.80.5.2.83".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.84") {
-        Some("2.16.840.1.114027.80.5.2.84".to_string())
-    } else if file_name.contains("2.16.840.1.114027.80.5.2.85") {
-        Some("2.16.840.1.114027.80.5.2.85".to_string())
+    if file_name.contains("1.3.6.1.5.5.7.6.55") {
+        Some("1.3.6.1.5.5.7.6.55".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.56") {
+        Some("1.3.6.1.5.5.7.6.56".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.57") {
+        Some("1.3.6.1.5.5.7.6.57".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.58") {
+        Some("1.3.6.1.5.5.7.6.58".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.59") {
+        Some("1.3.6.1.5.5.7.6.59".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.60") {
+        Some("1.3.6.1.5.5.7.6.60".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.61") {
+        Some("1.3.6.1.5.5.7.6.61".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.62") {
+        Some("1.3.6.1.5.5.7.6.62".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.63") {
+        Some("1.3.6.1.5.5.7.6.63".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.64") {
+        Some("1.3.6.1.5.5.7.6.64".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.65") {
+        Some("1.3.6.1.5.5.7.6.65".to_string())
+    } else if file_name.contains("1.3.6.1.5.5.7.6.66") {
+        Some("1.3.6.1.5.5.7.6.66".to_string())
     } else {
         None
     }

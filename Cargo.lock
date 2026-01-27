@@ -1115,7 +1115,7 @@ dependencies = [
 [[package]]
 name = "pqckeys"
 version = "0.1.1"
-source = "git+https://github.com/carl-wallace/pqckeys?branch=kemri#d46b5bb6bb98cc39db2bd3ef5c6e4b8a6dcbbc53"
+source = "git+https://github.com/carl-wallace/pqckeys?branch=kemri#e46cd643a8f1596ed6e4ea195cbe4c970cfc3144"
 dependencies = [
  "const-oid 0.10.1",
  "der 0.8.0-rc.8",

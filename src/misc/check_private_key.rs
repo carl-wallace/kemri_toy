@@ -25,13 +25,17 @@ use spki::SubjectPublicKeyInfoOwned;
 use pqckeys::oak::OneAsymmetricKey;
 
 use crate::{Error, Result, misc::utils::extract_private_key};
+use crate::misc::gen_certs::buffer_to_hex;
 
 macro_rules! check_ml_kem_key {
     ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key = extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
         let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from(private_key.as_bytes()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
-        let ek_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::EncapsulationKey>::try_from($spki.subject_public_key.raw_bytes()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
+        let spki_bytes = $spki.subject_public_key.raw_bytes();
+        println!("spki_bytes len = {:?}", spki_bytes.len());
+        println!("spki_bytes = {:?}", buffer_to_hex(spki_bytes));
+        let ek_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::EncapsulationKey>::try_from(spki_bytes).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let ek = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::EncapsulationKey::from_bytes(&ek_bytes);
         let (ct, ss) = ek.encapsulate(&mut OsRng.unwrap_err()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
         let c = ml_kem::Ciphertext::<$ct_ty>::try_from(ct).map_err(|e| Error::MlKem(format!("{e:?}")))?;
@@ -132,10 +136,13 @@ pub(crate) fn check_private_key(
     } else if oak.private_key_alg.oid == ID_SLH_DSA_SHAKE_256_S {
         check_slh_dsa_key!(Shake256s, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_512 {
+        println!("512");
         check_ml_kem_key!(MlKem512Params, MlKem512, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_768 {
+        println!("768");
         check_ml_kem_key!(MlKem768Params, MlKem768, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_1024 {
+        println!("1024");
         check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
     } else {
         println!("Unrecognized algorithm");
