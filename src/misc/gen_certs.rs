@@ -174,9 +174,6 @@ macro_rules! generate_composite_rsa_key {
         let mut rsa = rsa_priv.to_pkcs1_der().unwrap();
         let mut composite_sk = vec![];
         composite_sk.append(&mut mlkem);
-        let l = u16::to_le_bytes(rsa_pub.len() as u16);
-        composite_sk.append(&mut l.to_vec());
-        composite_sk.append(&mut rsa_pub.clone());
         composite_sk.append(&mut rsa);
         (composite_sk, composite_pub_key, d, z)
     }};
@@ -202,9 +199,6 @@ macro_rules! generate_composite_ecdh_key {
         let ecdsa = ee_sk.to_bytes().unwrap();
         let mut composite_sk = vec![];
         composite_sk.append(&mut mlkem);
-        let l = u16::to_le_bytes(ec_pub.len() as u16);
-        composite_sk.append(&mut l.to_vec());
-        composite_sk.append(&mut ec_pub.clone());
 
         let ec_priv = EcPrivateKey {
             version: EcPrivateKeyVersion::V1,

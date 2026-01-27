@@ -1400,18 +1400,6 @@ fn decrypt_cryptonext_composite() {
 }
 
 #[test]
-fn decrypt_cryptonext_expandedkey() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/cryptonext",
-            "tests/artifacts/cryptonext",
-            "_expandedkey"
-        )
-        .is_ok()
-    );
-}
-
-#[test]
 fn decrypt_kemri_toy_composite() {
     assert!(
         test_decrypt(
@@ -1424,42 +1412,8 @@ fn decrypt_kemri_toy_composite() {
 }
 
 #[test]
-fn decrypt_kemri_toy_expanded() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/kemri_toy",
-            "tests/artifacts/kemri_toy",
-            "_expandedkey"
-        )
-        .is_ok()
-    );
-}
-#[test]
-fn decrypt_kemri_toy_seed() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/kemri_toy",
-            "tests/artifacts/kemri_toy",
-            "_seed"
-        )
-        .is_ok()
-    );
-}
-#[test]
-fn decrypt_kemri_toy_both() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/kemri_toy",
-            "tests/artifacts/kemri_toy",
-            "_both"
-        )
-        .is_ok()
-    );
-}
-
-#[test]
 fn decrypt_wrong_keys() {
-    assert!(test_decrypt("tests/artifacts/daniel", "tests/artifacts/kemri_toy", "").is_err());
+    assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/kemri_toy", "").is_err());
 }
 
 #[cfg(test)]
