@@ -824,7 +824,6 @@ dependencies = [
  "aes",
  "aes-gcm",
  "aes-kw",
- "base64ct",
  "cbc",
  "cipher",
  "clap",
