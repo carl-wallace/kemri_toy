@@ -10,7 +10,7 @@ use elliptic_curve::{
     sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint, ValidatePublicKey},
 };
 
-use crate::Error;
+use crate::error::Error;
 
 pub struct EcdhKem<C>
 where
@@ -36,7 +36,7 @@ where
     C: AssociatedOid + Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
 {
-    pub fn new(der_sk: &[u8]) -> crate::Result<Self> {
+    pub fn new(der_sk: &[u8]) -> crate::error::Result<Self> {
         let sk = match SecretKey::<C>::from_slice(der_sk) {
             Ok(sk) => sk,
             Err(e) => {
@@ -46,7 +46,7 @@ where
         };
         Ok(Self { sk })
     }
-    pub fn keygen() -> crate::Result<Self> {
+    pub fn keygen() -> crate::error::Result<Self> {
         let mut rng = rng();
         let sk = SecretKey::<C>::random(&mut rng);
         Ok(Self { sk })
@@ -56,11 +56,11 @@ where
         self.sk.public_key()
     }
 
-    pub fn to_bytes(&self) -> crate::Result<Vec<u8>> {
+    pub fn to_bytes(&self) -> crate::error::Result<Vec<u8>> {
         Ok(self.sk.to_bytes().to_vec())
     }
 
-    pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>)>
+    pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::error::Result<(Vec<u8>, Vec<u8>)>
     where
         <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
         <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
@@ -76,7 +76,7 @@ where
             .to_vec();
         Ok((ss.raw_secret_bytes().to_vec(), ct))
     }
-    pub fn decap(&self, ciphertext: &[u8]) -> crate::Result<Vec<u8>>
+    pub fn decap(&self, ciphertext: &[u8]) -> crate::error::Result<Vec<u8>>
     where
         <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
         <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,

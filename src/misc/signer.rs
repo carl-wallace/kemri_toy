@@ -1,5 +1,7 @@
 //! Signer implementation for mldsa44 key pairs
 
+#![allow(dead_code)]
+
 use sha2::{Sha384, Sha512};
 use zerocopy::IntoBytes;
 
@@ -34,7 +36,7 @@ lazy_static! {
         hex_literal::hex!("436F6D706F73697465416C676F726974686D5369676E61747572657332303235");
 }
 
-fn hash_message(composite_oid: ObjectIdentifier, message: &[u8]) -> crate::Result<Vec<u8>> {
+fn hash_message(composite_oid: ObjectIdentifier, message: &[u8]) -> crate::error::Result<Vec<u8>> {
     if composite_oid == ID_MLDSA44_RSA2048_PKCS15_SHA256
         || composite_oid == ID_MLDSA44_RSA2048_PSS_SHA256
         || composite_oid == ID_MLDSA44_ECDSA_P256_SHA256
@@ -980,7 +982,7 @@ impl PqcSigner {
         }
     }
 
-    fn prepare_message_rep(&self, message_to_verify: &[u8]) -> crate::Result<Vec<u8>> {
+    fn prepare_message_rep(&self, message_to_verify: &[u8]) -> crate::error::Result<Vec<u8>> {
         let oid = self.oid();
         let domain = oid.to_der()?;
         let ctx_len = [0x00];
@@ -996,7 +998,7 @@ impl PqcSigner {
         Ok(message_rep)
     }
 
-    pub(crate) fn sign(&self, msg: &[u8]) -> crate::Result<PqcSignature> {
+    pub(crate) fn sign(&self, msg: &[u8]) -> crate::error::Result<PqcSignature> {
         match &self.keypair {
             PqcKeyPair::MlDsa44(kp) => {
                 Ok(PqcSignature::MlDsa44(Box::new(kp.signing_key().sign(msg))))

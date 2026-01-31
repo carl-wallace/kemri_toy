@@ -62,9 +62,12 @@ use x509_cert::{Certificate, ext::pkix::SubjectKeyIdentifier};
 
 use pqckeys::{oak::OneAsymmetricKey, pqc_oids::*};
 
-use crate::{
-    Error, ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
+use crate::asn1::oids::{
+    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256,
+};
+use crate::error::Error;
+use crate::{
     asn1::{
         EcPrivateKey,
         auth_env_data::{AuthEnvelopedData, GcmParameters},
@@ -77,6 +80,9 @@ use crate::{
     },
     misc::{ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem},
 };
+
+#[cfg(test)]
+use crate::misc::algs::{AeadAlgorithms, EncAlgorithms, KdfAlgorithms, KemAlgorithms};
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -125,7 +131,7 @@ macro_rules! private_key_from_seed {
 }
 
 /// Extract subject key identifier value from a certificate
-pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::Result<Vec<u8>> {
+pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::error::Result<Vec<u8>> {
     if let Some(exts) = cert.tbs_certificate().extensions() {
         for ext in exts {
             if ext.extn_id == ID_CE_SUBJECT_KEY_IDENTIFIER {
@@ -154,7 +160,7 @@ pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::Result<Vec<u8>> {
 /// Create a RecipientIdentifier corresponding to certificate
 pub(crate) fn recipient_identifier_from_cert(
     cert: &Certificate,
-) -> crate::Result<RecipientIdentifier> {
+) -> crate::error::Result<RecipientIdentifier> {
     match skid_from_cert(cert) {
         Ok(skid_bytes) => {
             let os = match OctetString::new(skid_bytes) {
@@ -180,7 +186,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
     kdf: ObjectIdentifier,
     ukm: Option<Vec<u8>>,
     wrap: ObjectIdentifier,
-) -> crate::Result<KemRecipientInfoBuilder<R>> {
+) -> crate::error::Result<KemRecipientInfoBuilder<R>> {
     let recipient_identifier = recipient_identifier_from_cert(ee_cert)?;
     let recipient_info_builder = match ee_cert
         .tbs_certificate()
@@ -373,7 +379,7 @@ pub fn generate_enveloped_data(
     ukm: Option<Vec<u8>>,
     wrap: ObjectIdentifier,
     enc: ObjectIdentifier,
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     let recipient_info_builder = kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
 
     let cea = match enc {
@@ -431,7 +437,7 @@ pub fn generate_auth_enveloped_data(
     ukm: Option<Vec<u8>>,
     wrap: ObjectIdentifier,
     enc: ObjectIdentifier,
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     let recipient_info_builder = kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
 
     let cea = match enc {
@@ -463,7 +469,7 @@ pub fn generate_auth_enveloped_data(
     Ok(content_info.to_der()?)
 }
 
-pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result<Vec<u8>> {
+pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::error::Result<Vec<u8>> {
     use rsa::pkcs1::DecodeRsaPrivateKey;
     use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
 
@@ -491,7 +497,7 @@ pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::Result
 pub(crate) fn extract_private_key(
     oid: ObjectIdentifier,
     private_key_bytes: &[u8],
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     match oid {
         ID_ALG_ML_KEM_512 => {
             let key = MlKem512PrivateKey::from_der(private_key_bytes)?;
@@ -662,7 +668,7 @@ pub(crate) fn extract_private_key(
     }
 }
 
-fn get_domain(oid: ObjectIdentifier) -> crate::Result<Vec<u8>> {
+fn get_domain(oid: ObjectIdentifier) -> crate::error::Result<Vec<u8>> {
     if oid == ID_MLKEM768_RSA2048_SHA3_256 {
         Ok(DS_MLKEM768_RSA2048_SHA3_256.to_vec())
     } else if oid == ID_MLKEM768_RSA3072_SHA3_256 {
@@ -698,7 +704,7 @@ pub fn composite_ss(
     trad_ct: &[u8],
     trad_pk: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     // mlkemSS || tradSS || tradCT || tradPK || Domain
     let mut hasher = Sha3_256::default();
     let enc_domain = get_domain(domain)?;
@@ -715,7 +721,7 @@ pub fn composite_ss(
     Ok(hasher.finalize().to_vec())
 }
 
-fn parse_composite_key(private_key_bytes: &[u8]) -> crate::Result<(Vec<u8>, Vec<u8>)> {
+fn parse_composite_key(private_key_bytes: &[u8]) -> crate::error::Result<(Vec<u8>, Vec<u8>)> {
     // mlkemSeed || tradSK
     let (pqc_seed, trad_sk) = private_key_bytes.split_at(64);
     Ok((pqc_seed.to_vec(), trad_sk.to_vec()))
@@ -725,7 +731,7 @@ fn ml_kem768_rsa(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1088);
     let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
@@ -742,7 +748,7 @@ fn ml_kem1024_rsa(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     let (pqc_ct, trad_ct) = kem_ct.split_at(1568);
     let (pqc_seed, trad_sk) = parse_composite_key(private_key_bytes)?;
 
@@ -759,7 +765,7 @@ fn ml_kem768_ecdh<C>(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>>
+) -> crate::error::Result<Vec<u8>>
 where
     C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
@@ -788,7 +794,7 @@ fn ml_kem1024_ecdh<C>(
     kem_ct: &[u8],
     private_key_bytes: &[u8],
     domain: ObjectIdentifier,
-) -> crate::Result<Vec<u8>>
+) -> crate::error::Result<Vec<u8>>
 where
     C: AssociatedOid + elliptic_curve::Curve + CurveArithmetic + ValidatePublicKey,
     FieldBytesSize<C>: ModulusSize,
@@ -813,7 +819,10 @@ where
     composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 /// Process KemRecipientInfo using the provided private key
-pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
+pub fn process_kemri(
+    ori: &OtherRecipientInfo,
+    private_key_bytes: &[u8],
+) -> crate::error::Result<Vec<u8>> {
     let ori_value = ori.ori_value.to_der()?;
     let kemri = cms::kemri::KemRecipientInfo::from_der(&ori_value)?;
     let kem_ct = kemri.kem_ct.as_bytes();
@@ -956,7 +965,7 @@ pub fn process_kemri(ori: &OtherRecipientInfo, private_key_bytes: &[u8]) -> crat
 }
 
 /// Process a ContentInfo as an EnvelopedData or AuthEnvelopedData using the provided private key
-pub fn process_content_info(enveloped_data: &[u8], ee_oak: &[u8]) -> crate::Result<Vec<u8>> {
+pub fn process_content_info(enveloped_data: &[u8], ee_oak: &[u8]) -> crate::error::Result<Vec<u8>> {
     let oak = if 0x30 == ee_oak[0] {
         OneAsymmetricKey::from_der(ee_oak)?
     } else {
@@ -976,7 +985,7 @@ pub fn process_content_info(enveloped_data: &[u8], ee_oak: &[u8]) -> crate::Resu
 pub fn process_auth_enveloped_data(
     enveloped_data_bytes: &[u8],
     ee_sk: &[u8],
-) -> crate::Result<Vec<u8>> {
+) -> crate::error::Result<Vec<u8>> {
     let ed = AuthEnvelopedData::from_der(enveloped_data_bytes)?;
     let params = match ed.auth_encrypted_content.content_enc_alg.parameters {
         Some(p) => p,
@@ -1042,7 +1051,10 @@ pub fn process_auth_enveloped_data(
 }
 
 /// Process EnvelopedData using the provided private key
-pub fn process_enveloped_data(enveloped_data_bytes: &[u8], ee_sk: &[u8]) -> crate::Result<Vec<u8>> {
+pub fn process_enveloped_data(
+    enveloped_data_bytes: &[u8],
+    ee_sk: &[u8],
+) -> crate::error::Result<Vec<u8>> {
     let ed = EnvelopedData::from_der(enveloped_data_bytes)?;
 
     let params = match ed.encrypted_content.content_enc_alg.parameters {
@@ -1100,7 +1112,7 @@ pub fn process_enveloped_data(enveloped_data_bytes: &[u8], ee_sk: &[u8]) -> crat
 }
 
 /// Get the block size of the given algorithm
-pub(crate) fn get_block_size(oid: &ObjectIdentifier) -> crate::Result<usize> {
+pub(crate) fn get_block_size(oid: &ObjectIdentifier) -> crate::error::Result<usize> {
     match *oid {
         ID_AES_128_WRAP | ID_AES_128_CBC | ID_AES_128_GCM => Ok(16),
         ID_AES_192_WRAP | ID_AES_192_CBC => Ok(24),
@@ -1113,7 +1125,7 @@ pub(crate) fn get_block_size(oid: &ObjectIdentifier) -> crate::Result<usize> {
 }
 
 /// Get contents of given file as a vector of bytes
-pub fn get_file_as_byte_vec(filename: &Path) -> crate::Result<Vec<u8>> {
+pub fn get_file_as_byte_vec(filename: &Path) -> crate::error::Result<Vec<u8>> {
     match File::open(filename) {
         Ok(mut f) => match std::fs::metadata(filename) {
             Ok(metadata) => {
@@ -1133,7 +1145,7 @@ pub fn get_file_as_byte_vec(filename: &Path) -> crate::Result<Vec<u8>> {
 }
 
 /// Read buffer from file identified in file_name param, if present
-pub fn get_buffer_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Vec<u8>> {
+pub fn get_buffer_from_file_arg(file_name: &Option<PathBuf>) -> crate::error::Result<Vec<u8>> {
     // todo: support new structure
     match file_name {
         Some(file_name) => {
@@ -1149,7 +1161,7 @@ pub fn get_buffer_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Ve
 }
 
 /// Read certificate from file identified in file_name param, if present
-pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::Result<Certificate> {
+pub fn get_cert_from_file_arg(file_name: &Option<PathBuf>) -> crate::error::Result<Certificate> {
     let der = get_buffer_from_file_arg(file_name)?;
     Ok(Certificate::from_der(&der)?)
 }
@@ -1237,14 +1249,13 @@ fn get_kem_oid_from_file_name(file_name: &str) -> Option<String> {
 // key_type_part is _expandedkey for expanded, _seed for seed only, _both for both
 #[cfg(test)]
 fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) -> Result<(), Error> {
-    use crate::KemAlgorithms;
+    use crate::misc::algs::KemAlgorithms;
     use std::collections::BTreeMap;
 
     let expected_plaintext = get_file_as_byte_vec(Path::new(&format!(
         "{}/expected_plaintext.txt",
         artifact_folder
-    )))
-    .unwrap();
+    )))?;
 
     // read in three private keys (not using include bytes so that when OID changes, files will be read)
     let mut key_map = BTreeMap::new();
@@ -1349,8 +1360,6 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
                 key_type_part
             )))?,
         );
-
-
     }
 
     let paths = std::fs::read_dir(artifact_folder).unwrap();
@@ -1395,30 +1404,29 @@ fn decrypt_cryptonext_composite() {
             "tests/artifacts/cryptonext",
             ""
         )
-            .is_ok()
+        .is_ok()
     );
 }
 
 #[test]
 fn decrypt_kemri_toy_composite() {
-    assert!(
-        test_decrypt(
-            "tests/artifacts/kemri_toy",
-            "tests/artifacts/kemri_toy",
-            ""
-        )
-            .is_ok()
-    );
+    assert!(test_decrypt("tests/artifacts/kemri_toy", "tests/artifacts/kemri_toy", "").is_ok());
 }
 
 #[test]
 fn decrypt_wrong_keys() {
-    assert!(test_decrypt("tests/artifacts/cryptonext", "tests/artifacts/kemri_toy", "").is_err());
+    assert!(
+        test_decrypt(
+            "tests/artifacts/cryptonext",
+            "tests/artifacts/kemri_toy",
+            ""
+        )
+        .is_err()
+    );
 }
 
 #[cfg(test)]
 fn test_encrypt(key_folder: &str) -> Result<(), Error> {
-    use crate::args::{AeadAlgorithms, EncAlgorithms, KdfAlgorithms, KemAlgorithms};
     use std::collections::BTreeMap;
 
     // read in three private keys (not using include bytes so that when OID changes, files will be read)

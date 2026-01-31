@@ -45,15 +45,12 @@ use pqckeys::{
     pqc_oids::*,
 };
 
+use crate::error::Error;
+use crate::misc::algs::KemAlgorithms::{
+    MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
+};
+use crate::misc::algs::{KemAlgorithms, SigAlgorithms};
 use crate::{
-    Error,
-    args::{
-        KemAlgorithms,
-        KemAlgorithms::{
-            MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
-        },
-        SigAlgorithms,
-    },
     asn1::{
         EcPrivateKey, EcPrivateKeyVersion,
         private_key::{
@@ -76,7 +73,7 @@ pub fn buffer_to_hex(buffer: &[u8]) -> String {
 }
 
 /// Get Validity with current time as not before and not after set to current time plus the provided number or years
-fn get_validity(years: i8) -> crate::Result<Validity> {
+fn get_validity(years: i8) -> crate::error::Result<Validity> {
     let years_duration = Duration::from_secs(365 * 24 * 60 * 60 * years as u64);
     let years_time = match SystemTime::now().checked_add(years_duration) {
         Some(yt) => yt,
@@ -96,7 +93,7 @@ fn get_validity(years: i8) -> crate::Result<Validity> {
 }
 
 /// Return a random SerialNumber value
-fn get_random_serial() -> crate::Result<SerialNumber> {
+fn get_random_serial() -> crate::error::Result<SerialNumber> {
     let mut serial = [0u8; 20];
     OsRng.unwrap_err().fill_bytes(&mut serial);
     serial[0] = 0x01;
@@ -104,7 +101,7 @@ fn get_random_serial() -> crate::Result<SerialNumber> {
 }
 
 /// Generate a new self-signed trust anchor certificate containing an ML_DSA_44_IPD key
-pub fn generate_ta(sig: &SigAlgorithms) -> crate::Result<(PqcSigner, Certificate)> {
+pub fn generate_ta(sig: &SigAlgorithms) -> crate::error::Result<(PqcSigner, Certificate)> {
     let signer = sig.generate_key_pair()?;
     let ca_pk_bytes = signer.public_key();
 
@@ -216,7 +213,7 @@ pub fn generate_ml_kem_cert(
     cert: &Certificate,
     ee_pk_bytes: &[u8],
     alg: KemAlgorithms,
-) -> crate::Result<Certificate> {
+) -> crate::error::Result<Certificate> {
     let oid = match alg {
         OtherMlKem512 => ID_ALG_ML_KEM_512,
         OtherMlKem768 => ID_ALG_ML_KEM_768,
@@ -256,7 +253,10 @@ pub fn generate_ml_kem_cert(
     Ok(builder.build(signer)?)
 }
 
-fn encode_kem_private_key(kem: &KemAlgorithms, private_key_bytes: &[u8]) -> crate::Result<Vec<u8>> {
+fn encode_kem_private_key(
+    kem: &KemAlgorithms,
+    private_key_bytes: &[u8],
+) -> crate::error::Result<Vec<u8>> {
     let oak_leaf_seed = OneAsymmetricKey {
         version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
         private_key_alg: AlgorithmIdentifier {
@@ -273,7 +273,10 @@ fn encode_kem_private_key(kem: &KemAlgorithms, private_key_bytes: &[u8]) -> crat
 /// Generate new dilithium TA and end-entity KEM certificate based on KemriToyArgs with files output to the given output folder
 // todo - fix
 #[allow(unused_variables)]
-pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<Certificate> {
+pub fn generate_pki(
+    kem: &KemAlgorithms,
+    output_folder: &Path,
+) -> crate::error::Result<Certificate> {
     let (signer, ta_cert) = match generate_ta(&SigAlgorithms::MlDsa44) {
         Ok((signer, ta_cert)) => (signer, ta_cert),
         Err(e) => {
@@ -629,7 +632,6 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     let der_oak = encode_kem_private_key(kem, &private_key_bytes)
         .expect("Failed to encode private key w/expanded key as OneAsymmetricKey");
 
-
     if !is_composite_kem {
         let mut ee_key_file =
             File::create(output_folder.join(format!("{}_expandedkey_priv.der", kem.filename())))?;
@@ -726,4 +728,25 @@ pub fn generate_pki(kem: &KemAlgorithms, output_folder: &Path) -> crate::Result<
     }
 
     Ok(cert)
+}
+
+#[allow(dead_code)]
+/// Generate a self-signed certificate for the given algorithm
+pub fn generate_self_signed(
+    sig: &SigAlgorithms,
+    output_folder: &Path,
+) -> crate::error::Result<Certificate> {
+    let (signer, ta_cert) = match generate_ta(sig) {
+        Ok((signer, ta_cert)) => (signer, ta_cert),
+        Err(e) => {
+            error!("Failed to generate TA cert: {e:?}");
+            return Err(e);
+        }
+    };
+    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.der")))?;
+    let _ = ta_file.write_all(&signer.private_key());
+
+    let mut ta_file = File::create(output_folder.join(format!("{sig}_ta.der")))?;
+    let _ = ta_file.write_all(&ta_cert.to_der()?);
+    Ok(ta_cert)
 }

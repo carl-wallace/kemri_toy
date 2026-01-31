@@ -24,8 +24,9 @@ use spki::SubjectPublicKeyInfoOwned;
 
 use pqckeys::oak::OneAsymmetricKey;
 
-use crate::{Error, Result, misc::utils::extract_private_key};
+use crate::error::{Error, Result};
 use crate::misc::gen_certs::buffer_to_hex;
+use crate::misc::utils::extract_private_key;
 
 macro_rules! check_ml_kem_key {
     ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{

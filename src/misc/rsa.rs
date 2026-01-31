@@ -1,4 +1,4 @@
-use crate::Error;
+use crate::error::Error;
 use rand_core::{OsRng, RngCore, TryRngCore};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey};
@@ -13,12 +13,12 @@ pub type SharedSecret = [u8; 32];
 pub type Ciphertext = Vec<u8>;
 pub type Plaintext = Vec<u8>;
 impl RsaKem {
-    pub fn new(sk: &[u8]) -> crate::Result<Self> {
+    pub fn new(sk: &[u8]) -> crate::error::Result<Self> {
         Ok(Self {
             sk: RsaPrivateKey::from_pkcs1_der(sk).map_err(|_| Error::Rsa)?,
         })
     }
-    pub fn keygen(num_bits: usize) -> crate::Result<Self> {
+    pub fn keygen(num_bits: usize) -> crate::error::Result<Self> {
         let mut rng = OsRng.unwrap_err();
         Ok(Self {
             sk: RsaPrivateKey::new(&mut rng, num_bits)?,
@@ -29,7 +29,7 @@ impl RsaKem {
         self.sk.to_public_key()
     }
 
-    pub fn to_pkcs1_der(&self) -> crate::Result<Vec<u8>> {
+    pub fn to_pkcs1_der(&self) -> crate::error::Result<Vec<u8>> {
         Ok(self
             .sk
             .to_pkcs1_der()
@@ -38,7 +38,7 @@ impl RsaKem {
             .to_vec())
     }
 
-    pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::Result<(SharedSecret, Ciphertext)> {
+    pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::error::Result<(SharedSecret, Ciphertext)> {
         let recip_pub_key =
             RsaPublicKey::from_pkcs1_der(recip_pub_key_bytes).map_err(|_| Error::Rsa)?;
         let mut rng = OsRng.unwrap_err();
@@ -51,7 +51,7 @@ impl RsaKem {
         Ok((ss, ciphertext))
     }
 
-    pub fn decap(&self, ciphertext: &[u8]) -> crate::Result<Plaintext> {
+    pub fn decap(&self, ciphertext: &[u8]) -> crate::error::Result<Plaintext> {
         Ok(self.sk.decrypt(Oaep::new::<Sha256>(), ciphertext)?)
     }
 }

@@ -6,6 +6,7 @@ pub mod auth_env_data_builder;
 pub mod composite;
 mod ec_private_key;
 pub mod kemri_builder;
+pub mod oids;
 pub mod private_key;
 
 pub use ec_private_key::{EcPrivateKey, EcPrivateKeyVersion};

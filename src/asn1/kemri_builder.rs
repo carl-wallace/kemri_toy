@@ -34,13 +34,13 @@ use pqckeys::pqc_oids::{
     ID_MLKEM1024_RSA3072_SHA3_256,
 };
 
-use crate::{
+use crate::asn1::oids::{
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256, ID_ORI_KEM,
-    misc::{
-        ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem, utils::composite_ss,
-        utils::get_block_size,
-    },
+};
+use crate::misc::{
+    ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem, utils::composite_ss,
+    utils::get_block_size,
 };
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
@@ -80,7 +80,7 @@ impl<R> KemRecipientInfoBuilder<R> {
         kdf: ObjectIdentifier,
         ukm: Option<Vec<u8>>,
         wrap: ObjectIdentifier,
-    ) -> crate::Result<Self> {
+    ) -> crate::error::Result<Self> {
         Ok(KemRecipientInfoBuilder {
             rid,
             key_encryption_info,

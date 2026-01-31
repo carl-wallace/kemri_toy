@@ -1,38 +1,30 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 #![warn(missing_docs, rust_2018_idioms, unused_qualifications)]
-// todo - restore this
+// todo - restore this (and remove various allow(dead_code) instances)
 // clippy::unwrap_used
 
 mod args;
 mod asn1;
 #[macro_use]
 mod misc;
+mod error;
 
 use std::{
-    array::TryFromSliceError,
     fs::File,
     io::Write,
     path::{Path, PathBuf},
 };
 
 use clap::Parser;
-use log::{LevelFilter, debug, error};
-use log4rs::{
-    append::console::ConsoleAppender,
-    config::{Appender, Config, Root},
-    encode::pattern::PatternEncoder,
-};
+use log::{debug, error};
 
-use const_oid::ObjectIdentifier;
 use der::{Decode, DecodePem, Encode};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoOwned};
-use x509_cert::Certificate;
 
-use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
-
+use crate::misc::logging::configure_logging;
 use crate::{
-    args::{KemAlgorithms, KemriToyArgs, SigAlgorithms},
+    args::KemriToyArgs,
     asn1::private_key::{
         MlDsa44Both, MlDsa44Expanded, MlDsa44PrivateKey, MlDsa65Both, MlDsa65Expanded,
         MlDsa65PrivateKey, MlDsa87Both, MlDsa87Expanded, MlDsa87PrivateKey, MlDsaSeed,
@@ -46,184 +38,20 @@ use crate::{
         },
     },
 };
-
-/// Result type for kemri_toy
-pub type Result<T> = core::result::Result<T, Error>;
-
-/// Error type for kemri_toy
-#[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(missing_docs)]
-pub enum Error {
-    Unrecognized,
-    Asn1(der::Error),
-    Builder(String),
-    Pqc,
-    CertBuilder,
-    Io,
-    SliceError,
-    MlKem(String),
-    MlDsa(String),
-    SlhDsa(String),
-    Rsa,
-}
-
-impl From<rsa::Error> for Error {
-    fn from(err: rsa::Error) -> Error {
-        error!("rsa::Error: {err:?}");
-        Error::Rsa
-    }
-}
-
-impl From<TryFromSliceError> for Error {
-    fn from(err: TryFromSliceError) -> Error {
-        error!("TryFromSliceError: {err:?}");
-        Error::SliceError
-    }
-}
-
-impl From<der::Error> for Error {
-    fn from(err: der::Error) -> Error {
-        Error::Asn1(err)
-    }
-}
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Error {
-        error!("std::io::Error: {err:?}");
-        Error::Io
-    }
-}
-impl From<x509_cert::builder::Error> for Error {
-    fn from(err: x509_cert::builder::Error) -> Error {
-        error!("x509_cert::builder::Error: {err:?}");
-        Error::CertBuilder
-    }
-}
-
-/// From [draft-ietf-lamps-cms-kemri-07 Section 3]
-/// ```text
-///   id-ori OBJECT IDENTIFIER ::= { iso(1) member-body(2) us(840)
-///     rsadsi(113549) pkcs(1) pkcs-9(9) smime(16) 13 }
-///
-///   id-ori-kem OBJECT IDENTIFIER ::= { id-ori 3 }
-/// ```
-/// [draft-ietf-lamps-cms-kemri-07 Section 3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-kemri-07#section-3
-pub const ID_ORI_KEM: ObjectIdentifier = ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.13.3");
-
-/// From [RFC 8619 Section 2]
-/// ```text
-///   id-alg-hkdf-with-sha256 OBJECT IDENTIFIER ::= { iso(1) member-body(2)
-///        us(840) rsadsi(113549) pkcs(1) pkcs-9(9) smime(16) alg(3) 28 }
-/// ```
-/// [RFC 8619 Section 2]: https://datatracker.ietf.org/doc/html/rfc8619#section-2
-pub const ID_ALG_HKDF_WITH_SHA256: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.28");
-
-/// From [RFC 8619 Section 2]
-/// ```text
-///    id-alg-hkdf-with-sha384 OBJECT IDENTIFIER ::= { iso(1) member-body(2)
-///        us(840) rsadsi(113549) pkcs(1) pkcs-9(9) smime(16) alg(3) 29 }
-/// ```
-/// [RFC 8619 Section 2]: https://datatracker.ietf.org/doc/html/rfc8619#section-2
-pub const ID_ALG_HKDF_WITH_SHA384: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.29");
-
-/// From [RFC 8619 Section 2]
-/// ```text
-///    id-alg-hkdf-with-sha512 OBJECT IDENTIFIER ::= { iso(1) member-body(2)
-///        us(840) rsadsi(113549) pkcs(1) pkcs-9(9) smime(16) alg(3) 30 }
-/// ```
-/// [RFC 8619 Section 2]: https://datatracker.ietf.org/doc/html/rfc8619#section-2
-pub const ID_ALG_HKDF_WITH_SHA512: ObjectIdentifier =
-    ObjectIdentifier::new_unwrap("1.2.840.113549.1.9.16.3.30");
-
-/// From [draft-ietf-lamps-cms-sha3-hash Section 5.3]
-/// ```text
-///    hashAlgs OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16)
-///        us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 2 }
-///
-///    id-kmac128 OBJECT IDENTIFIER ::= { hashAlgs 21 }
-/// ```
-/// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
-pub const ID_KMAC128: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.21");
-
-/// From [draft-ietf-lamps-cms-sha3-hash Section 5.3]
-/// ```text
-///    hashAlgs OBJECT IDENTIFIER ::= { joint-iso-itu-t(2) country(16)
-///        us(840) organization(1) gov(101) csor(3) nistAlgorithm(4) 2 }
-///
-///    id-kmac256 OBJECT IDENTIFIER ::= { hashAlgs 22 }
-/// ```
-/// [draft-ietf-lamps-cms-sha3-hash Section 5.3]: https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-sha3-hash-01#section-5.3
-pub const ID_KMAC256: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.22");
-
-/// Generate a self-signed certificate for the given algorithm
-pub fn generate_self_signed(sig: &SigAlgorithms, output_folder: &Path) -> Result<Certificate> {
-    let (signer, ta_cert) = match generate_ta(sig) {
-        Ok((signer, ta_cert)) => (signer, ta_cert),
-        Err(e) => {
-            error!("Failed to generate TA cert: {e:?}");
-            return Err(e);
-        }
-    };
-    let mut ta_file = File::create(output_folder.join(format!("{sig}-ta.der")))?;
-    let _ = ta_file.write_all(&signer.private_key());
-
-    let mut ta_file = File::create(output_folder.join(format!("{sig}_ta.der")))?;
-    let _ = ta_file.write_all(&ta_cert.to_der()?);
-    Ok(ta_cert)
-}
+use error::Error;
+use misc::algs::{KemAlgorithms, SigAlgorithms};
+use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 
 /// kemri_toy implementation
-fn main() -> Result<()> {
+fn main() -> error::Result<()> {
     let mut args = KemriToyArgs::parse();
+    configure_logging(&args);
 
-    let mut logging_configured = false;
-
-    if let Some(logging_config) = &args.logging_config {
-        if let Err(e) = log4rs::init_file(logging_config, Default::default()) {
-            println!(
-                "ERROR: failed to configure logging using {logging_config} with {e:?}. Continuing without logging."
-            );
-        } else {
-            logging_configured = true;
-        }
+    let mut output_folder = args.output_folder.unwrap_or_default();
+    if !output_folder.exists() {
+        error!("Specified output_folder does not exist. Using current directory.");
+        output_folder = PathBuf::from(".");
     }
-
-    if !logging_configured {
-        let stdout = ConsoleAppender::builder()
-            .encoder(Box::new(PatternEncoder::new("{m}{n}")))
-            .build();
-        match Config::builder()
-            .appender(Appender::builder().build("stdout", Box::new(stdout)))
-            .build(Root::builder().appender("stdout").build(LevelFilter::Info))
-        {
-            Ok(config) => {
-                let handle = log4rs::init_config(config);
-                if let Err(e) = handle {
-                    println!(
-                        "ERROR: failed to configure logging for stdout with {e:?}. Continuing without logging."
-                    );
-                }
-            }
-            Err(e) => {
-                println!(
-                    "ERROR: failed to prepare default logging configuration with {e:?}. Continuing without logging"
-                );
-            }
-        }
-    }
-
-    let output_folder = match &args.output_folder {
-        Some(of) => {
-            if of.exists() {
-                of.clone()
-            } else {
-                error!("Specified output_folder does not exist. Using current directory.");
-                PathBuf::from(".")
-            }
-        }
-        None => PathBuf::from("."),
-    };
 
     if args.generate_signed_data {
         todo!("Add support for generating SignedData messages")
@@ -582,7 +410,12 @@ fn main() -> Result<()> {
         let ukm = args.ukm.map(|ukm| ukm.as_bytes().to_vec());
 
         if args.auth_env_data {
-            let kem_from_cert = KemAlgorithms::from_oid(cert.tbs_certificate().subject_public_key_info().algorithm.oid)?;
+            let kem_from_cert = KemAlgorithms::from_oid(
+                cert.tbs_certificate()
+                    .subject_public_key_info()
+                    .algorithm
+                    .oid,
+            )?;
 
             let output_file_name = match &ukm {
                 Some(_) => format!(
