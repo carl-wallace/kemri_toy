@@ -45,6 +45,7 @@ use pqckeys::{
     pqc_oids::*,
 };
 
+use crate::asn1::utils::kem_combiner;
 use crate::error::Error;
 use crate::misc::algs::KemAlgorithms::{
     MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
@@ -59,10 +60,7 @@ use crate::{
         },
     },
     comp_encap_ecdh, comp_encap_rsa,
-    misc::{
-        builder_profiles::KemCert, ecdh::EcdhKem, rsa::RsaKem, signer::PqcSigner,
-        utils::composite_ss,
-    },
+    misc::{builder_profiles::KemCert, ecdh::EcdhKem, rsa::RsaKem, signer::PqcSigner},
 };
 
 /// Buffer to hex conversion for logging

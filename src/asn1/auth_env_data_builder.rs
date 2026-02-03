@@ -18,7 +18,8 @@ use x509_cert::attr::Attributes;
 
 use crate::{
     asn1::auth_env_data::{AuthEnvelopedData, GcmParameters},
-    misc::{gen_certs::buffer_to_hex, utils::ContentEncryptionAlgorithmAead},
+    buffer_to_hex,
+    misc::utils::ContentEncryptionAlgorithmAead,
 };
 
 /// Result type with cms::builder::Error

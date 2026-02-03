@@ -26,7 +26,6 @@ use ml_kem::{
 };
 use rsa::{pkcs1::EncodeRsaPublicKey, rand_core::TryRngCore};
 use sha2::{Digest, Sha256, Sha384, Sha512};
-use sha3::Sha3_256;
 use tari_tiny_keccak::{Hasher, Kmac};
 
 use cms::{
@@ -66,13 +65,15 @@ use crate::asn1::oids::{
     ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
     ID_KMAC256,
 };
+use crate::asn1::{kemri_builder, utils};
 use crate::error::Error;
+#[cfg(test)]
+use crate::misc::algs::{AeadAlgorithms, EncAlgorithms, KdfAlgorithms, KemAlgorithms};
 use crate::{
     asn1::{
         EcPrivateKey,
         auth_env_data::{AuthEnvelopedData, GcmParameters},
         auth_env_data_builder::AuthEnvelopedDataBuilder,
-        kemri_builder::{KemRecipientInfoBuilder, KeyEncryptionInfoKem},
         private_key::{
             MlDsa44PrivateKey, MlDsa65PrivateKey, MlDsa87PrivateKey, MlKem512PrivateKey,
             MlKem768PrivateKey, MlKem1024PrivateKey,
@@ -80,9 +81,6 @@ use crate::{
     },
     misc::{ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem},
 };
-
-#[cfg(test)]
-use crate::misc::algs::{AeadAlgorithms, EncAlgorithms, KdfAlgorithms, KemAlgorithms};
 
 /// Macro to decrypt data using Aes128Gcm or Aes256Gcn
 macro_rules! decrypt_gcm_mode {
@@ -158,7 +156,7 @@ pub(crate) fn skid_from_cert(cert: &Certificate) -> crate::error::Result<Vec<u8>
 }
 
 /// Create a RecipientIdentifier corresponding to certificate
-pub(crate) fn recipient_identifier_from_cert(
+pub fn recipient_identifier_from_cert(
     cert: &Certificate,
 ) -> crate::error::Result<RecipientIdentifier> {
     match skid_from_cert(cert) {
@@ -180,197 +178,6 @@ pub(crate) fn recipient_identifier_from_cert(
     }
 }
 
-/// Create a KemRecipientInfoBuilder for a given certificate, KDF algorithm, UKM and wrap algorithm
-pub(crate) fn kemri_builder_from_cert<R>(
-    ee_cert: &Certificate,
-    kdf: ObjectIdentifier,
-    ukm: Option<Vec<u8>>,
-    wrap: ObjectIdentifier,
-) -> crate::error::Result<KemRecipientInfoBuilder<R>> {
-    let recipient_identifier = recipient_identifier_from_cert(ee_cert)?;
-    let recipient_info_builder = match ee_cert
-        .tbs_certificate()
-        .subject_public_key_info()
-        .algorithm
-        .oid
-    {
-        ID_ALG_ML_KEM_512 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
-            >::try_from(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes(),
-            )?;
-            KemRecipientInfoBuilder::new(
-                recipient_identifier,
-                KeyEncryptionInfoKem::MlKem512(Box::new(pk)),
-                kdf,
-                ukm,
-                wrap,
-            )?
-        }
-        ID_ALG_ML_KEM_768 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
-            >::try_from(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes(),
-            )?;
-            KemRecipientInfoBuilder::new(
-                recipient_identifier,
-                KeyEncryptionInfoKem::MlKem768(Box::new(pk)),
-                kdf,
-                ukm,
-                wrap,
-            )?
-        }
-        ID_ALG_ML_KEM_1024 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
-            >::try_from(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes(),
-            )?;
-            KemRecipientInfoBuilder::new(
-                recipient_identifier,
-                KeyEncryptionInfoKem::MlKem1024(Box::new(pk)),
-                kdf,
-                ukm,
-                wrap,
-            )?
-        }
-        ID_MLKEM768_RSA2048_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768Rsa2048Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM768_RSA3072_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768Rsa3072Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM768_RSA4096_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768Rsa4096Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM1024_RSA3072_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem1024Rsa3072Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM768_X25519_SHA3_256 => {
-            todo!("Support recip info builder prep for EC variants")
-        }
-        ID_MLKEM768_ECDH_P256_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768EcdhP256Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM768_ECDH_P384_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem768EcdhP384Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM1024_ECDH_P384_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem1024EcdhP384Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        ID_MLKEM1024_X448_SHA3_256 => {
-            todo!("Support recip info builder prep for EC variants")
-        }
-        ID_MLKEM1024_ECDH_P521_SHA3_256 => KemRecipientInfoBuilder::new(
-            recipient_identifier,
-            KeyEncryptionInfoKem::MlKem1024EcdhP521Sha3_256(
-                ee_cert
-                    .tbs_certificate()
-                    .subject_public_key_info()
-                    .subject_public_key
-                    .raw_bytes()
-                    .to_vec(),
-            ),
-            kdf,
-            ukm,
-            wrap,
-        )?,
-        _ => return Err(Error::Unrecognized),
-    };
-    Ok(recipient_info_builder)
-}
-
 /// Generate an EnvelopedData object
 pub fn generate_enveloped_data(
     plaintext: &[u8],
@@ -380,7 +187,7 @@ pub fn generate_enveloped_data(
     wrap: ObjectIdentifier,
     enc: ObjectIdentifier,
 ) -> crate::error::Result<Vec<u8>> {
-    let recipient_info_builder = kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
+    let recipient_info_builder = kemri_builder::kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
 
     let cea = match enc {
         ID_AES_128_CBC => ContentEncryptionAlgorithm::Aes128Cbc,
@@ -438,7 +245,7 @@ pub fn generate_auth_enveloped_data(
     wrap: ObjectIdentifier,
     enc: ObjectIdentifier,
 ) -> crate::error::Result<Vec<u8>> {
-    let recipient_info_builder = kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
+    let recipient_info_builder = kemri_builder::kemri_builder_from_cert(ee_cert, kdf, ukm, wrap)?;
 
     let cea = match enc {
         ID_AES_128_GCM => ContentEncryptionAlgorithmAead::Aes128Gcm,
@@ -668,59 +475,6 @@ pub(crate) fn extract_private_key(
     }
 }
 
-fn get_domain(oid: ObjectIdentifier) -> crate::error::Result<Vec<u8>> {
-    if oid == ID_MLKEM768_RSA2048_SHA3_256 {
-        Ok(DS_MLKEM768_RSA2048_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_RSA3072_SHA3_256 {
-        Ok(DS_MLKEM768_RSA3072_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_RSA4096_SHA3_256 {
-        Ok(DS_MLKEM768_RSA4096_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_X25519_SHA3_256 {
-        Ok(DS_MLKEM768_X25519_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_ECDH_P256_SHA3_256 {
-        Ok(DS_MLKEM768_ECDH_P256_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_ECDH_P384_SHA3_256 {
-        Ok(DS_MLKEM768_ECDH_P384_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256 {
-        Ok(DS_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM1024_RSA3072_SHA3_256 {
-        Ok(DS_MLKEM1024_RSA3072_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM1024_ECDH_P384_SHA3_256 {
-        Ok(DS_MLKEM1024_ECDH_P384_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256 {
-        Ok(DS_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM1024_X448_SHA3_256 {
-        Ok(DS_MLKEM1024_X448_SHA3_256.to_vec())
-    } else if oid == ID_MLKEM1024_ECDH_P521_SHA3_256 {
-        Ok(DS_MLKEM1024_ECDH_P521_SHA3_256.to_vec())
-    } else {
-        Err(Error::Unrecognized)
-    }
-}
-
-pub fn composite_ss(
-    pqc_ss: &[u8],
-    trad_ss: &[u8],
-    trad_ct: &[u8],
-    trad_pk: &[u8],
-    domain: ObjectIdentifier,
-) -> crate::error::Result<Vec<u8>> {
-    // mlkemSS || tradSS || tradCT || tradPK || Domain
-    let mut hasher = Sha3_256::default();
-    let enc_domain = get_domain(domain)?;
-    debug!("pqc_ss: {}", buffer_to_hex(pqc_ss));
-    hasher.update(pqc_ss);
-    debug!("trad_ss: {}", buffer_to_hex(trad_ss));
-    hasher.update(trad_ss);
-    debug!("trad_ct: {}", buffer_to_hex(trad_ct));
-    hasher.update(trad_ct);
-    debug!("trad_pk: {}", buffer_to_hex(trad_pk));
-    hasher.update(trad_pk);
-    debug!("enc_domain: {}", buffer_to_hex(&enc_domain));
-    hasher.update(&enc_domain);
-    Ok(hasher.finalize().to_vec())
-}
-
 fn parse_composite_key(private_key_bytes: &[u8]) -> crate::error::Result<(Vec<u8>, Vec<u8>)> {
     // mlkemSeed || tradSK
     let (pqc_seed, trad_sk) = private_key_bytes.split_at(64);
@@ -741,7 +495,7 @@ fn ml_kem768_rsa(
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
-    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
 fn ml_kem1024_rsa(
@@ -758,7 +512,7 @@ fn ml_kem1024_rsa(
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
     let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
-    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
 fn ml_kem768_ecdh<C>(
@@ -787,7 +541,7 @@ where
         .to_encoded_point(false)
         .as_bytes()
         .to_vec();
-    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
 fn ml_kem1024_ecdh<C>(
@@ -816,7 +570,7 @@ where
         .to_encoded_point(false)
         .as_bytes()
         .to_vec();
-    composite_ss(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
+    utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 /// Process KemRecipientInfo using the provided private key
 pub fn process_kemri(
@@ -892,7 +646,7 @@ pub fn process_kemri(
 
     debug!("Shared Secret: {}", buffer_to_hex(&ss));
     debug!("CMSORIforKEMOtherInfo: {}", buffer_to_hex(&der_kdf_input));
-    let mut okm = vec![0; get_block_size(&kemri.wrap.oid)?];
+    let mut okm = vec![0; utils::get_block_size(&kemri.wrap.oid)?];
     match kemri.kdf.oid {
         ID_ALG_HKDF_WITH_SHA256 => {
             let hk = Hkdf::<Sha256>::new(None, &ss);
@@ -1109,19 +863,6 @@ pub fn process_enveloped_data(
 
     error!("Failed to process EnvelopedData");
     Err(Error::Unrecognized)
-}
-
-/// Get the block size of the given algorithm
-pub(crate) fn get_block_size(oid: &ObjectIdentifier) -> crate::error::Result<usize> {
-    match *oid {
-        ID_AES_128_WRAP | ID_AES_128_CBC | ID_AES_128_GCM => Ok(16),
-        ID_AES_192_WRAP | ID_AES_192_CBC => Ok(24),
-        ID_AES_256_WRAP | ID_AES_256_CBC | ID_AES_256_GCM => Ok(32),
-        _ => {
-            error!("Failed to get block size for {oid}");
-            Err(Error::Unrecognized)
-        }
-    }
 }
 
 /// Get contents of given file as a vector of bytes

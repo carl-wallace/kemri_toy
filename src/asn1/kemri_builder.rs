@@ -1,21 +1,22 @@
 //! Builder for `KemRecipientInfo` based on `RecipientInfoBuilder` trait from the cms crate
 
+use crate::asn1::utils::kem_combiner;
+use core::marker::PhantomData;
+
 use log::debug;
-use std::marker::PhantomData;
 
 use aes::{Aes128, Aes192, Aes256};
 use aes_kw::AesKw;
-use cipher::{KeyInit, KeySizeUser, rand_core::CryptoRng};
+use cipher::{KeyInit, KeySizeUser};
 use hkdf::Hkdf;
 use ml_kem::{
     Encoded, EncodedSizeUser, KemCore, MlKem512Params, MlKem768Params, MlKem1024Params,
     kem::Encapsulate,
 };
 use sha2::{Sha256, Sha384, Sha512};
-use tari_tiny_keccak::{Hasher, Kmac};
 
 use cms::{
-    builder::{Error, RecipientInfoBuilder, RecipientInfoType},
+    builder::{RecipientInfoBuilder, RecipientInfoType},
     content_info::CmsVersion,
     enveloped_data::{OtherRecipientInfo, RecipientIdentifier, RecipientInfo, UserKeyingMaterial},
     kemri::{CmsOriForKemOtherInfo, KemRecipientInfo},
@@ -27,25 +28,23 @@ use const_oid::{
 };
 use der::{Any, Decode, Encode, asn1::OctetString};
 use spki::AlgorithmIdentifier;
+use x509_cert::Certificate;
 
-use pqckeys::pqc_oids::{
-    ID_MLKEM768_ECDH_P256_SHA3_256, ID_MLKEM768_ECDH_P384_SHA3_256, ID_MLKEM768_RSA2048_SHA3_256,
-    ID_MLKEM768_RSA4096_SHA3_256, ID_MLKEM1024_ECDH_P384_SHA3_256, ID_MLKEM1024_ECDH_P521_SHA3_256,
-    ID_MLKEM1024_RSA3072_SHA3_256,
-};
+use pqckeys::pqc_oids::*;
 
-use crate::asn1::oids::{
-    ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
-    ID_KMAC256, ID_ORI_KEM,
+use crate::asn1::utils;
+use crate::{
+    asn1::oids::{
+        ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_ORI_KEM,
+    },
+    misc::{ecdh::EcdhKem, rsa::RsaKem},
 };
-use crate::misc::{
-    ecdh::EcdhKem, gen_certs::buffer_to_hex, rsa::RsaKem, utils::composite_ss,
-    utils::get_block_size,
-};
+use crate::{buffer_to_hex, recipient_identifier_from_cert};
+use cms::builder::Error;
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
-#[allow(dead_code)]
+#[allow(dead_code, missing_docs)]
 pub enum KeyEncryptionInfoKem {
     MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey>>),
     MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey>>),
@@ -54,16 +53,17 @@ pub enum KeyEncryptionInfoKem {
     MlKem768Rsa3072Sha3_256(Vec<u8>),
     MlKem768Rsa4096Sha3_256(Vec<u8>),
     MlKem1024Rsa3072Sha3_256(Vec<u8>),
-    MlKem768X25519Sha3_256(Vec<u8>),
     MlKem768EcdhP256Sha3_256(Vec<u8>),
     MlKem768EcdhP384Sha3_256(Vec<u8>),
     MlKem1024EcdhP384Sha3_256(Vec<u8>),
-    MlKem1024X448Sha3_256(Vec<u8>),
     MlKem1024EcdhP521Sha3_256(Vec<u8>),
 }
 
-/// Builds a `KemRecipientInfo` according to draft-ietf-lamps-cms-kemri-07 § 3.
-/// This type uses the recipient's public key to encrypt the content-encryption key.
+/// Builds a `KemRecipientInfo` per to [RFC 9629 Section 3]. This type uses the recipient's public
+/// key to encrypt the content-encryption key.
+///
+/// [RFC 9629 Section 3]: https://datatracker.ietf.org/doc/html/rfc9629#section-3
+#[allow(missing_docs)]
 pub struct KemRecipientInfoBuilder<R: ?Sized> {
     pub rid: RecipientIdentifier,
     pub key_encryption_info: KeyEncryptionInfoKem,
@@ -74,13 +74,14 @@ pub struct KemRecipientInfoBuilder<R: ?Sized> {
 }
 
 impl<R> KemRecipientInfoBuilder<R> {
+    /// Instantiates a new [KemRecipientInfoBuilder] instance.
     pub fn new(
         rid: RecipientIdentifier,
         key_encryption_info: KeyEncryptionInfoKem,
         kdf: ObjectIdentifier,
         ukm: Option<Vec<u8>>,
         wrap: ObjectIdentifier,
-    ) -> crate::error::Result<Self> {
+    ) -> crate::Result<Self> {
         Ok(KemRecipientInfoBuilder {
             rid,
             key_encryption_info,
@@ -92,92 +93,9 @@ impl<R> KemRecipientInfoBuilder<R> {
     }
 }
 
-/// Macro for encrypting data using Aes128Wrap, Aes192Wrap or Aes256Wrap
-macro_rules! encrypt_wrap {
-    ($cek:expr, $alg:ty, $key:ident) => {{
-        let kek: AesKw<$alg> = AesKw::new_from_slice($key.as_slice())
-            .map_err(|e| cms::builder::Error::Builder(format!("Wrap failed: {e:?}")))?;
-        let mut wrapped_key = vec![0u8; <$alg>::key_size() + 8];
-        kek.wrap_key($cek, &mut wrapped_key)
-            .map_err(|e| cms::builder::Error::Builder(format!("Wrap failed: {e:?}")))?;
-        wrapped_key.to_vec()
-    }};
-}
-
-/// Prepare and return composite shared secret, composite ciphertext and OID.
-#[macro_export]
-macro_rules! comp_encap_rsa {
-    ($pk:expr, $pqc_size:expr, $domain:expr, $rng:expr, $params:ty) => {{
-        let (pqc_pk, trad_pk) = $pk.split_at($pqc_size);
-        let pk = match Encoded::<<ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey,>::try_from(pqc_pk,) {
-            Ok(pk) => pk,
-            Err(e) => {
-                return Err(Error::Builder(format!("Encapsulate failed: {e:?}")))
-            }
-        };
-        let ek = <ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey::from_bytes(&pk);
-        let (mut pqc_ct, pqc_ss) = match ek.encapsulate($rng) {
-            Ok((ct, ss)) => (ct.to_vec(), ss.to_vec()),
-            Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
-        };
-        let (trad_ss, mut trad_ct) = match RsaKem::encap(trad_pk) {
-            Ok((trad_ss, trad_ct)) => (trad_ss, trad_ct.to_vec()),
-            Err(e) => {
-                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-            }
-        };
-
-        let ss = match composite_ss(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-            Ok(ss) => ss,
-            Err(e) => {
-                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-            }
-        };
-        let mut ct = vec![];
-        ct.append(&mut pqc_ct);
-        ct.append(&mut trad_ct);
-        (ss, ct, $domain)
-    }};
-}
-
-/// comp_encap_ecdh
-#[macro_export]
-macro_rules! comp_encap_ecdh {
-    ($pk:expr, $pqc_size:expr, $domain:expr, $rng:expr, $params:ty, $ec:ty) => {{
-        let (pqc_pk, trad_pk) = $pk.split_at($pqc_size);
-        let pk = match Encoded::<<ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey,>::try_from(pqc_pk,) {
-            Ok(pk) => pk,
-            Err(e) => {
-                return Err(Error::Builder(format!("Encapsulate failed: {e:?}")))
-            }
-        };
-        let ek = <ml_kem::kem::Kem<$params> as KemCore>::EncapsulationKey::from_bytes(&pk);
-        let (mut pqc_ct, pqc_ss) = match ek.encapsulate($rng) {
-            Ok((ct, ss)) => (ct.to_vec(), ss.to_vec()),
-            Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
-        };
-        let (trad_ss, trad_ct) = match EcdhKem::<$ec>::encap(trad_pk) {
-            Ok((trad_ss, trad_ct)) => (trad_ss, trad_ct.to_vec()),
-            Err(e) => {
-                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-            }
-        };
-
-        let ss = match composite_ss(&pqc_ss, &trad_ss, &trad_ct, &trad_pk, $domain) {
-            Ok(ss) => ss,
-            Err(e) => {
-                return Err(Error::Builder(format!("RSA encapsulate failed: {e:?}")))
-            }
-        };
-        let mut ct = vec![];
-        ct.append(&mut pqc_ct);
-        ct.append(&mut trad_ct.to_vec());
-        (ss, ct, $domain)
-    }};
-}
 impl<R: ?Sized> RecipientInfoBuilder for KemRecipientInfoBuilder<R>
 where
-    R: CryptoRng,
+    R: rand_core::CryptoRng,
 {
     type Rng = R;
     /// Returns the RecipientInfoType
@@ -207,7 +125,9 @@ where
                     <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey::from_bytes(pk);
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
-                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                    Err(e) => {
+                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
+                    }
                 };
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_512)
             }
@@ -216,7 +136,9 @@ where
                     <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey::from_bytes(pk);
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
-                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                    Err(e) => {
+                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
+                    }
                 };
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_768)
             }
@@ -227,7 +149,9 @@ where
                     );
                 let (ct, ss) = match ek.encapsulate(rng) {
                     Ok((ct, ss)) => (ct, ss),
-                    Err(e) => return Err(Error::Builder(format!("Encapsulate failed: {e:?}"))),
+                    Err(e) => {
+                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
+                    }
                 };
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
@@ -248,9 +172,6 @@ where
                     rng,
                     MlKem1024Params
                 )
-            }
-            KeyEncryptionInfoKem::MlKem768X25519Sha3_256(_) => {
-                todo!("Support encap for EC variants")
             }
             KeyEncryptionInfoKem::MlKem768EcdhP256Sha3_256(pk) => {
                 comp_encap_ecdh!(
@@ -282,9 +203,6 @@ where
                     p384::NistP384
                 )
             }
-            KeyEncryptionInfoKem::MlKem1024X448Sha3_256(_) => {
-                todo!("Support encap for EC variants")
-            }
             KeyEncryptionInfoKem::MlKem1024EcdhP521Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
@@ -299,15 +217,18 @@ where
 
         debug!("Shared Secret: {}", buffer_to_hex(&ss));
 
-        // The DER-encoded CMSORIforKEMOtherInfo structure is created from elements of the KEMRecipientInfo structure.
+        // The DER-encoded CMSORIforKEMOtherInfo structure is created from elements of the
+        // KEMRecipientInfo structure.
         let wrap = AlgorithmIdentifier {
             oid: self.wrap,
-            parameters: None, // Params are absent for AES key wrap algorithms per RFC 5911 section 4
+            parameters: None, // Params are absent for AES key wrap per RFC 5911 section 4
         };
 
-        let kek_length = match get_block_size(&wrap.oid) {
+        let kek_length = match utils::get_block_size(&wrap.oid) {
             Ok(l) => l as u16,
-            Err(e) => return Err(Error::Builder(format!("Unexpected block size: {e:?}"))),
+            Err(e) => {
+                return Err(Error::Builder(format!("Unexpected block size: {e:?}")));
+            }
         };
 
         let ukm = match &self.ukm {
@@ -339,18 +260,6 @@ where
                 Hkdf::<Sha512>::new(None, &ss)
                     .expand(&der_kdf_input, &mut okm)
                     .map_err(|e| Error::Builder(format!("{e:?}")))?;
-            }
-            ID_KMAC128 => {
-                let custom = b"";
-                let mut kmac = Kmac::v128(&ss, custom);
-                kmac.update(&der_kdf_input);
-                kmac.finalize(&mut okm);
-            }
-            ID_KMAC256 => {
-                let custom = b"";
-                let mut kmac = Kmac::v256(&ss, custom);
-                kmac.update(&der_kdf_input);
-                kmac.finalize(&mut okm);
             }
             _ => {
                 return Err(Error::Builder(format!(
@@ -406,4 +315,196 @@ where
 
         Ok(RecipientInfo::Ori(ori))
     }
+}
+
+/// Create a KemRecipientInfoBuilder instance for a given certificate, KDF algorithm, UKM and wrap
+/// algorithm
+pub(crate) fn kemri_builder_from_cert<R>(
+    ee_cert: &Certificate,
+    kdf: ObjectIdentifier,
+    ukm: Option<Vec<u8>>,
+    wrap: ObjectIdentifier,
+) -> crate::Result<KemRecipientInfoBuilder<R>> {
+    let recipient_identifier = recipient_identifier_from_cert(ee_cert)?;
+    let recipient_info_builder = match ee_cert
+        .tbs_certificate()
+        .subject_public_key_info()
+        .algorithm
+        .oid
+    {
+        ID_ALG_ML_KEM_512 => {
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
+            >::try_from(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes(),
+            )?;
+            KemRecipientInfoBuilder::new(
+                recipient_identifier,
+                KeyEncryptionInfoKem::MlKem512(Box::new(pk)),
+                kdf,
+                ukm,
+                wrap,
+            )?
+        }
+        ID_ALG_ML_KEM_768 => {
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
+            >::try_from(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes(),
+            )?;
+            KemRecipientInfoBuilder::new(
+                recipient_identifier,
+                KeyEncryptionInfoKem::MlKem768(Box::new(pk)),
+                kdf,
+                ukm,
+                wrap,
+            )?
+        }
+        ID_ALG_ML_KEM_1024 => {
+            let pk = Encoded::<
+                <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
+            >::try_from(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes(),
+            )?;
+            KemRecipientInfoBuilder::new(
+                recipient_identifier,
+                KeyEncryptionInfoKem::MlKem1024(Box::new(pk)),
+                kdf,
+                ukm,
+                wrap,
+            )?
+        }
+        ID_MLKEM768_RSA2048_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768Rsa2048Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM768_RSA3072_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768Rsa3072Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM768_RSA4096_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768Rsa4096Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM1024_RSA3072_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem1024Rsa3072Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM768_X25519_SHA3_256 => {
+            todo!("Support recip info builder prep for EC variants")
+        }
+        ID_MLKEM768_ECDH_P256_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768EcdhP256Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM768_ECDH_P384_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem768EcdhP384Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM1024_ECDH_P384_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem1024EcdhP384Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        ID_MLKEM1024_X448_SHA3_256 => {
+            todo!("Support recip info builder prep for EC variants")
+        }
+        ID_MLKEM1024_ECDH_P521_SHA3_256 => KemRecipientInfoBuilder::new(
+            recipient_identifier,
+            KeyEncryptionInfoKem::MlKem1024EcdhP521Sha3_256(
+                ee_cert
+                    .tbs_certificate()
+                    .subject_public_key_info()
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            ),
+            kdf,
+            ukm,
+            wrap,
+        )?,
+        _ => return Err(crate::Error::Unrecognized),
+    };
+    Ok(recipient_info_builder)
 }

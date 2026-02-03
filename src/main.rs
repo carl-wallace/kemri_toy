@@ -10,6 +10,10 @@ mod asn1;
 mod misc;
 mod error;
 
+pub use error::Result;
+pub use misc::gen_certs::buffer_to_hex;
+pub use misc::utils::recipient_identifier_from_cert;
+
 use std::{
     fs::File,
     io::Write,
@@ -43,7 +47,7 @@ use misc::algs::{KemAlgorithms, SigAlgorithms};
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 
 /// kemri_toy implementation
-fn main() -> error::Result<()> {
+fn main() -> Result<()> {
     let mut args = KemriToyArgs::parse();
     configure_logging(&args);
 
