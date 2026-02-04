@@ -21,6 +21,7 @@ pub enum Error {
     MlDsa(String),
     SlhDsa(String),
     Rsa,
+    Misc(String),
 }
 
 impl From<rsa::Error> for Error {

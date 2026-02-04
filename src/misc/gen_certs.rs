@@ -51,6 +51,7 @@ use crate::misc::algs::KemAlgorithms::{
     MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
 };
 use crate::misc::algs::{KemAlgorithms, SigAlgorithms};
+use crate::pqc::signer::PqcSigner;
 use crate::{
     asn1::{
         EcPrivateKey, EcPrivateKeyVersion,
@@ -60,7 +61,7 @@ use crate::{
         },
     },
     comp_encap_ecdh, comp_encap_rsa,
-    misc::{builder_profiles::KemCert, ecdh::EcdhKem, rsa::RsaKem, signer::PqcSigner},
+    misc::{builder_profiles::KemCert, ecdh::EcdhKem, rsa::RsaKem},
 };
 
 /// Buffer to hex conversion for logging

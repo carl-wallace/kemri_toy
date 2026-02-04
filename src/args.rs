@@ -94,12 +94,7 @@ pub struct KemriToyArgs {
     )]
     pub auth_env_data: bool,
     /// File that contains a DER-encoded certificate containing public key to use to encrypt data
-    #[clap(
-        long,
-        short = 'c',
-        conflicts_with = "ee_key_file",
-        help_heading = "Encryption"
-    )]
+    #[clap(long, conflicts_with = "ee_key_file", help_heading = "Encryption")]
     pub ee_cert_file: Option<PathBuf>,
     /// String value to use as UserKeyingMaterial to provide context for the KDF
     #[clap(short, long, help_heading = "Encryption")]
@@ -109,13 +104,11 @@ pub struct KemriToyArgs {
     #[clap(
         long,
         short = 'k',
-        conflicts_with = "ee_cert_file",
         conflicts_with = "kem",
         conflicts_with = "kdf",
         conflicts_with = "enc",
         conflicts_with = "aead",
         conflicts_with = "auth_env_data",
-        conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
         help_heading = "Decryption"
     )]
@@ -133,11 +126,10 @@ pub struct KemriToyArgs {
         conflicts_with = "ukm"
     )]
     pub sig: SigAlgorithms,
-    /// Generate a SignedData using the private key from --ee-key-file
+    /// Also generate a SignedData when generating a fresh signature key pair
     #[clap(
         action,
         long,
-        conflicts_with = "ee_cert_file",
         conflicts_with = "kem",
         conflicts_with = "kdf",
         conflicts_with = "enc",
@@ -145,6 +137,7 @@ pub struct KemriToyArgs {
         conflicts_with = "auth_env_data",
         conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
+        conflicts_with = "ee_cert_file",
         conflicts_with = "ee_key_file",
         help_heading = "Signing"
     )]

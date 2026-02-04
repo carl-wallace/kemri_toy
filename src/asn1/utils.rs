@@ -8,23 +8,12 @@ use hmac::digest::Digest;
 use log::{debug, error};
 use sha3::Sha3_256;
 
-use pqckeys::pqc_oids::{
-    DS_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256, DS_MLKEM768_ECDH_P256_SHA3_256,
-    DS_MLKEM768_ECDH_P384_SHA3_256, DS_MLKEM768_RSA2048_SHA3_256, DS_MLKEM768_RSA3072_SHA3_256,
-    DS_MLKEM768_RSA4096_SHA3_256, DS_MLKEM768_X25519_SHA3_256,
-    DS_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256, DS_MLKEM1024_ECDH_P384_SHA3_256,
-    DS_MLKEM1024_ECDH_P521_SHA3_256, DS_MLKEM1024_RSA3072_SHA3_256, DS_MLKEM1024_X448_SHA3_256,
-    ID_MLKEM768_ECDH_BRAINPOOL_P256R1_SHA3_256, ID_MLKEM768_ECDH_P256_SHA3_256,
-    ID_MLKEM768_ECDH_P384_SHA3_256, ID_MLKEM768_RSA2048_SHA3_256, ID_MLKEM768_RSA3072_SHA3_256,
-    ID_MLKEM768_RSA4096_SHA3_256, ID_MLKEM768_X25519_SHA3_256,
-    ID_MLKEM1024_ECDH_BRAINPOOL_P384R1_SHA3_256, ID_MLKEM1024_ECDH_P384_SHA3_256,
-    ID_MLKEM1024_ECDH_P521_SHA3_256, ID_MLKEM1024_RSA3072_SHA3_256, ID_MLKEM1024_X448_SHA3_256,
-};
+use pqckeys::pqc_oids::*;
 
 use crate::{Result, buffer_to_hex};
 
 /// Gets the domain separator for a given OID.
-fn get_domain(oid: ObjectIdentifier) -> Result<Vec<u8>> {
+pub fn get_domain(oid: ObjectIdentifier) -> Result<Vec<u8>> {
     if oid == ID_MLKEM768_RSA2048_SHA3_256 {
         Ok(DS_MLKEM768_RSA2048_SHA3_256.to_vec())
     } else if oid == ID_MLKEM768_RSA3072_SHA3_256 {
@@ -49,6 +38,42 @@ fn get_domain(oid: ObjectIdentifier) -> Result<Vec<u8>> {
         Ok(DS_MLKEM1024_X448_SHA3_256.to_vec())
     } else if oid == ID_MLKEM1024_ECDH_P521_SHA3_256 {
         Ok(DS_MLKEM1024_ECDH_P521_SHA3_256.to_vec())
+    } else if oid == ID_MLDSA44_RSA2048_PSS_SHA256 {
+        Ok(DS_MLDSA44_RSA2048_PSS_SHA256.to_vec())
+    } else if oid == ID_MLDSA44_RSA2048_PKCS15_SHA256 {
+        Ok(DS_MLDSA44_RSA2048_PKCS15_SHA256.to_vec())
+    } else if oid == ID_MLDSA44_ED25519_SHA512 {
+        Ok(DS_MLDSA44_ED25519_SHA512.to_vec())
+    } else if oid == ID_MLDSA44_ECDSA_P256_SHA256 {
+        Ok(DS_MLDSA44_ECDSA_P256_SHA256.to_vec())
+    } else if oid == ID_MLDSA65_RSA3072_PSS_SHA512 {
+        Ok(DS_MLDSA65_RSA3072_PSS_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_RSA3072_PKCS15_SHA512 {
+        Ok(DS_MLDSA65_RSA3072_PKCS15_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_RSA4096_PSS_SHA512 {
+        Ok(DS_MLDSA65_RSA4096_PSS_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_RSA4096_PKCS15_SHA512 {
+        Ok(DS_MLDSA65_RSA4096_PKCS15_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_ECDSA_P256_SHA512 {
+        Ok(DS_MLDSA65_ECDSA_P256_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_ECDSA_P384_SHA512 {
+        Ok(DS_MLDSA65_ECDSA_P384_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_ECDSA_BRAINPOOL_P256R1_SHA512 {
+        Ok(DS_MLDSA65_ECDSA_BRAINPOOL_P256R1_SHA512.to_vec())
+    } else if oid == ID_MLDSA65_ED25519_SHA512 {
+        Ok(DS_MLDSA65_ED25519_SHA512.to_vec())
+    } else if oid == ID_MLDSA87_ECDSA_P384_SHA512 {
+        Ok(DS_MLDSA87_ECDSA_P384_SHA512.to_vec())
+    } else if oid == ID_MLDSA87_ECDSA_BRAINPOOL_P384R1_SHA512 {
+        Ok(DS_MLDSA87_ECDSA_BRAINPOOL_P384R1_SHA512.to_vec())
+    } else if oid == ID_MLDSA87_ED448_SHAKE256 {
+        Ok(DS_MLDSA87_ED448_SHAKE256.to_vec())
+    } else if oid == ID_MLDSA87_RSA3072_PSS_SHA512 {
+        Ok(DS_MLDSA87_RSA3072_PSS_SHA512.to_vec())
+    } else if oid == ID_MLDSA87_RSA4096_PSS_SHA512 {
+        Ok(DS_MLDSA87_RSA4096_PSS_SHA512.to_vec())
+    } else if oid == ID_MLDSA87_ECDSA_P521_SHA512 {
+        Ok(DS_MLDSA87_ECDSA_P521_SHA512.to_vec())
     } else {
         Err(crate::Error::Unrecognized)
     }

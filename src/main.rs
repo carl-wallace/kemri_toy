@@ -9,7 +9,9 @@ mod asn1;
 #[macro_use]
 mod misc;
 mod error;
+mod pqc;
 
+use certval::PkiEnvironment;
 pub use error::Result;
 pub use misc::gen_certs::buffer_to_hex;
 pub use misc::utils::recipient_identifier_from_cert;
@@ -21,12 +23,18 @@ use std::{
 };
 
 use clap::Parser;
+use cms::content_info::ContentInfo;
+use cms::signed_data::SignedData;
 use log::{debug, error};
 
 use der::{Decode, DecodePem, Encode};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoOwned};
 
 use crate::misc::logging::configure_logging;
+use crate::misc::signed_data::{
+    check_message_digest_attr, get_candidate_signer_cert, get_encap_content, get_signed_data,
+    hash_content,
+};
 use crate::{
     args::KemriToyArgs,
     asn1::private_key::{
@@ -47,18 +55,73 @@ use misc::algs::{KemAlgorithms, SigAlgorithms};
 use pqckeys::oak::{OneAsymmetricKey, PrivateKey};
 
 /// kemri_toy implementation
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let mut args = KemriToyArgs::parse();
     configure_logging(&args);
+
+    if args.verify_signed_data {
+        let input_file = match get_buffer_from_file_arg(&args.input_file) {
+            Ok(input_file) => input_file,
+            Err(e) => {
+                error!("input_file must be provided and exist: {e:?}");
+                return Err(e);
+            }
+        };
+        let ci = ContentInfo::from_der(&input_file)?;
+        let sd = SignedData::from_der(&ci.content.to_der()?)?;
+
+        let xml = match get_encap_content(&sd.encap_content_info) {
+            Ok(xml) => xml,
+            Err(e) => {
+                error!("Failed to read encapsulated content from request: {e:?}");
+                return Err(e);
+            }
+        };
+
+        let hashes = hash_content(&sd, &xml)?;
+
+        let mut pe = PkiEnvironment::default();
+        pe.populate_5280_pki_environment();
+
+        let (_intermediate_ca_certs, leaf_cert) = get_candidate_signer_cert(&sd)?;
+        for si in sd.signer_infos.0.iter() {
+            if check_message_digest_attr(&hashes, si).is_err() {
+                continue;
+            }
+
+            let data_to_verify = si.signed_attrs.to_der()?;
+            match pe.verify_signature_message(
+                &pe,
+                &data_to_verify[..],
+                si.signature.as_bytes(),
+                &si.signature_algorithm,
+                leaf_cert.tbs_certificate().subject_public_key_info(),
+            ) {
+                Ok(_) => {
+                    println!(
+                        "Signature verification succeeded for {:?}.",
+                        args.input_file
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    println!(
+                        "Signature verification failed for {:?}: {e:?}.",
+                        args.input_file
+                    );
+                    return Err(Error::Unrecognized);
+                }
+            }
+        }
+        println!("Signature verification failed for {:?}.", args.input_file);
+        return Err(Error::Unrecognized);
+    }
 
     let mut output_folder = args.output_folder.unwrap_or_default();
     if !output_folder.exists() {
         error!("Specified output_folder does not exist. Using current directory.");
         output_folder = PathBuf::from(".");
-    }
-
-    if args.generate_signed_data {
-        todo!("Add support for generating SignedData messages")
     }
 
     if args.pub_key_file.is_some() {
@@ -148,6 +211,16 @@ fn main() -> Result<()> {
                 return Err(e);
             }
         };
+
+        if args.generate_signed_data {
+            let plaintext = get_buffer_from_file_arg(&args.input_file)
+                .unwrap_or_else(|_e| "abc".as_bytes().to_vec());
+
+            let signed_data = get_signed_data(&signer, &ta_cert, &plaintext, None, true)?;
+            let mut signed_data_file =
+                File::create(output_folder.join(format!("{}_signed.bin", args.sig.filename())))?;
+            let _ = signed_data_file.write_all(&signed_data);
+        }
 
         let seed = signer.seed.clone();
         let private_key = signer.private_key();

@@ -7,7 +7,8 @@ primarily focused on use of the [ML-KEM algorithm](https://csrc.nist.gov/pubs/fi
 produced as part of the [PQC certificates](https://github.com/IETF-Hackathon/pqc-certificates) hackathon project.
 
 For convenience, the tool was expanded beyond its KEMRI purpose to include means of checking private key formats and 
-generating and verifying SignedData messages.
+generating and verifying [SignedData messages](https://datatracker.ietf.org/doc/html/draft-ietf-lamps-cms-composite-sigs-01) 
+signed using [composite signature algorithms](https://datatracker.ietf.org/doc/html/draft-ietf-lamps-pq-composite-sigs-14).
 
 ```bash
 Usage: kemri_toy [OPTIONS]
@@ -28,6 +29,10 @@ Common:
 
   -i, --input-file <INPUT_FILE>
           When encrypting, file that contains data to encrypt (abc is used when absent). When decrypting, file that contains DER-encoded EnvelopedData or AuthEnvelopedData object
+
+Logging:
+  -c, --log-to-console
+          Log output to the console
 
 Encryption:
       --kem <KEM>
@@ -57,7 +62,7 @@ Encryption:
   -a, --auth-env-data
           Generate AuthEnvelopedData instead of EnvelopedData (using --aead value, not --enc)
 
-  -c, --ee-cert-file <EE_CERT_FILE>
+      --ee-cert-file <EE_CERT_FILE>
           File that contains a DER-encoded certificate containing public key to use to encrypt data
 
   -u, --ukm <UKM>
@@ -75,7 +80,7 @@ Signing:
           [possible values: ml-dsa44, ml-dsa65, ml-dsa87, slh-dsa-sha2-128s, slh-dsa-sha2-128f, slh-dsa-sha2-192s, slh-dsa-sha2-192f, slh-dsa-sha2-256s, slh-dsa-sha2-256f, slh-dsa-shake128s, slh-dsa-shake128f, slh-dsa-shake192s, slh-dsa-shake192f, slh-dsa-shake256s, slh-dsa-shake256f, mldsa44-rsa2048-pss-sha256, mldsa44-rsa2048-pkcs15-sha256, mldsa44-ed25519-sha512, mldsa44-ecdsa-p256-sha256, mldsa65-rsa3072-pss-sha512, mldsa65-rsa4096-pss-sha512, mldsa65-rsa4096-pkcs15-sha512, mldsa65-ecdsa-p256-sha512, mldsa65-ecdsa-p384-sha512, mldsa65-ed25519-sha512, mldsa87-ecdsa-p384-sha512, mldsa87-ed448-shake256, mldsa87-rsa3072-pss-sha512, mldsa87-rsa4096-pss-sha512, mldsa87-ecdsa-p521-sha512]
 
       --generate-signed-data
-          Generate a SignedData using the private key from --ee-key-file
+          Also generate a SignedData when generating a fresh signature key pair
 
 Certificate Generation:
       --pub-key-file <PUB_KEY_FILE>
@@ -89,18 +94,18 @@ Verification:
           Perform consistency checks for a private key --input-file and public key from certificate from --ee-cert-file
 
   -v, --verify-signed-data
-          Verify a SignedData from --input-file 
+          Verify a SignedData from --input-file
  ```
 
 ## Encrypting
 Encryption requires an end entity certificate. Running the tool with no `--ee-cert-file` parameter will cause generation
 of a new TA certificate, a new end entity key pair, a new end entity certificate, and an EnvelopedData object encrypted
-for the fresh end entity key pair containing "abc" as the encrypted payload. An existing key can be used by passing
-the `--ee-cert-file` parameter.
+for the fresh end entity key pair containing "abc" as the encrypted payload (or the contents of `--input-file`). An 
+existing key can be used by passing the `--ee-cert-file` parameter.
 
 The `--kem` parameter can be provided (without `--ee-cert-file`) to generate different types of end entity keys and certificates.
 
-The `--kdf` parameter can be provided to cause usage of various KDF algorithms.
+The `--kdf` parameter can be provided to cause usage of various KDF algorithms when generating `EnvelopedData` or `AuthEnvelopedData` objects.
 
 The `--enc` parameter can be provided to cause usage of various symmetric encryption algorithms when generating `EnvelopedData` objects.
 
@@ -112,7 +117,7 @@ The `--auth-env-data` parameter can be used to cause generation of `AuthEnvelope
 
 The `--input-file` parameter can be used to provide alternative data for the encrypted payload.
 
-Files are written to the location specified by the --output-folder parameter or the current directory.
+Files are written to the location specified by the `--output-folder` parameter or the current directory.
 Key and certificate files are written using file names indicating the KEM algorithm. `EnvelopedData` and `AuthEnvelopedData` files
 are written using a name indicating the content type, KDF, KEM and UKM state.
 

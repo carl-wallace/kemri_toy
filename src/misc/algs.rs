@@ -33,6 +33,8 @@ use const_oid::{
 
 use pqckeys::pqc_oids::*;
 
+use crate::pqc::key_pair::PqcKeyPair;
+use crate::pqc::signer::PqcSigner;
 use crate::{
     asn1::oids::{
         ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
@@ -40,11 +42,7 @@ use crate::{
     },
     error,
     error::Error,
-    misc::{
-        gen_certs,
-        signer::{PqcKeyPair, PqcSigner},
-        utils::get_filename_from_oid,
-    },
+    misc::{gen_certs, utils::get_filename_from_oid},
 };
 
 /// KEM algorithms available via command line argument
