@@ -1,101 +1,21 @@
+//! This module defines constant values in support of composite KEM and composite signatures usage.
+//! Definitions are from [draft-ietf-lamps-pq-composite-kem-07](https://datatracker.ietf.org/doc/html/draft-ietf-lamps-pq-composite-kem-07)
+//! and [draft-ietf-lamps-pq-composite-sigs-06](https://datatracker.ietf.org/doc/html/draft-ietf-lamps-pq-composite-sigs-06).
+
 #![allow(dead_code)]
-// todo: align with current drafts
-
 use der::asn1::{BitString, OctetString};
-use der::Sequence;
-use pqckeys::oak::OneAsymmetricKey;
 
 /// ```text
-/// CompositeKEMPublicKey ::= SEQUENCE SIZE (2) OF BIT STRING
+/// CompositeKEMPublicKey ::= BIT STRING
 /// ```
-// pub type CompositeKemPublicKey = [BitString;2];
+pub type CompositeKemPublicKey = BitString;
 
 /// ```text
-/// CompositeKEMPublicKeyOs ::= OCTET STRING (CONTAINING
-///                                 CompositeKEMPublicKey ENCODED BY der)
+/// CompositeKEMPrivateKey ::= OCTET STRING
 /// ```
-pub type CompositeKemPublicKeyOs = OctetString;
+pub type CompositeKemPrivateKey = OctetString;
 
 /// ```text
-/// CompositeKEMPublicKeyBs ::= BIT STRING (CONTAINING
-///                                 CompositeKEMPublicKey ENCODED BY der)
+/// CompositeCiphertextValue ::= OCTET STRING
 /// ```
-pub type CompositeKEMPublicKeyBs = OctetString;
-
-/// ```text
-/// CompositeKEMPrivateKey ::= SEQUENCE SIZE (2) OF OneAsymmetricKey
-/// ```
-pub type CompositeKemPrivateKey = [OneAsymmetricKey; 2];
-
-/// ```text
-/// CompositeCiphertextValue ::= SEQUENCE SIZE (2) OF OCTET STRING
-/// ```
-pub type CompositeCiphertextValue = [OctetString; 2];
-
-/// ```text
-/// RsaCompositeKemPublicKey ::= SEQUENCE {
-///     firstPublicKey BIT STRING (ENCODED BY id-raw-key),
-///     secondPublicKey BIT STRING (CONTAINING RSAPublicKey)
-/// }
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq, Sequence)]
-#[allow(missing_docs)]
-pub struct RsaCompositeKemPublicKey {
-    pub first_public_key: BitString,
-    pub second_public_key: BitString,
-}
-
-#[derive(Clone, PartialEq)]
-pub enum CompositeKemPublicKey {
-    Rsa(RsaCompositeKemPublicKey),
-    Ecdsa(()), //todo
-}
-
-// --
-// -- Composite KEM Algorithms
-// --
-//
-
-// -- TODO: OID to be replaced by IANA
-/// ```text
-/// id-MLKEM512-RSA2048 OBJECT IDENTIFIER ::= {
-///   joint-iso-itu-t(2) country(16) us(840) organization(1)
-///   entrust(114027) algorithm(80) explicitcomposite(5) kem(2) 13 }
-/// ```
-pub const ML_KEM_512_RSA2048: crate::ObjectIdentifier =
-    crate::ObjectIdentifier::new_unwrap("2.16.840.1.114027.80.5.2.1.13");
-
-// -- TODO: OID to be replaced by IANA
-/// ```text
-/// id-MLKEM512-RSA3072 OBJECT IDENTIFIER ::= {
-///   joint-iso-itu-t(2) country(16) us(840) organization(1)
-///   entrust(114027) algorithm(80) explicitcomposite(5) kem(2) 4 }
-/// ```
-pub const ML_KEM_512_RSA3072: crate::ObjectIdentifier =
-    crate::ObjectIdentifier::new_unwrap("2.16.840.1.114027.80.5.2.1.4");
-
-/// ```text
-/// id-MLKEM512-RSA2048 OBJECT IDENTIFIER ::= {
-///   joint-iso-itu-t(2) country(16) us(840) organization(1)
-///   entrust(114027) algorithm(80) explicitcomposite(5) kem(2) 13 }
-/// ```
-pub const ML_KEM_768_RSA2048: crate::ObjectIdentifier =
-    crate::ObjectIdentifier::new_unwrap("2.16.840.1.114027.80.5.2.1.21");
-
-// -- TODO: OID to be replaced by IANA
-/// ```text
-/// id-MLKEM512-RSA3072 OBJECT IDENTIFIER ::= {
-///   joint-iso-itu-t(2) country(16) us(840) organization(1)
-///   entrust(114027) algorithm(80) explicitcomposite(5) kem(2) 4 }
-/// ```
-pub const ML_KEM_768_RSA3072: crate::ObjectIdentifier =
-    crate::ObjectIdentifier::new_unwrap("2.16.840.1.114027.80.5.2.1.22");
-
-// -- TODO: OID to be replaced by IANA
-/// ```text
-/// id-MLKEM512-RSA3072 OBJECT IDENTIFIER ::= {
-///   joint-iso-itu-t(2) country(16) us(840) organization(1)
-///   entrust(114027) algorithm(80) explicitcomposite(5) kem(2) 4 }
-/// ```
-pub const ML_KEM_768_RSA4096: crate::ObjectIdentifier =
-    crate::ObjectIdentifier::new_unwrap("2.16.840.1.114027.80.5.2.1.23");
+pub type CompositeCiphertextValue = OctetString;
