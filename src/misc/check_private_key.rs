@@ -29,11 +29,11 @@ use crate::misc::utils::extract_private_key;
 macro_rules! check_ml_kem_key {
     ($ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key = extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let dk = <$ct_ty as ml_kem::Kem>::DecapsulationKey::new_from_slice(private_key.as_bytes()).unwrap(); // todo
+        let dk = <$ct_ty as ml_kem::Kem>::DecapsulationKey::new_from_slice(private_key.as_bytes()).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
         let spki_bytes = $spki.subject_public_key.raw_bytes();
         println!("spki_bytes len = {:?}", spki_bytes.len());
         println!("spki_bytes = {:?}", buffer_to_hex(spki_bytes));
-        let ek = <$ct_ty as ml_kem::Kem>::EncapsulationKey::new_from_slice(spki_bytes).unwrap(); // todo
+        let ek = <$ct_ty as ml_kem::Kem>::EncapsulationKey::new_from_slice(spki_bytes).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
         let (ct, ss) = ek.encapsulate();
         let k = dk.decapsulate(&ct);
         if k == ss {
@@ -57,7 +57,7 @@ macro_rules! check_ml_dsa_key {
         let sig = sk.sign("abc".as_bytes());
         let vk =
             ml_dsa::VerifyingKey::<$dsa>::from_public_key_der($spki.subject_public_key.raw_bytes())
-                .unwrap();
+                .map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
                 println!("Consistency check passed for {}", $filename);

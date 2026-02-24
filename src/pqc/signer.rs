@@ -112,6 +112,8 @@ impl PqcSigner {
             PqcKeyPair::Mldsa87EcdsaP521Sha512(_) => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
+
+    #[allow(clippy::unwrap_used)] // todo - fix me
     pub(crate) fn public_key(&self) -> Vec<u8> {
         match &self.keypair {
             PqcKeyPair::MlDsa44(kp) => {
@@ -269,7 +271,7 @@ impl PqcSigner {
             }
         }
     }
-    #[allow(deprecated)] // allow to_expanded
+    #[allow(deprecated, clippy::unwrap_used)] // allow to_expanded, todo - fix unwrap_used
     pub(crate) fn private_key(&self) -> Vec<u8> {
         match &self.keypair {
             PqcKeyPair::MlDsa44(kp) => {

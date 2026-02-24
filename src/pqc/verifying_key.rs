@@ -97,6 +97,7 @@ impl PqcVerifyingKey {
             PqcVerifyingKey::Mldsa87EcdsaP521Sha512(_) => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
+    #[allow(clippy::unwrap_used)] // todo - fix me
     pub(crate) fn public_key(&self) -> Vec<u8> {
         match self {
             PqcVerifyingKey::MlDsa44(vk) => vk.encode().as_bytes().to_vec(),

@@ -332,16 +332,16 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem512PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem512::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem512PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem512PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem512::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -357,16 +357,16 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem768PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem768::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem768PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem768PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem768::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -382,16 +382,16 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem1024PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem1024::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem1024PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem1024PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem1024::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -509,7 +509,7 @@ fn ml_kem768_rsa(
 
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
-    let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
+    let trad_pk = rsa.to_public_key().to_pkcs1_der().map_err(|e| Error::Builder(format!("{e:?}")))?.to_vec();
     utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
@@ -526,7 +526,7 @@ fn ml_kem1024_rsa(
 
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
-    let trad_pk = rsa.to_public_key().to_pkcs1_der().unwrap().to_vec();
+    let trad_pk = rsa.to_public_key().to_pkcs1_der().map_err(|e| Error::Builder(format!("{e:?}")))?.to_vec();
     utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
@@ -1118,7 +1118,7 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
         );
     }
 
-    let paths = std::fs::read_dir(artifact_folder).unwrap();
+    let paths = std::fs::read_dir(artifact_folder).map_err(|e| Error::Builder(format!("{e:?}")))?;
     let mut success = 0;
     for path in paths.flatten() {
         if let Some(file_name) = path.file_name().to_str() {
@@ -1256,9 +1256,9 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     let aead_algs = [AeadAlgorithms::Aes128Gcm, AeadAlgorithms::Aes256Gcm];
 
     for kem_alg in &kem_algs {
-        let key = key_map.get(&kem_alg.oid().to_string()).unwrap();
-        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).unwrap();
-        let cert = Certificate::from_der(cert_bytes)?;
+        let key = key_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let cert = Certificate::from_der(&cert_bytes)?;
         for kdf_alg in &kdf_algs {
             for enc_alg in &enc_algs {
                 println!("EnvelopedData - {kem_alg} - {kdf_alg} - {enc_alg}");
@@ -1270,7 +1270,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
                     enc_alg.wrap(),
                     enc_alg.oid(),
                 )?;
-                let pt = process_content_info(&ci, key)?;
+                let pt = process_content_info(&ci, &key)?;
                 assert_eq!("abc".as_bytes(), pt);
                 let ci = generate_enveloped_data(
                     "abc".as_bytes(),
@@ -1280,15 +1280,15 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
                     enc_alg.wrap(),
                     enc_alg.oid(),
                 )?;
-                let pt = process_content_info(&ci, key)?;
+                let pt = process_content_info(&ci, &key)?;
                 assert_eq!("abc".as_bytes(), pt);
             }
         }
     }
     for kem_alg in &kem_algs {
-        let key = key_map.get(&kem_alg.oid().to_string()).unwrap();
-        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).unwrap();
-        let cert = Certificate::from_der(cert_bytes)?;
+        let key = key_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let cert = Certificate::from_der(&cert_bytes)?;
         for kdf_alg in &kdf_algs {
             for aead_alg in &aead_algs {
                 println!("AuthEnvelopedData - {kem_alg} - {kdf_alg} - {aead_alg}");
@@ -1300,7 +1300,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
                     aead_alg.wrap(),
                     aead_alg.oid(),
                 )?;
-                let pt = process_content_info(&ci, key)?;
+                let pt = process_content_info(&ci, &key)?;
                 assert_eq!("abc".as_bytes(), pt);
                 let ci = generate_auth_enveloped_data(
                     "abc".as_bytes(),
@@ -1310,7 +1310,7 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
                     aead_alg.wrap(),
                     aead_alg.oid(),
                 )?;
-                let pt = process_content_info(&ci, key)?;
+                let pt = process_content_info(&ci, &key)?;
                 assert_eq!("abc".as_bytes(), pt);
             }
         }
@@ -1322,6 +1322,7 @@ fn generate_test() {
     assert!(test_encrypt("tests/artifacts/kemri_toy").is_ok());
 }
 
+#[allow(clippy::unwrap_used)]
 #[test]
 fn rsa_auth_env_data_tests() {
     // openssl cms -encrypt -in data.txt -recip cert.der -originator cert.der -out auth_enveloped_data_256.bin -aes-256-gcm -outform DER
@@ -1339,6 +1340,7 @@ fn rsa_auth_env_data_tests() {
     assert_eq!(pt, expected_plaintext);
 }
 
+#[allow(clippy::unwrap_used)]
 #[test]
 fn break_things() {
     use cms::enveloped_data::RecipientInfos;

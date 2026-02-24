@@ -308,8 +308,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )
-            .unwrap(); //todo
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem512(Box::new(pk)),
@@ -325,8 +324,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )
-            .unwrap(); //todo
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem768(Box::new(pk)),
@@ -342,8 +340,7 @@ pub(crate) fn kemri_builder_from_cert<R>(
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )
-            .unwrap(); //todo;
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem1024(Box::new(pk)),

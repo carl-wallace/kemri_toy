@@ -66,7 +66,7 @@ where
     {
         let mut rng = rng();
         let ephemeral_secret = EphemeralSecret::<C>::generate_from_rng(&mut rng);
-        let recip_pk = PublicKey::<C>::from_sec1_bytes(recip_pub_key_bytes).unwrap();
+        let recip_pk = PublicKey::<C>::from_sec1_bytes(recip_pub_key_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let ss = ephemeral_secret.diffie_hellman(&recip_pk);
         let ct = ephemeral_secret
             .public_key()
@@ -80,12 +80,13 @@ where
         <C as CurveArithmetic>::AffinePoint: FromSec1Point<C>,
         <C as CurveArithmetic>::AffinePoint: ToSec1Point<C>,
     {
-        let pk_e = PublicKey::<C>::from_sec1_bytes(ciphertext).unwrap();
+        let pk_e = PublicKey::<C>::from_sec1_bytes(ciphertext).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let ss = diffie_hellman(self.sk.to_nonzero_scalar(), pk_e.as_affine());
         Ok(ss.raw_secret_bytes().to_vec())
     }
 }
 
+#[allow(clippy::unwrap_used)]
 #[test]
 fn test_ecdh_kem() {
     let sender = EcdhKem::<p256::NistP256>::keygen().unwrap();

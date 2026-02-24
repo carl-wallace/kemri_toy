@@ -1,8 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![warn(missing_docs, rust_2018_idioms, unused_qualifications)]
-// todo - restore this (and remove various allow(dead_code) instances)
-// clippy::unwrap_used
+#![warn(missing_docs, rust_2018_idioms, unused_qualifications, clippy::unwrap_used)]
+// todo - remove various allow(dead_code) instances
 
 mod args;
 mod asn1;

@@ -74,7 +74,7 @@ macro_rules! encrypt_gcm_mode {
         debug!("CEK: {}", buffer_to_hex(&key));
         debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
 
-        let cipher = <$aead>::new_from_slice(&key).unwrap();
+        let cipher = <$aead>::new_from_slice(&key).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let mut buffer = vec![0u8; 0];
         buffer.extend_from_slice($data);
         let aad = $aad.unwrap_or("".as_bytes().to_vec());
