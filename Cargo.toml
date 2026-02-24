@@ -6,12 +6,12 @@ rust-version = "1.85.0"
 
 [dependencies]
 # ASN.1 encoding/decoding and related support from RustCrypto community
-base64ct = { version="1.8.0", features = ["alloc"] }
-cms = { version = "0.3.0-pre.0", features = ["builder"] }
+base64ct = { version="1.8.3", features = ["alloc"] }
+cms = { version = "0.3.0-pre.2", features = ["builder"] }
 const-oid = { version = "0.10.1", default-features = false, features = ["db"] }
-der = { version="0.8.0-rc.8", features = ["alloc", "derive", "flagset", "oid"] }
+der = { version="0.8.0", features = ["alloc", "derive", "flagset", "oid"] }
 spki = { version = "0.8.0-rc.4", default-features = false, features = ["alloc"] }
-x509-cert = { version = "0.3.0-rc.1", default-features = false, features = ["hazmat", "builder"] }
+x509-cert = { version = "0.3.0-rc.4", default-features = false, features = ["hazmat", "builder"] }
 
 certval = { git = "https://github.com/carl-wallace/rust-pki.git", features = ["std", "rsa", "pqc"], branch = "composite-08"}
 pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "kemri", features = ["pem"] }
@@ -21,7 +21,7 @@ aes = { version = "=0.9.0-rc.4" }
 aes-gcm = { version = "0.11.0-rc.3" , features = ["arrayvec"]}
 aes-kw ="0.3.0-rc.2"
 cbc = { version = "0.2.0-rc.3" }
-cipher = { version = "0.5.0-rc.0", features = ["alloc", "block-padding", "rand_core"] }
+cipher = { version = "0.5.0", features = ["alloc", "block-padding", "rand_core"] }
 ecdsa = {version = "0.17.0-rc.16", default-features = false, features = ["der", "pkcs8"]}
 ed25519-dalek = { version = "3.0.0-pre.6", default-features = false, features = ["fast", "zeroize", "pkcs8", "rand_core"] }
 ed448-goldilocks = {version = "0.14.0-pre.10", default-features = false}
@@ -29,7 +29,7 @@ elliptic-curve = {version = "0.14.0-rc.28", default-features = false, features =
 hkdf = "0.13.0-rc.5"
 hmac = "0.13.0-rc.5"
 kem = { version = "0.3.0-rc.6", features = ["getrandom"] }
-ml-dsa = "0.1.0-pre.7"
+ml-dsa = "0.1.0-rc.7"
 ml-kem = { version = "0.3.0-rc.0" }
 p256 = {version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "pkcs8"]}
 p384 = {version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "pkcs8"]}
@@ -48,12 +48,12 @@ hex-literal = "1.1.0"
 lazy_static = "1.5.0"
 log = "0.4.29"
 log4rs = "1.4.0"
-rand = "0.10.0-rc.7"
-rand_core = { version = "0.10.0-rc-5"}
+rand = "0.10.0"
+rand_core = { version = "0.10.0"}
 serde = { version = "1.0.228", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 tokio = { version = "1.49.0", features = ["full", "time", "rt-multi-thread"]}
-zerocopy = "0.8.26"
+zerocopy = "0.8.39"
 
 [patch.crates-io]
 aes-gcm       = { git="https://github.com/RustCrypto/AEADs.git" }
