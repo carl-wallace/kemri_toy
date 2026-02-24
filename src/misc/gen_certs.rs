@@ -1,5 +1,11 @@
 //! Utilities to generate test certificates features ML_KEM_XXX_IPD keys signed with ML_DSA_44_IPD
 
+use elliptic_curve::sec1::ToSec1Point;
+use log::error;
+use ml_kem::TryKeyInit;
+use ml_kem::array::ArrayN;
+use ml_kem::{FromSeed, KeyExport};
+use rand_core::Rng;
 use std::{
     fs::File,
     io::Write,
@@ -8,18 +14,12 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use log::error;
-use rand::{RngCore, rngs::OsRng};
-use rand_core::TryRngCore;
-
 use cipher::rand_core::CryptoRng;
 use ml_kem::{
-    ArraySize, B32, Encoded, EncodedSizeUser, KemCore, MlKem512, MlKem768, MlKem768Params,
-    MlKem1024, MlKem1024Params,
+    ArraySize, B32, Kem, MlKem512, MlKem768, MlKem1024,
     array::Array,
     kem::{Decapsulate, Encapsulate},
 };
-use p256::elliptic_curve::sec1::ToEncodedPoint;
 use rsa::pkcs1::EncodeRsaPublicKey;
 
 use const_oid::{
@@ -94,7 +94,7 @@ fn get_validity(years: i8) -> crate::error::Result<Validity> {
 /// Return a random SerialNumber value
 fn get_random_serial() -> crate::error::Result<SerialNumber> {
     let mut serial = [0u8; 20];
-    OsRng.unwrap_err().fill_bytes(&mut serial);
+    rand::rng().fill_bytes(&mut serial);
     serial[0] = 0x01;
     Ok(SerialNumber::new(&serial)?)
 }
@@ -143,25 +143,29 @@ fn get_seed(d: &B32, z: &B32) -> Vec<u8> {
 /// Macro to generate a fresh KEM keypair and an end entity certificate containing a KEM key signed using ML_DSA_44_IPD
 macro_rules! generate_kem_cert {
     ($signer:ident, $cert:ident, $keypair:expr, $alg:ident) => {{
-        let mut rng = OsRng.unwrap_err();
-        let d: B32 = rand(&mut rng);
-        let z: B32 = rand(&mut rng);
-        let (ee_sk, ee_pk) = $keypair(&d, &z);
-        let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk.as_bytes().as_slice(), $alg)?;
+        let mut rng = rand::rng();
+        let d_bytes: B32 = rand(&mut rng);
+        let z_bytes: B32 = rand(&mut rng);
+        let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
+        let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+        let (ee_sk, ee_pk) = $keypair(&d.concat(z));
+        let cert = generate_ml_kem_cert(&$signer, &$cert, ee_pk.to_bytes().as_slice(), $alg)?;
         Ok((ee_pk, ee_sk, cert, get_seed(&d, &z)))
     }};
 }
 
 macro_rules! generate_composite_rsa_key {
     ($keypair:expr, $trad_size:expr) => {{
-        let mut rng = OsRng.unwrap_err();
-        let d: B32 = rand(&mut rng);
-        let z: B32 = rand(&mut rng);
-        let (_ee_sk, ee_pk) = $keypair(&d, &z);
+        let mut rng = rand::rng();
+        let d_bytes: B32 = rand(&mut rng);
+        let z_bytes: B32 = rand(&mut rng);
+        let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
+        let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+        let (_ee_sk, ee_pk) = $keypair(&d.concat(z));
         let rsa_priv = RsaKem::keygen($trad_size)?;
         let rsa_pub = rsa_priv.to_public_key().to_pkcs1_der().unwrap().to_vec();
         let mut composite_pub_key = vec![];
-        composite_pub_key.append(&mut ee_pk.as_bytes().as_slice().to_vec());
+        composite_pub_key.append(&mut ee_pk.to_bytes().as_slice().to_vec());
         composite_pub_key.append(&mut rsa_pub.clone());
 
         let mut mlkem = vec![];
@@ -177,16 +181,18 @@ macro_rules! generate_composite_rsa_key {
 
 macro_rules! generate_composite_ecdh_key {
     ($keypair:expr, $ec:ty) => {{
-        let mut rng = OsRng.unwrap_err();
-        let d: B32 = rand(&mut rng);
-        let z: B32 = rand(&mut rng);
-        let (_ee_sk, ee_pk) = $keypair(&d, &z);
+        let mut rng = rand::rng();
+        let d_bytes: B32 = rand(&mut rng);
+        let z_bytes: B32 = rand(&mut rng);
+        let d = ArrayN::<u8, 32>::try_from(d_bytes).unwrap();
+        let z = ArrayN::<u8, 32>::try_from(z_bytes).unwrap();
+        let (_ee_sk, ee_pk) = $keypair(&d.concat(z));
         let ee_sk = EcdhKem::<$ec>::keygen().unwrap();
         let ec_pk = ee_sk.to_public_key();
-        let ec_pub = ec_pk.to_encoded_point(false).as_bytes().to_vec();
+        let ec_pub = ec_pk.to_sec1_point(false).as_bytes().to_vec();
 
         let mut composite_pub_key = vec![];
-        composite_pub_key.append(&mut ee_pk.as_bytes().as_slice().to_vec());
+        composite_pub_key.append(&mut ee_pk.to_bytes().as_slice().to_vec());
         composite_pub_key.append(&mut ec_pub.clone());
 
         let mut mlkem = vec![];
@@ -289,28 +295,25 @@ pub fn generate_pki(
     let mut ta_file = File::create(output_folder.join("ta.der"))?;
     let _ = ta_file.write_all(&ta_cert.to_der()?);
 
+    let rng = rand::rng();
     let (private_key_bytes, new_cert, seed, ct, ss) = match kem {
         OtherMlKem512 => {
-            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
-                signer,
-                ta_cert,
-                MlKem512::generate_deterministic,
-                OtherMlKem512
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
-                    (ee_public_key, ee_secret_key, ee_cert, seed)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
-            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
-            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            let (ee_public_key, ee_secret_key, ee_cert, seed) =
+                match generate_kem_cert!(signer, ta_cert, MlKem512::from_seed, OtherMlKem512) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
+                        (ee_public_key, ee_secret_key, ee_cert, seed)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
+            let (ct, ss) = ee_public_key.encapsulate();
+            let ss2 = ee_secret_key.decapsulate(&ct);
             assert_eq!(ss, ss2);
 
             (
-                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_secret_key.to_bytes().to_vec()),
                 Some(ee_cert),
                 seed,
                 ct.as_slice().to_vec(),
@@ -318,26 +321,22 @@ pub fn generate_pki(
             )
         }
         OtherMlKem768 => {
-            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
-                signer,
-                ta_cert,
-                MlKem768::generate_deterministic,
-                OtherMlKem768
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
-                    (ee_public_key, ee_secret_key, ee_cert, seed)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
-            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
-            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            let (ee_public_key, ee_secret_key, ee_cert, seed) =
+                match generate_kem_cert!(signer, ta_cert, MlKem768::from_seed, OtherMlKem768) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
+                        (ee_public_key, ee_secret_key, ee_cert, seed)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
+            let (ct, ss) = ee_public_key.encapsulate();
+            let ss2 = ee_secret_key.decapsulate(&ct);
             assert_eq!(ss, ss2);
 
             (
-                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_secret_key.to_bytes().to_vec()),
                 Some(ee_cert),
                 seed,
                 ct.as_slice().to_vec(),
@@ -345,26 +344,22 @@ pub fn generate_pki(
             )
         }
         OtherMlKem1024 => {
-            let (ee_public_key, ee_secret_key, ee_cert, seed) = match generate_kem_cert!(
-                signer,
-                ta_cert,
-                MlKem1024::generate_deterministic,
-                OtherMlKem1024
-            ) {
-                Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
-                    (ee_public_key, ee_secret_key, ee_cert, seed)
-                }
-                Err(e) => {
-                    error!("Failed to generate KEM certificate: {e:?}");
-                    return Err(e);
-                }
-            };
-            let (ct, ss) = ee_public_key.encapsulate(&mut OsRng.unwrap_err()).unwrap();
-            let ss2 = ee_secret_key.decapsulate(&ct).unwrap();
+            let (ee_public_key, ee_secret_key, ee_cert, seed) =
+                match generate_kem_cert!(signer, ta_cert, MlKem1024::from_seed, OtherMlKem1024) {
+                    Ok((ee_public_key, ee_secret_key, ee_cert, seed)) => {
+                        (ee_public_key, ee_secret_key, ee_cert, seed)
+                    }
+                    Err(e) => {
+                        error!("Failed to generate KEM certificate: {e:?}");
+                        return Err(e);
+                    }
+                };
+            let (ct, ss) = ee_public_key.encapsulate();
+            let ss2 = ee_secret_key.decapsulate(&ct);
             assert_eq!(ss, ss2);
 
             (
-                Some(ee_secret_key.as_bytes().to_vec()),
+                Some(ee_secret_key.to_bytes().to_vec()),
                 Some(ee_cert),
                 seed,
                 ct.as_slice().to_vec(),
@@ -372,15 +367,13 @@ pub fn generate_pki(
             )
         }
         KemAlgorithms::MlKem768Rsa2048Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_rsa_key!(MlKem768::generate_deterministic, 2048);
+                generate_composite_rsa_key!(MlKem768::from_seed, 2048);
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
                 ID_MLKEM768_RSA2048_SHA3_256,
-                &mut rng,
-                MlKem768Params
+                MlKem768
             );
             let cert = generate_ml_kem_cert(
                 &signer,
@@ -391,15 +384,13 @@ pub fn generate_pki(
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem768Rsa3072Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_rsa_key!(MlKem768::generate_deterministic, 3072);
+                generate_composite_rsa_key!(MlKem768::from_seed, 3072);
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
                 ID_MLKEM768_RSA3072_SHA3_256,
-                &mut rng,
-                MlKem768Params
+                MlKem768
             );
             let cert = generate_ml_kem_cert(
                 &signer,
@@ -410,15 +401,13 @@ pub fn generate_pki(
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem768Rsa4096Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_rsa_key!(MlKem768::generate_deterministic, 4096);
+                generate_composite_rsa_key!(MlKem768::from_seed, 4096);
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1184,
                 ID_MLKEM768_RSA4096_SHA3_256,
-                &mut rng,
-                MlKem768Params
+                MlKem768
             );
             let cert = generate_ml_kem_cert(
                 &signer,
@@ -429,15 +418,13 @@ pub fn generate_pki(
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem1024Rsa3072Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_rsa_key!(MlKem1024::generate_deterministic, 3072);
+                generate_composite_rsa_key!(MlKem1024::from_seed, 3072);
             let (ss, ct, _oid) = comp_encap_rsa!(
                 composite_pub_key,
                 1568,
                 ID_MLKEM1024_RSA3072_SHA3_256,
-                &mut rng,
-                MlKem1024Params
+                MlKem1024
             );
             let cert = generate_ml_kem_cert(
                 &signer,
@@ -451,16 +438,14 @@ pub fn generate_pki(
             todo!("generate_kem_cert for EC variants")
         }
         KemAlgorithms::MlKem768EcdhP256Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_ecdh_key!(MlKem768::generate_deterministic, p256::NistP256);
+                generate_composite_ecdh_key!(MlKem768::from_seed, p256::NistP256);
 
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1184,
                 ID_MLKEM768_ECDH_P256_SHA3_256,
-                &mut rng,
-                MlKem768Params,
+                MlKem768,
                 p256::NistP256
             );
             let cert = generate_ml_kem_cert(
@@ -472,16 +457,14 @@ pub fn generate_pki(
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem768EcdhP384Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_ecdh_key!(MlKem768::generate_deterministic, p384::NistP384);
+                generate_composite_ecdh_key!(MlKem768::from_seed, p384::NistP384);
 
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1184,
                 ID_MLKEM768_ECDH_P384_SHA3_256,
-                &mut rng,
-                MlKem768Params,
+                MlKem768,
                 p384::NistP384
             );
             let cert = generate_ml_kem_cert(
@@ -493,16 +476,14 @@ pub fn generate_pki(
             (Some(composite_sk), Some(cert), get_seed(&d, &z), ct, ss)
         }
         KemAlgorithms::MlKem1024EcdhP384Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_ecdh_key!(MlKem1024::generate_deterministic, p384::NistP384);
+                generate_composite_ecdh_key!(MlKem1024::from_seed, p384::NistP384);
 
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1568,
                 ID_MLKEM1024_ECDH_P384_SHA3_256,
-                &mut rng,
-                MlKem1024Params,
+                MlKem1024,
                 p384::NistP384
             );
             let cert = generate_ml_kem_cert(
@@ -517,16 +498,14 @@ pub fn generate_pki(
             todo!("generate_kem_cert for EC variants")
         }
         KemAlgorithms::MlKem1024EcdhP521Sha3_256 => {
-            let mut rng = OsRng.unwrap_err();
             let (composite_sk, composite_pub_key, d, z) =
-                generate_composite_ecdh_key!(MlKem1024::generate_deterministic, p521::NistP521);
+                generate_composite_ecdh_key!(MlKem1024::from_seed, p521::NistP521);
 
             let (ss, ct, _oid) = comp_encap_ecdh!(
                 composite_pub_key,
                 1568,
                 ID_MLKEM1024_ECDH_P521_SHA3_256,
-                &mut rng,
-                MlKem1024Params,
+                MlKem1024,
                 p521::NistP521
             );
             let cert = generate_ml_kem_cert(

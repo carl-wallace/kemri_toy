@@ -145,7 +145,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa44EcdsaP256Sha256(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -184,7 +184,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa65EcdsaP256Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -193,7 +193,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa65EcdsaP384Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -211,7 +211,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa87EcdsaP384Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -243,7 +243,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa87EcdsaP521Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);

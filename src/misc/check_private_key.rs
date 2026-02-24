@@ -1,14 +1,12 @@
 //! Pair-wise consistency check for private key and certificate
 
 use log::error;
-use rand::rngs::OsRng;
-use rand_core::TryRngCore;
+use ml_kem::TryKeyInit;
 use zerocopy::IntoBytes;
 
 use ml_dsa::{MlDsa44, MlDsa65, MlDsa87};
 use ml_kem::{
-    Encoded, EncodedSizeUser, MlKem512, MlKem512Params, MlKem768, MlKem768Params, MlKem1024,
-    MlKem1024Params,
+    KeyInit, MlKem512, MlKem768, MlKem1024,
     kem::{Decapsulate, Encapsulate},
 };
 use signature::{Signer, Verifier};
@@ -20,7 +18,7 @@ use const_oid::db::{
     fips205::*,
 };
 use der::Decode;
-use spki::SubjectPublicKeyInfoOwned;
+use spki::{DecodePublicKey, SubjectPublicKeyInfoOwned};
 
 use pqckeys::oak::OneAsymmetricKey;
 
@@ -29,18 +27,15 @@ use crate::misc::gen_certs::buffer_to_hex;
 use crate::misc::utils::extract_private_key;
 
 macro_rules! check_ml_kem_key {
-    ($params_ty:ty, $ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
+    ($ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key = extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let dk_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey>::try_from(private_key.as_bytes()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
-        let dk = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::DecapsulationKey::from_bytes(&dk_bytes);
+        let dk = <$ct_ty as ml_kem::Kem>::DecapsulationKey::new_from_slice(private_key.as_bytes()).unwrap(); // todo
         let spki_bytes = $spki.subject_public_key.raw_bytes();
         println!("spki_bytes len = {:?}", spki_bytes.len());
         println!("spki_bytes = {:?}", buffer_to_hex(spki_bytes));
-        let ek_bytes = Encoded::<<ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::EncapsulationKey>::try_from(spki_bytes).map_err(|e| Error::MlKem(format!("{e:?}")))?;
-        let ek = <ml_kem::kem::Kem<$params_ty> as ml_kem::KemCore>::EncapsulationKey::from_bytes(&ek_bytes);
-        let (ct, ss) = ek.encapsulate(&mut OsRng.unwrap_err()).map_err(|e| Error::MlKem(format!("{e:?}")))?;
-        let c = ml_kem::Ciphertext::<$ct_ty>::try_from(ct).map_err(|e| Error::MlKem(format!("{e:?}")))?;
-        let k = dk.decapsulate(&c).map_err(|e| Error::MlKem(format!("{e:?}")))?;
+        let ek = <$ct_ty as ml_kem::Kem>::EncapsulationKey::new_from_slice(spki_bytes).unwrap(); // todo
+        let (ct, ss) = ek.encapsulate();
+        let k = dk.decapsulate(&ct);
         if k == ss {
             println!("Consistency check passed for {}", $filename);
             return Ok(true);
@@ -55,14 +50,14 @@ macro_rules! check_ml_dsa_key {
     ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let sk_bytes = ml_dsa::EncodedSigningKey::<$dsa>::try_from(private_key.as_slice())
+        let sk_bytes = ml_dsa::ExpandedSigningKey::<$dsa>::try_from(private_key.as_slice())
             .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
-        let sk = ml_dsa::SigningKey::<$dsa>::decode(&sk_bytes);
+        #[allow(deprecated)]
+        let sk = ml_dsa::SigningKey::<$dsa>::from_expanded(&sk_bytes);
         let sig = sk.sign("abc".as_bytes());
-        let vk_bytes =
-            ml_dsa::EncodedVerifyingKey::<$dsa>::try_from($spki.subject_public_key.raw_bytes())
-                .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
-        let vk = ml_dsa::VerifyingKey::<$dsa>::decode(&vk_bytes);
+        let vk =
+            ml_dsa::VerifyingKey::<$dsa>::from_public_key_der($spki.subject_public_key.raw_bytes())
+                .unwrap();
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
                 println!("Consistency check passed for {}", $filename);
@@ -138,13 +133,13 @@ pub(crate) fn check_private_key(
         check_slh_dsa_key!(Shake256s, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_512 {
         println!("512");
-        check_ml_kem_key!(MlKem512Params, MlKem512, oak, spki, filename);
+        check_ml_kem_key!(MlKem512, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_768 {
         println!("768");
-        check_ml_kem_key!(MlKem768Params, MlKem768, oak, spki, filename);
+        check_ml_kem_key!(MlKem768, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ALG_ML_KEM_1024 {
         println!("1024");
-        check_ml_kem_key!(MlKem1024Params, MlKem1024, oak, spki, filename);
+        check_ml_kem_key!(MlKem1024, oak, spki, filename);
     } else {
         println!("Unrecognized algorithm");
         Err(Error::Unrecognized)
