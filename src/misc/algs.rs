@@ -315,7 +315,7 @@ impl fmt::Display for SigAlgorithms {
                 write!(f, "ml-dsa65-ecdsa-p384-sha512")
             }
             SigAlgorithms::Mldsa65Ed25519Sha512 => {
-                write!(f, "ml-dsa65-ed25519-sha5126")
+                write!(f, "ml-dsa65-ed25519-sha512")
             }
             SigAlgorithms::Mldsa87EcdsaP384Sha512 => {
                 write!(f, "ml-dsa87-ecdsa-p384-sha512")
