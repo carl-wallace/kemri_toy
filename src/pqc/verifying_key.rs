@@ -97,6 +97,7 @@ impl PqcVerifyingKey {
             PqcVerifyingKey::Mldsa87EcdsaP521Sha512(_) => ID_MLDSA87_ECDSA_P521_SHA512,
         }
     }
+    #[allow(clippy::unwrap_used)] // todo - fix me
     pub(crate) fn public_key(&self) -> Vec<u8> {
         match self {
             PqcVerifyingKey::MlDsa44(vk) => vk.encode().as_bytes().to_vec(),
@@ -145,7 +146,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa44EcdsaP256Sha256(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -184,7 +185,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa65EcdsaP256Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -193,7 +194,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa65EcdsaP384Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -211,7 +212,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa87EcdsaP384Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);
@@ -243,7 +244,7 @@ impl PqcVerifyingKey {
             }
             PqcVerifyingKey::Mldsa87EcdsaP521Sha512(vk) => {
                 let mut mldsa = vk.0.encode().as_bytes().to_vec();
-                let ecdsa = vk.1.to_encoded_point(true);
+                let ecdsa = vk.1.to_sec1_point(true);
 
                 let mut retval = vec![];
                 retval.append(&mut mldsa);

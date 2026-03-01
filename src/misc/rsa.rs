@@ -1,5 +1,5 @@
 use crate::error::Error;
-use rand_core::{OsRng, RngCore, TryRngCore};
+use rand_core::Rng;
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey};
 use rsa::{Oaep, RsaPrivateKey, RsaPublicKey};
@@ -19,7 +19,7 @@ impl RsaKem {
         })
     }
     pub fn keygen(num_bits: usize) -> crate::error::Result<Self> {
-        let mut rng = OsRng.unwrap_err();
+        let mut rng = rand::rng();
         Ok(Self {
             sk: RsaPrivateKey::new(&mut rng, num_bits)?,
         })
@@ -41,17 +41,17 @@ impl RsaKem {
     pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::error::Result<(SharedSecret, Ciphertext)> {
         let recip_pub_key =
             RsaPublicKey::from_pkcs1_der(recip_pub_key_bytes).map_err(|_| Error::Rsa)?;
-        let mut rng = OsRng.unwrap_err();
+        let mut rng = rand::rng();
         let mut ss: SharedSecret = [0x00; 32];
         rng.fill_bytes(&mut ss);
 
-        let padding = Oaep::new::<Sha256>();
+        let padding = Oaep::<Sha256>::new();
         let ciphertext = recip_pub_key.encrypt(&mut rng, padding, &ss)?;
 
         Ok((ss, ciphertext))
     }
 
     pub fn decap(&self, ciphertext: &[u8]) -> crate::error::Result<Plaintext> {
-        Ok(self.sk.decrypt(Oaep::new::<Sha256>(), ciphertext)?)
+        Ok(self.sk.decrypt(Oaep::<Sha256>::new(), ciphertext)?)
     }
 }

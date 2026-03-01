@@ -2,7 +2,7 @@
 
 use log::debug;
 
-use aes_gcm::{AeadCore, Aes128Gcm, Aes256Gcm, aead::AeadInOut};
+use aes_gcm::{Aes128Gcm, Aes256Gcm, Nonce, aead::AeadInOut};
 use cipher::{Key, KeyInit, KeySizeUser};
 use rand_core::CryptoRng;
 
@@ -21,6 +21,9 @@ use crate::{
     buffer_to_hex,
     misc::utils::ContentEncryptionAlgorithmAead,
 };
+use elliptic_curve::Generate;
+use ml_kem::array::Array;
+use ml_kem::array::sizes::U12;
 
 /// Result type with cms::builder::Error
 type Result<T> = core::result::Result<T, Error>;
@@ -49,10 +52,10 @@ macro_rules! encrypt_gcm_mode {
     ($data:expr, $aead:ty, $key:expr, $aad:ident, $oid:expr) => {{
         let (key, nonce) = match $key {
             None => {
-                let key = <$aead>::generate_key();
-                // todo use rng parameter or something simliar to encrypt_block_mode to generate nonce and key
-                let nonce = <$aead>::generate_nonce();
-                (key.unwrap().to_vec(), nonce.unwrap().as_slice().to_vec())
+                let key = Key::<$aead>::generate();
+                // todo use rng parameter or something similar to encrypt_block_mode to generate nonce and key
+                let nonce: Array<u8, U12> = Nonce::generate();
+                (key.to_vec(), nonce.as_slice().to_vec())
             }
             Some(key) => {
                 if key.len() != <$aead>::key_size() {
@@ -60,23 +63,24 @@ macro_rules! encrypt_gcm_mode {
                         "Invalid key size for chosen algorithm",
                     )));
                 }
+                let nonce: Array<u8, U12> = Nonce::generate();
                 (
                     #[allow(deprecated)]
                     Key::<$aead>::from_slice(key).to_owned().to_vec(),
-                    <$aead>::generate_nonce().unwrap().to_vec(),
+                    nonce.as_slice().to_vec(),
                 )
             }
         };
         debug!("CEK: {}", buffer_to_hex(&key));
         debug!("Nonce: {}", buffer_to_hex(&nonce.as_slice()));
 
-        let cipher = <$aead>::new_from_slice(&key).unwrap();
+        let cipher = <$aead>::new_from_slice(&key).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let mut buffer = vec![0u8; 0];
         buffer.extend_from_slice($data);
         let aad = $aad.unwrap_or("".as_bytes().to_vec());
         #[allow(deprecated)]
         let aead_nonce = aes_gcm::Nonce::from_slice(&nonce);
-        match cipher.encrypt_in_place(&aead_nonce, &aad, &mut buffer) {
+        match AeadInOut::encrypt_in_place(&cipher, &aead_nonce, &aad, &mut buffer) {
             Ok(_) => {
                 let (ct, tag) = buffer.split_at(buffer.len() - 16);
                 let gcm_params = GcmParameters {

@@ -3,14 +3,13 @@
 use log::error;
 use rand::rng;
 
+use crate::error::Error;
 use const_oid::{AssociatedOid, ObjectIdentifier};
 use elliptic_curve::{
-    Curve, CurveArithmetic, FieldBytesSize, PublicKey, SecretKey,
+    Curve, CurveArithmetic, FieldBytesSize, Generate, PublicKey, SecretKey,
     ecdh::{EphemeralSecret, diffie_hellman},
-    sec1::{FromEncodedPoint, ModulusSize, ToEncodedPoint, ValidatePublicKey},
+    sec1::{FromSec1Point, ModulusSize, ToSec1Point, ValidatePublicKey},
 };
-
-use crate::error::Error;
 
 pub struct EcdhKem<C>
 where
@@ -48,7 +47,7 @@ where
     }
     pub fn keygen() -> crate::error::Result<Self> {
         let mut rng = rng();
-        let sk = SecretKey::<C>::random(&mut rng);
+        let sk = SecretKey::<C>::generate_from_rng(&mut rng);
         Ok(Self { sk })
     }
 
@@ -62,38 +61,39 @@ where
 
     pub fn encap(recip_pub_key_bytes: &[u8]) -> crate::error::Result<(Vec<u8>, Vec<u8>)>
     where
-        <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
-        <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
+        <C as CurveArithmetic>::AffinePoint: FromSec1Point<C>,
+        <C as CurveArithmetic>::AffinePoint: ToSec1Point<C>,
     {
         let mut rng = rng();
-        let ephemeral_secret = EphemeralSecret::<C>::random(&mut rng);
-        let recip_pk = PublicKey::<C>::from_sec1_bytes(recip_pub_key_bytes).unwrap();
+        let ephemeral_secret = EphemeralSecret::<C>::generate_from_rng(&mut rng);
+        let recip_pk = PublicKey::<C>::from_sec1_bytes(recip_pub_key_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let ss = ephemeral_secret.diffie_hellman(&recip_pk);
         let ct = ephemeral_secret
             .public_key()
-            .to_encoded_point(false)
+            .to_sec1_point(false)
             .as_bytes()
             .to_vec();
         Ok((ss.raw_secret_bytes().to_vec(), ct))
     }
     pub fn decap(&self, ciphertext: &[u8]) -> crate::error::Result<Vec<u8>>
     where
-        <C as CurveArithmetic>::AffinePoint: FromEncodedPoint<C>,
-        <C as CurveArithmetic>::AffinePoint: ToEncodedPoint<C>,
+        <C as CurveArithmetic>::AffinePoint: FromSec1Point<C>,
+        <C as CurveArithmetic>::AffinePoint: ToSec1Point<C>,
     {
-        let pk_e = PublicKey::<C>::from_sec1_bytes(ciphertext).unwrap();
+        let pk_e = PublicKey::<C>::from_sec1_bytes(ciphertext).map_err(|e| Error::Builder(format!("{e:?}")))?;
         let ss = diffie_hellman(self.sk.to_nonzero_scalar(), pk_e.as_affine());
         Ok(ss.raw_secret_bytes().to_vec())
     }
 }
 
+#[allow(clippy::unwrap_used)]
 #[test]
 fn test_ecdh_kem() {
     let sender = EcdhKem::<p256::NistP256>::keygen().unwrap();
     let _sender_pub = sender.to_public_key();
     let recip = EcdhKem::<p256::NistP256>::keygen().unwrap();
     let recip_pub = recip.to_public_key();
-    let recip_pub_key_bytes = recip_pub.to_encoded_point(false).as_bytes().to_vec();
+    let recip_pub_key_bytes = recip_pub.to_sec1_point(false).as_bytes().to_vec();
     let (ss, ct) = EcdhKem::<p256::NistP256>::encap(&recip_pub_key_bytes).unwrap();
     let ss2 = recip.decap(&ct).unwrap();
     assert_eq!(ss, ss2);

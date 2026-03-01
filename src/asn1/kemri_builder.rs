@@ -2,6 +2,7 @@
 
 use crate::asn1::utils::kem_combiner;
 use core::marker::PhantomData;
+use ml_kem::TryKeyInit;
 
 use log::debug;
 
@@ -9,10 +10,7 @@ use aes::{Aes128, Aes192, Aes256};
 use aes_kw::AesKw;
 use cipher::{KeyInit, KeySizeUser};
 use hkdf::Hkdf;
-use ml_kem::{
-    Encoded, EncodedSizeUser, KemCore, MlKem512Params, MlKem768Params, MlKem1024Params,
-    kem::Encapsulate,
-};
+use ml_kem::{MlKem512, MlKem768, MlKem1024, kem::Encapsulate};
 use sha2::{Sha256, Sha384, Sha512};
 
 use cms::{
@@ -41,14 +39,15 @@ use crate::{
 };
 use crate::{buffer_to_hex, recipient_identifier_from_cert};
 use cms::builder::Error;
+use kem::Kem;
 
 /// Contains information required to encrypt the content encryption key with a specific KEM
 #[derive(Clone, PartialEq)]
 #[allow(dead_code, missing_docs)]
 pub enum KeyEncryptionInfoKem {
-    MlKem512(Box<Encoded<<ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey>>),
-    MlKem768(Box<Encoded<<ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey>>),
-    MlKem1024(Box<Encoded<<ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey>>),
+    MlKem512(Box<<MlKem512 as Kem>::EncapsulationKey>),
+    MlKem768(Box<<MlKem768 as Kem>::EncapsulationKey>),
+    MlKem1024(Box<<MlKem1024 as Kem>::EncapsulationKey>),
     MlKem768Rsa2048Sha3_256(Vec<u8>),
     MlKem768Rsa3072Sha3_256(Vec<u8>),
     MlKem768Rsa4096Sha3_256(Vec<u8>),
@@ -116,70 +115,43 @@ where
     fn build_with_rng(
         &mut self,
         content_encryption_key: &[u8],
-        rng: &mut R,
+        _rng: &mut R,
     ) -> Result<RecipientInfo, Error> {
         // The recipient's public key is used with the KEM Encapsulate() function to obtain a pairwise shared secret (ss) and the ciphertext for the recipient.
         let (ss, ct, oid) = match &self.key_encryption_info {
             KeyEncryptionInfoKem::MlKem512(pk) => {
-                let ek =
-                    <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey::from_bytes(pk);
-                let (ct, ss) = match ek.encapsulate(rng) {
-                    Ok((ct, ss)) => (ct, ss),
-                    Err(e) => {
-                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
-                    }
-                };
+                let ek = <MlKem512 as Kem>::EncapsulationKey::from(pk.as_ref().clone());
+                let (ct, ss) = ek.encapsulate();
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_512)
             }
             KeyEncryptionInfoKem::MlKem768(pk) => {
-                let ek =
-                    <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey::from_bytes(pk);
-                let (ct, ss) = match ek.encapsulate(rng) {
-                    Ok((ct, ss)) => (ct, ss),
-                    Err(e) => {
-                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
-                    }
-                };
+                let ek = <MlKem768 as Kem>::EncapsulationKey::from(pk.as_ref().clone());
+                let (ct, ss) = ek.encapsulate();
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_768)
             }
             KeyEncryptionInfoKem::MlKem1024(pk) => {
-                let ek =
-                    <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey::from_bytes(
-                        pk,
-                    );
-                let (ct, ss) = match ek.encapsulate(rng) {
-                    Ok((ct, ss)) => (ct, ss),
-                    Err(e) => {
-                        return Err(Error::Builder(format!("Encapsulate failed: {e:?}")));
-                    }
-                };
+                let ek = <MlKem1024 as Kem>::EncapsulationKey::from(pk.as_ref().clone());
+                let (ct, ss) = ek.encapsulate();
                 (ss.to_vec(), ct.to_vec(), ID_ALG_ML_KEM_1024)
             }
             KeyEncryptionInfoKem::MlKem768Rsa2048Sha3_256(pk) => {
-                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, rng, MlKem768Params)
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, MlKem768)
             }
             KeyEncryptionInfoKem::MlKem768Rsa3072Sha3_256(pk) => {
-                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, rng, MlKem768Params)
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA2048_SHA3_256, MlKem768)
             }
             KeyEncryptionInfoKem::MlKem768Rsa4096Sha3_256(pk) => {
-                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA4096_SHA3_256, rng, MlKem768Params)
+                comp_encap_rsa!(pk, 1184, ID_MLKEM768_RSA4096_SHA3_256, MlKem768)
             }
             KeyEncryptionInfoKem::MlKem1024Rsa3072Sha3_256(pk) => {
-                comp_encap_rsa!(
-                    pk,
-                    1568,
-                    ID_MLKEM1024_RSA3072_SHA3_256,
-                    rng,
-                    MlKem1024Params
-                )
+                comp_encap_rsa!(pk, 1568, ID_MLKEM1024_RSA3072_SHA3_256, MlKem1024)
             }
             KeyEncryptionInfoKem::MlKem768EcdhP256Sha3_256(pk) => {
                 comp_encap_ecdh!(
                     pk,
                     1184,
                     ID_MLKEM768_ECDH_P256_SHA3_256,
-                    rng,
-                    MlKem768Params,
+                    MlKem768,
                     p256::NistP256
                 )
             }
@@ -188,8 +160,7 @@ where
                     pk,
                     1184,
                     ID_MLKEM768_ECDH_P384_SHA3_256,
-                    rng,
-                    MlKem768Params,
+                    MlKem768,
                     p384::NistP384
                 )
             }
@@ -198,8 +169,7 @@ where
                     pk,
                     1568,
                     ID_MLKEM1024_ECDH_P384_SHA3_256,
-                    rng,
-                    MlKem1024Params,
+                    MlKem1024,
                     p384::NistP384
                 )
             }
@@ -208,8 +178,7 @@ where
                     pk,
                     1568,
                     ID_MLKEM1024_ECDH_P521_SHA3_256,
-                    rng,
-                    MlKem1024Params,
+                    MlKem1024,
                     p521::NistP521
                 )
             }
@@ -333,15 +302,13 @@ pub(crate) fn kemri_builder_from_cert<R>(
         .oid
     {
         ID_ALG_ML_KEM_512 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem512Params> as KemCore>::EncapsulationKey,
-            >::try_from(
+            let pk = <MlKem512 as Kem>::EncapsulationKey::new_from_slice(
                 ee_cert
                     .tbs_certificate()
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )?;
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem512(Box::new(pk)),
@@ -351,15 +318,13 @@ pub(crate) fn kemri_builder_from_cert<R>(
             )?
         }
         ID_ALG_ML_KEM_768 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem768Params> as KemCore>::EncapsulationKey,
-            >::try_from(
+            let pk = <MlKem768 as Kem>::EncapsulationKey::new_from_slice(
                 ee_cert
                     .tbs_certificate()
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )?;
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem768(Box::new(pk)),
@@ -369,15 +334,13 @@ pub(crate) fn kemri_builder_from_cert<R>(
             )?
         }
         ID_ALG_ML_KEM_1024 => {
-            let pk = Encoded::<
-                <ml_kem::kem::Kem<MlKem1024Params> as KemCore>::EncapsulationKey,
-            >::try_from(
+            let pk = <MlKem1024 as Kem>::EncapsulationKey::new_from_slice(
                 ee_cert
                     .tbs_certificate()
                     .subject_public_key_info()
                     .subject_public_key
                     .raw_bytes(),
-            )?;
+            ).map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
             KemRecipientInfoBuilder::new(
                 recipient_identifier,
                 KeyEncryptionInfoKem::MlKem1024(Box::new(pk)),

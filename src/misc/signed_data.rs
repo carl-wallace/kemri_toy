@@ -162,9 +162,10 @@ pub fn get_candidate_signer_cert(sd: &SignedData) -> Result<(Vec<Certificate>, C
         Some(cert) => Ok((cas, cert)),
         None => {
             error!("SignedData does not contain any end entity certificates");
-            //Err(Error::Unrecognized)
-            let cert = cas.first().cloned().unwrap();
-            Ok((cas, cert))
+            match cas.first() {
+                Some(c) => Ok((cas.clone(), c.clone())),
+                None => Err(Error::Unrecognized),
+            }
         }
     }
 }
