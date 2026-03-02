@@ -17,7 +17,7 @@ use const_oid::db::{
     fips204::*,
     fips205::*,
 };
-use der::Decode;
+use der::{Decode, Encode};
 use spki::{DecodePublicKey, SubjectPublicKeyInfoOwned};
 
 use pqckeys::oak::OneAsymmetricKey;
@@ -56,7 +56,7 @@ macro_rules! check_ml_dsa_key {
         let sk = ml_dsa::SigningKey::<$dsa>::from_expanded(&sk_bytes);
         let sig = sk.sign("abc".as_bytes());
         let vk =
-            ml_dsa::VerifyingKey::<$dsa>::from_public_key_der($spki.subject_public_key.raw_bytes())
+            ml_dsa::VerifyingKey::<$dsa>::from_public_key_der(&$spki.to_der()?)
                 .map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
         match vk.verify("abc".as_bytes(), &sig) {
             Ok(()) => {
