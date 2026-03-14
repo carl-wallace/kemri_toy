@@ -17,8 +17,17 @@ use const_oid::{
     ObjectIdentifier,
     db::{
         fips203::{ID_ALG_ML_KEM_512, ID_ALG_ML_KEM_768, ID_ALG_ML_KEM_1024},
-        fips204::{ID_ML_DSA_44, ID_ML_DSA_65, ID_ML_DSA_87},
+        fips204::{
+            ID_HASH_ML_DSA_44_WITH_SHA_512, ID_HASH_ML_DSA_65_WITH_SHA_512,
+            ID_HASH_ML_DSA_87_WITH_SHA_512, ID_ML_DSA_44, ID_ML_DSA_65, ID_ML_DSA_87,
+        },
         fips205::{
+            ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256, ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256,
+            ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512, ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512,
+            ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512, ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512,
+            ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128, ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128,
+            ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256, ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256,
+            ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256, ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256,
             ID_SLH_DSA_SHA_2_128_F, ID_SLH_DSA_SHA_2_128_S, ID_SLH_DSA_SHA_2_192_F,
             ID_SLH_DSA_SHA_2_192_S, ID_SLH_DSA_SHA_2_256_F, ID_SLH_DSA_SHA_2_256_S,
             ID_SLH_DSA_SHAKE_128_F, ID_SLH_DSA_SHAKE_128_S, ID_SLH_DSA_SHAKE_192_F,
@@ -245,26 +254,77 @@ pub enum SigAlgorithms {
     SlhDsaSha2_192f,
     SlhDsaSha2_256s,
     SlhDsaSha2_256f,
+    #[value(name = "slh-dsa-shake-128s")]
     SlhDsaShake128s,
+    #[value(name = "slh-dsa-shake-128f")]
     SlhDsaShake128f,
+    #[value(name = "slh-dsa-shake-192s")]
     SlhDsaShake192s,
+    #[value(name = "slh-dsa-shake-192f")]
     SlhDsaShake192f,
+    #[value(name = "slh-dsa-shake-256s")]
     SlhDsaShake256s,
+    #[value(name = "slh-dsa-shake-256f")]
     SlhDsaShake256f,
+    #[value(name = "hash-ml-dsa44-with-sha512")]
+    HashMlDsa44WithSha512,
+    #[value(name = "hash-ml-dsa65-with-sha512")]
+    HashMlDsa65WithSha512,
+    #[value(name = "hash-ml-dsa87-with-sha512")]
+    HashMlDsa87WithSha512,
+    #[value(name = "hash-slh-dsa-sha2-128s-with-sha256")]
+    HashSlhDsaSha2_128sWithSha256,
+    #[value(name = "hash-slh-dsa-sha2-128f-with-sha256")]
+    HashSlhDsaSha2_128fWithSha256,
+    #[value(name = "hash-slh-dsa-sha2-192s-with-sha512")]
+    HashSlhDsaSha2_192sWithSha512,
+    #[value(name = "hash-slh-dsa-sha2-192f-with-sha512")]
+    HashSlhDsaSha2_192fWithSha512,
+    #[value(name = "hash-slh-dsa-sha2-256s-with-sha512")]
+    HashSlhDsaSha2_256sWithSha512,
+    #[value(name = "hash-slh-dsa-sha2-256f-with-sha512")]
+    HashSlhDsaSha2_256fWithSha512,
+    #[value(name = "hash-slh-dsa-shake-128s-with-shake128")]
+    HashSlhDsaShake128sWithShake128,
+    #[value(name = "hash-slh-dsa-shake-128f-with-shake128")]
+    HashSlhDsaShake128fWithShake128,
+    #[value(name = "hash-slh-dsa-shake-192s-with-shake256")]
+    HashSlhDsaShake192sWithShake256,
+    #[value(name = "hash-slh-dsa-shake-192f-with-shake256")]
+    HashSlhDsaShake192fWithShake256,
+    #[value(name = "hash-slh-dsa-shake-256s-with-shake256")]
+    HashSlhDsaShake256sWithShake256,
+    #[value(name = "hash-slh-dsa-shake-256f-with-shake256")]
+    HashSlhDsaShake256fWithShake256,
+    #[value(name = "ml-dsa44-rsa2048-pss-sha256")]
     Mldsa44Rsa2048PssSha256,
+    #[value(name = "ml-dsa44-rsa2048-pkcs15-sha256")]
     Mldsa44Rsa2048Pkcs15Sha256,
+    #[value(name = "ml-dsa44-ed25519-sha512")]
     Mldsa44Ed25519Sha512,
+    #[value(name = "ml-dsa44-ecdsa-p256-sha256")]
     Mldsa44EcdsaP256Sha256,
+    #[value(name = "ml-dsa65-rsa3072-pss-sha512")]
     Mldsa65Rsa3072PssSha512,
+    #[value(name = "ml-dsa65-rsa4096-pss-sha512")]
     Mldsa65Rsa4096PssSha512,
+    #[value(name = "ml-dsa65-rsa4096-pkcs15-sha512")]
     Mldsa65Rsa4096Pkcs15Sha512,
+    #[value(name = "ml-dsa65-ecdsa-p256-sha512")]
     Mldsa65EcdsaP256Sha512,
+    #[value(name = "ml-dsa65-ecdsa-p384-sha512")]
     Mldsa65EcdsaP384Sha512,
+    #[value(name = "ml-dsa65-ed25519-sha512")]
     Mldsa65Ed25519Sha512,
+    #[value(name = "ml-dsa87-ecdsa-p384-sha512")]
     Mldsa87EcdsaP384Sha512,
+    #[value(name = "ml-dsa87-ed448-shake256")]
     Mldsa87Ed448Shake256,
+    #[value(name = "ml-dsa87-rsa3072-pss-sha512")]
     Mldsa87Rsa3072PssSha512,
+    #[value(name = "ml-dsa87-rsa4096-pss-sha512")]
     Mldsa87Rsa4096PssSha512,
+    #[value(name = "ml-dsa87-ecdsa-p521-sha512")]
     Mldsa87EcdsaP521Sha512,
     // omitting Brainpool as unsupported
 }
@@ -287,6 +347,45 @@ impl fmt::Display for SigAlgorithms {
             SigAlgorithms::SlhDsaShake192f => write!(f, "slh-dsa-shake-192f"),
             SigAlgorithms::SlhDsaShake256s => write!(f, "slh-dsa-shake-256s"),
             SigAlgorithms::SlhDsaShake256f => write!(f, "slh-dsa-shake-256f"),
+            SigAlgorithms::HashMlDsa44WithSha512 => write!(f, "hash-ml-dsa44-with-sha512"),
+            SigAlgorithms::HashMlDsa65WithSha512 => write!(f, "hash-ml-dsa65-with-sha512"),
+            SigAlgorithms::HashMlDsa87WithSha512 => write!(f, "hash-ml-dsa87-with-sha512"),
+            SigAlgorithms::HashSlhDsaSha2_128sWithSha256 => {
+                write!(f, "hash-slh-dsa-sha2-128s-with-sha256")
+            }
+            SigAlgorithms::HashSlhDsaSha2_128fWithSha256 => {
+                write!(f, "hash-slh-dsa-sha2-128f-with-sha256")
+            }
+            SigAlgorithms::HashSlhDsaSha2_192sWithSha512 => {
+                write!(f, "hash-slh-dsa-sha2-192s-with-sha512")
+            }
+            SigAlgorithms::HashSlhDsaSha2_192fWithSha512 => {
+                write!(f, "hash-slh-dsa-sha2-192f-with-sha512")
+            }
+            SigAlgorithms::HashSlhDsaSha2_256sWithSha512 => {
+                write!(f, "hash-slh-dsa-sha2-256s-with-sha512")
+            }
+            SigAlgorithms::HashSlhDsaSha2_256fWithSha512 => {
+                write!(f, "hash-slh-dsa-sha2-256f-with-sha512")
+            }
+            SigAlgorithms::HashSlhDsaShake128sWithShake128 => {
+                write!(f, "hash-slh-dsa-shake-128s-with-shake128")
+            }
+            SigAlgorithms::HashSlhDsaShake128fWithShake128 => {
+                write!(f, "hash-slh-dsa-shake-128f-with-shake128")
+            }
+            SigAlgorithms::HashSlhDsaShake192sWithShake256 => {
+                write!(f, "hash-slh-dsa-shake-192s-with-shake256")
+            }
+            SigAlgorithms::HashSlhDsaShake192fWithShake256 => {
+                write!(f, "hash-slh-dsa-shake-192f-with-shake256")
+            }
+            SigAlgorithms::HashSlhDsaShake256sWithShake256 => {
+                write!(f, "hash-slh-dsa-shake-256s-with-shake256")
+            }
+            SigAlgorithms::HashSlhDsaShake256fWithShake256 => {
+                write!(f, "hash-slh-dsa-shake-256f-with-shake256")
+            }
             SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
                 write!(f, "ml-dsa44-rsa2048-pss-sha256")
             }
@@ -409,6 +508,90 @@ impl SigAlgorithms {
             SigAlgorithms::SlhDsaShake256s => Ok(PqcSigner::new(
                 &[],
                 PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
+            )),
+            SigAlgorithms::HashMlDsa44WithSha512 => {
+                let xi: ml_dsa::B32 = gen_certs::rand(&mut rng);
+                Ok(PqcSigner::new_with_oid(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa44(Box::new(MlDsa44::from_seed(&xi))),
+                    ID_HASH_ML_DSA_44_WITH_SHA_512,
+                ))
+            }
+            SigAlgorithms::HashMlDsa65WithSha512 => {
+                let xi: ml_dsa::B32 = gen_certs::rand(&mut rng);
+                Ok(PqcSigner::new_with_oid(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa65(Box::new(MlDsa65::from_seed(&xi))),
+                    ID_HASH_ML_DSA_65_WITH_SHA_512,
+                ))
+            }
+            SigAlgorithms::HashMlDsa87WithSha512 => {
+                let xi: ml_dsa::B32 = gen_certs::rand(&mut rng);
+                Ok(PqcSigner::new_with_oid(
+                    xi.clone().as_slice(),
+                    PqcKeyPair::MlDsa87(Box::new(MlDsa87::from_seed(&xi))),
+                    ID_HASH_ML_DSA_87_WITH_SHA_512,
+                ))
+            }
+            SigAlgorithms::HashSlhDsaSha2_128sWithSha256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_128s(Box::new(SigningKey::<Sha2_128s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256,
+            )),
+            SigAlgorithms::HashSlhDsaSha2_128fWithSha256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_128f(Box::new(SigningKey::<Sha2_128f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256,
+            )),
+            SigAlgorithms::HashSlhDsaSha2_192sWithSha512 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_192s(Box::new(SigningKey::<Sha2_192s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512,
+            )),
+            SigAlgorithms::HashSlhDsaSha2_192fWithSha512 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_192f(Box::new(SigningKey::<Sha2_192f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512,
+            )),
+            SigAlgorithms::HashSlhDsaSha2_256sWithSha512 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_256s(Box::new(SigningKey::<Sha2_256s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512,
+            )),
+            SigAlgorithms::HashSlhDsaSha2_256fWithSha512 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Sha2_256f(Box::new(SigningKey::<Sha2_256f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512,
+            )),
+            SigAlgorithms::HashSlhDsaShake128sWithShake128 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake128s(Box::new(SigningKey::<Shake128s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128,
+            )),
+            SigAlgorithms::HashSlhDsaShake128fWithShake128 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake128f(Box::new(SigningKey::<Shake128f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128,
+            )),
+            SigAlgorithms::HashSlhDsaShake192sWithShake256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake192s(Box::new(SigningKey::<Shake192s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256,
+            )),
+            SigAlgorithms::HashSlhDsaShake192fWithShake256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake192f(Box::new(SigningKey::<Shake192f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256,
+            )),
+            SigAlgorithms::HashSlhDsaShake256sWithShake256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake256s(Box::new(SigningKey::<Shake256s>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256,
+            )),
+            SigAlgorithms::HashSlhDsaShake256fWithShake256 => Ok(PqcSigner::new_with_oid(
+                &[],
+                PqcKeyPair::Shake256f(Box::new(SigningKey::<Shake256f>::new(&mut rng))),
+                ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256,
             )),
             SigAlgorithms::Mldsa44Rsa2048PssSha256 => {
                 let xi: ml_dsa::B32 = gen_certs::rand(&mut rng);
@@ -562,6 +745,45 @@ impl SigAlgorithms {
             ID_SLH_DSA_SHAKE_192_F => Ok(SigAlgorithms::SlhDsaShake192f),
             ID_SLH_DSA_SHAKE_256_S => Ok(SigAlgorithms::SlhDsaShake256s),
             ID_SLH_DSA_SHAKE_256_F => Ok(SigAlgorithms::SlhDsaShake256f),
+            ID_HASH_ML_DSA_44_WITH_SHA_512 => Ok(SigAlgorithms::HashMlDsa44WithSha512),
+            ID_HASH_ML_DSA_65_WITH_SHA_512 => Ok(SigAlgorithms::HashMlDsa65WithSha512),
+            ID_HASH_ML_DSA_87_WITH_SHA_512 => Ok(SigAlgorithms::HashMlDsa87WithSha512),
+            ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_128sWithSha256)
+            }
+            ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_128fWithSha256)
+            }
+            ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_192sWithSha512)
+            }
+            ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_192fWithSha512)
+            }
+            ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_256sWithSha512)
+            }
+            ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512 => {
+                Ok(SigAlgorithms::HashSlhDsaSha2_256fWithSha512)
+            }
+            ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128 => {
+                Ok(SigAlgorithms::HashSlhDsaShake128sWithShake128)
+            }
+            ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128 => {
+                Ok(SigAlgorithms::HashSlhDsaShake128fWithShake128)
+            }
+            ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256 => {
+                Ok(SigAlgorithms::HashSlhDsaShake192sWithShake256)
+            }
+            ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256 => {
+                Ok(SigAlgorithms::HashSlhDsaShake192fWithShake256)
+            }
+            ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256 => {
+                Ok(SigAlgorithms::HashSlhDsaShake256sWithShake256)
+            }
+            ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256 => {
+                Ok(SigAlgorithms::HashSlhDsaShake256fWithShake256)
+            }
             ID_MLDSA44_RSA2048_PSS_SHA256 => Ok(SigAlgorithms::Mldsa44Rsa2048PssSha256),
             ID_MLDSA44_RSA2048_PKCS15_SHA256 => Ok(SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256),
             ID_MLDSA44_ED25519_SHA512 => Ok(SigAlgorithms::Mldsa44Ed25519Sha512),
@@ -599,6 +821,45 @@ impl SigAlgorithms {
             SigAlgorithms::SlhDsaShake192f => ID_SLH_DSA_SHAKE_192_F,
             SigAlgorithms::SlhDsaShake256s => ID_SLH_DSA_SHAKE_256_S,
             SigAlgorithms::SlhDsaShake256f => ID_SLH_DSA_SHAKE_256_F,
+            SigAlgorithms::HashMlDsa44WithSha512 => ID_HASH_ML_DSA_44_WITH_SHA_512,
+            SigAlgorithms::HashMlDsa65WithSha512 => ID_HASH_ML_DSA_65_WITH_SHA_512,
+            SigAlgorithms::HashMlDsa87WithSha512 => ID_HASH_ML_DSA_87_WITH_SHA_512,
+            SigAlgorithms::HashSlhDsaSha2_128sWithSha256 => {
+                ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256
+            }
+            SigAlgorithms::HashSlhDsaSha2_128fWithSha256 => {
+                ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256
+            }
+            SigAlgorithms::HashSlhDsaSha2_192sWithSha512 => {
+                ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512
+            }
+            SigAlgorithms::HashSlhDsaSha2_192fWithSha512 => {
+                ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512
+            }
+            SigAlgorithms::HashSlhDsaSha2_256sWithSha512 => {
+                ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512
+            }
+            SigAlgorithms::HashSlhDsaSha2_256fWithSha512 => {
+                ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512
+            }
+            SigAlgorithms::HashSlhDsaShake128sWithShake128 => {
+                ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128
+            }
+            SigAlgorithms::HashSlhDsaShake128fWithShake128 => {
+                ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128
+            }
+            SigAlgorithms::HashSlhDsaShake192sWithShake256 => {
+                ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256
+            }
+            SigAlgorithms::HashSlhDsaShake192fWithShake256 => {
+                ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256
+            }
+            SigAlgorithms::HashSlhDsaShake256sWithShake256 => {
+                ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256
+            }
+            SigAlgorithms::HashSlhDsaShake256fWithShake256 => {
+                ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256
+            }
             SigAlgorithms::Mldsa44Rsa2048PssSha256 => ID_MLDSA44_RSA2048_PSS_SHA256,
             SigAlgorithms::Mldsa44Rsa2048Pkcs15Sha256 => ID_MLDSA44_RSA2048_PKCS15_SHA256,
             SigAlgorithms::Mldsa44Ed25519Sha512 => ID_MLDSA44_ED25519_SHA512,
@@ -711,6 +972,111 @@ impl SigAlgorithms {
                     "{}-{}",
                     get_filename_from_oid(ID_SLH_DSA_SHAKE_256_F),
                     ID_SLH_DSA_SHAKE_256_F
+                )
+            }
+            SigAlgorithms::HashMlDsa44WithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_ML_DSA_44_WITH_SHA_512),
+                    ID_HASH_ML_DSA_44_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashMlDsa65WithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_ML_DSA_65_WITH_SHA_512),
+                    ID_HASH_ML_DSA_65_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashMlDsa87WithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_ML_DSA_87_WITH_SHA_512),
+                    ID_HASH_ML_DSA_87_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_128sWithSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256),
+                    ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_128fWithSha256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256),
+                    ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_192sWithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512),
+                    ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_192fWithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512),
+                    ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_256sWithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512),
+                    ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashSlhDsaSha2_256fWithSha512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512),
+                    ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake128sWithShake128 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128),
+                    ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake128fWithShake128 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128),
+                    ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake192sWithShake256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256),
+                    ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake192fWithShake256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256),
+                    ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake256sWithShake256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256),
+                    ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256
+                )
+            }
+            SigAlgorithms::HashSlhDsaShake256fWithShake256 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256),
+                    ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256
                 )
             }
             SigAlgorithms::Mldsa44Rsa2048PssSha256 => {

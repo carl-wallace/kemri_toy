@@ -332,16 +332,20 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem512PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem512::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem512PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem512PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem512::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -357,16 +361,20 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem768PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem768::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem768PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem768PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem768::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -382,16 +390,20 @@ pub(crate) fn extract_private_key(
             match key {
                 MlKem1024PrivateKey::Seed(seed) => {
                     let (d_bytes, z_bytes) = seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem1024::from_seed(&d.concat(z));
                     Ok(dk.to_expanded_bytes().to_vec())
                 }
                 MlKem1024PrivateKey::ExpandedKey(exp_key) => Ok(exp_key.as_bytes().to_vec()),
                 MlKem1024PrivateKey::Both(both) => {
                     let (d_bytes, z_bytes) = both.seed.as_bytes().split_at(32);
-                    let d = ArrayN::<u8, 32>::try_from(d_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
-                    let z = ArrayN::<u8, 32>::try_from(z_bytes).map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let d = ArrayN::<u8, 32>::try_from(d_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
+                    let z = ArrayN::<u8, 32>::try_from(z_bytes)
+                        .map_err(|e| Error::Builder(format!("{e:?}")))?;
                     let (dk, _) = MlKem1024::from_seed(&d.concat(z));
                     if dk.to_expanded_bytes().to_vec() != both.expanded_key.as_bytes().to_vec() {
                         return Err(Error::MlKem(
@@ -402,7 +414,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ID_ML_DSA_44 => {
+        ID_ML_DSA_44 | ID_HASH_ML_DSA_44_WITH_SHA_512 => {
             let key = MlDsa44PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa44PrivateKey::Seed(seed) => {
@@ -430,7 +442,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ID_ML_DSA_65 => {
+        ID_ML_DSA_65 | ID_HASH_ML_DSA_65_WITH_SHA_512 => {
             let key = MlDsa65PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa65PrivateKey::Seed(seed) => {
@@ -458,7 +470,7 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
-        ID_ML_DSA_87 => {
+        ID_ML_DSA_87 | ID_HASH_ML_DSA_87_WITH_SHA_512 => {
             let key = MlDsa87PrivateKey::from_der(private_key_bytes)?;
             match key {
                 MlDsa87PrivateKey::Seed(seed) => {
@@ -509,7 +521,11 @@ fn ml_kem768_rsa(
 
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
-    let trad_pk = rsa.to_public_key().to_pkcs1_der().map_err(|e| Error::Builder(format!("{e:?}")))?.to_vec();
+    let trad_pk = rsa
+        .to_public_key()
+        .to_pkcs1_der()
+        .map_err(|e| Error::Builder(format!("{e:?}")))?
+        .to_vec();
     utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
@@ -526,7 +542,11 @@ fn ml_kem1024_rsa(
 
     let rsa = RsaKem::new(&trad_sk)?;
     let trad_ss = rsa.decap(trad_ct)?;
-    let trad_pk = rsa.to_public_key().to_pkcs1_der().map_err(|e| Error::Builder(format!("{e:?}")))?.to_vec();
+    let trad_pk = rsa
+        .to_public_key()
+        .to_pkcs1_der()
+        .map_err(|e| Error::Builder(format!("{e:?}")))?
+        .to_vec();
     utils::kem_combiner(&pqc_ss, &trad_ss, trad_ct, &trad_pk, domain)
 }
 
@@ -967,6 +987,21 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ID_MLDSA87_RSA3072_PSS_SHA512 => "ml-dsa-87-rsa3072-pss".to_string(),
         ID_MLDSA87_RSA4096_PSS_SHA512 => "ml-dsa-87-rsa4096-pss".to_string(),
         ID_MLDSA87_ECDSA_P521_SHA512 => "ml-dsa-87-ecdsa-p521".to_string(),
+        ID_HASH_ML_DSA_44_WITH_SHA_512 => "ml-dsa-44-with-sha512".to_string(),
+        ID_HASH_ML_DSA_65_WITH_SHA_512 => "ml-dsa-65-with-sha512".to_string(),
+        ID_HASH_ML_DSA_87_WITH_SHA_512 => "ml-dsa-87-with-sha512".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256 => "hash-slh-dsa-sha2-128s".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256 => "hash-slh-dsa-sha2-128f".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512 => "hash-slh-dsa-sha2-192s".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512 => "hash-slh-dsa-sha2-192f".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512 => "hash-slh-dsa-sha2-256s".to_string(),
+        ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512 => "hash-slh-dsa-sha2-256f".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128 => "hash-slh-dsa-shake-128s".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128 => "hash-slh-dsa-shake-128f".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256 => "hash-slh-dsa-shake-192s".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256 => "hash-slh-dsa-shake-192f".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256 => "hash-slh-dsa-shake-256s".to_string(),
+        ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256 => "hash-slh-dsa-shake-256f".to_string(),
         _ => "Unrecognized".to_string(),
     }
 }
@@ -1256,8 +1291,14 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
     let aead_algs = [AeadAlgorithms::Aes128Gcm, AeadAlgorithms::Aes256Gcm];
 
     for kem_alg in &kem_algs {
-        let key = key_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
-        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let key = key_map
+            .get(&kem_alg.oid().to_string())
+            .cloned()
+            .unwrap_or_default();
+        let cert_bytes = cert_map
+            .get(&kem_alg.oid().to_string())
+            .cloned()
+            .unwrap_or_default();
         let cert = Certificate::from_der(&cert_bytes)?;
         for kdf_alg in &kdf_algs {
             for enc_alg in &enc_algs {
@@ -1286,8 +1327,14 @@ fn test_encrypt(key_folder: &str) -> Result<(), Error> {
         }
     }
     for kem_alg in &kem_algs {
-        let key = key_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
-        let cert_bytes = cert_map.get(&kem_alg.oid().to_string()).cloned().unwrap_or_default();
+        let key = key_map
+            .get(&kem_alg.oid().to_string())
+            .cloned()
+            .unwrap_or_default();
+        let cert_bytes = cert_map
+            .get(&kem_alg.oid().to_string())
+            .cloned()
+            .unwrap_or_default();
         let cert = Certificate::from_der(&cert_bytes)?;
         for kdf_alg in &kdf_algs {
             for aead_alg in &aead_algs {

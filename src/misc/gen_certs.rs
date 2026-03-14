@@ -105,7 +105,7 @@ pub fn generate_ta(sig: &SigAlgorithms) -> crate::error::Result<(PqcSigner, Cert
     let ca_pk_bytes = signer.public_key();
 
     let spki_algorithm = AlgorithmIdentifierOwned {
-        oid: signer.oid(),
+        oid: signer.spki_oid(),
         parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
     };
     let ee_spki = SubjectPublicKeyInfoOwned {

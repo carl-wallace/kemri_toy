@@ -14,8 +14,17 @@ use crate::asn1::utils::get_domain;
 use crate::pqc::key_pair::PqcKeyPair;
 use crate::pqc::signature::PqcSignature;
 use crate::pqc::verifying_key::PqcVerifyingKey;
-use const_oid::db::fips204::{ID_ML_DSA_44, ID_ML_DSA_65, ID_ML_DSA_87};
+use const_oid::db::fips204::{
+    ID_HASH_ML_DSA_44_WITH_SHA_512, ID_HASH_ML_DSA_65_WITH_SHA_512, ID_HASH_ML_DSA_87_WITH_SHA_512,
+    ID_ML_DSA_44, ID_ML_DSA_65, ID_ML_DSA_87,
+};
 use const_oid::db::fips205::{
+    ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256, ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256,
+    ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512, ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512,
+    ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512, ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512,
+    ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128, ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128,
+    ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256, ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256,
+    ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256, ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256,
     ID_SLH_DSA_SHA_2_128_F, ID_SLH_DSA_SHA_2_128_S, ID_SLH_DSA_SHA_2_192_F, ID_SLH_DSA_SHA_2_192_S,
     ID_SLH_DSA_SHA_2_256_F, ID_SLH_DSA_SHA_2_256_S, ID_SLH_DSA_SHAKE_128_F, ID_SLH_DSA_SHAKE_128_S,
     ID_SLH_DSA_SHAKE_192_F, ID_SLH_DSA_SHAKE_192_S, ID_SLH_DSA_SHAKE_256_F, ID_SLH_DSA_SHAKE_256_S,
@@ -31,8 +40,26 @@ use pqckeys::pqc_oids::{
 };
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use sha2::{Digest, Sha256, Sha384, Sha512};
+use sha3::digest::{ExtendableOutput, Update, XofReader};
 use signature::SignatureEncoding;
 use spki::SubjectPublicKeyInfoOwned as SubjectPublicKeyInfo;
+
+/// DER-encoded OID bytes for SHA-256: 2.16.840.1.101.3.4.2.1
+const SHA256_OID_BYTES: [u8; 11] = [
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,
+];
+/// DER-encoded OID bytes for SHA-512: 2.16.840.1.101.3.4.2.3
+const SHA512_OID_BYTES: [u8; 11] = [
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03,
+];
+/// DER-encoded OID bytes for SHAKE-128: 2.16.840.1.101.3.4.2.11
+const SHAKE128_OID_BYTES: [u8; 11] = [
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0B,
+];
+/// DER-encoded OID bytes for SHAKE-256: 2.16.840.1.101.3.4.2.12
+const SHAKE256_OID_BYTES: [u8; 11] = [
+    0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x0C,
+];
 
 lazy_static! {
     // CompositeAlgorithmSignatures2025
@@ -68,18 +95,39 @@ fn hash_message(composite_oid: ObjectIdentifier, message: &[u8]) -> crate::error
 pub struct PqcSigner {
     pub seed: Vec<u8>,
     pub keypair: PqcKeyPair,
+    pub oid: ObjectIdentifier,
 }
 
 impl PqcSigner {
     pub(crate) fn new(seed: &[u8], keypair: PqcKeyPair) -> Self {
+        let oid = Self::derive_oid(&keypair);
         PqcSigner {
             seed: seed.to_vec(),
             keypair,
+            oid,
+        }
+    }
+
+    pub(crate) fn new_with_oid(seed: &[u8], keypair: PqcKeyPair, oid: ObjectIdentifier) -> Self {
+        PqcSigner {
+            seed: seed.to_vec(),
+            keypair,
+            oid,
         }
     }
 
     pub(crate) fn oid(&self) -> ObjectIdentifier {
-        match self.keypair {
+        self.oid
+    }
+
+    /// Returns the key algorithm OID derived from the keypair variant.
+    /// Use this for SPKI encoding where the key algorithm (not the signature algorithm) is needed.
+    pub(crate) fn spki_oid(&self) -> ObjectIdentifier {
+        Self::derive_oid(&self.keypair)
+    }
+
+    fn derive_oid(keypair: &PqcKeyPair) -> ObjectIdentifier {
+        match keypair {
             PqcKeyPair::MlDsa44(_) => ID_ML_DSA_44,
             PqcKeyPair::MlDsa65(_) => ID_ML_DSA_65,
             PqcKeyPair::MlDsa87(_) => ID_ML_DSA_87,
@@ -552,7 +600,10 @@ impl PqcSigner {
         }
     }
 
-    fn prepare_message_rep(&self, message_to_verify: &[u8]) -> crate::error::Result<Vec<u8>> {
+    fn prepare_message_rep(
+        &self,
+        message_to_verify: &[u8],
+    ) -> crate::error::Result<(Vec<u8>, Vec<u8>)> {
         let oid = self.oid();
         let domain = get_domain(oid)?;
         let ctx_len = [0x00];
@@ -565,10 +616,139 @@ impl PqcSigner {
         message_rep.append(&mut ctx_len.to_vec());
         message_rep.append(&mut hash.to_vec());
 
-        Ok(message_rep)
+        Ok((message_rep, domain))
+    }
+
+    fn hash_ml_dsa_sign(&self, msg: &[u8]) -> crate::error::Result<PqcSignature> {
+        let hash = Sha512::digest(msg);
+        let mut message_rep = vec![0x01, 0x00];
+        message_rep.extend_from_slice(&SHA512_OID_BYTES);
+        message_rep.extend_from_slice(&hash);
+
+        let mut rng = rand::rng();
+        let rnd: ml_dsa::B32 = crate::misc::gen_certs::rand(&mut rng);
+
+        match &self.keypair {
+            PqcKeyPair::MlDsa44(kp) => {
+                let sig = kp.signing_key().sign_internal(&[&message_rep], &rnd);
+                Ok(PqcSignature::MlDsa44(Box::new(sig)))
+            }
+            PqcKeyPair::MlDsa65(kp) => {
+                let sig = kp.signing_key().sign_internal(&[&message_rep], &rnd);
+                Ok(PqcSignature::MlDsa65(Box::new(sig)))
+            }
+            PqcKeyPair::MlDsa87(kp) => {
+                let sig = kp.signing_key().sign_internal(&[&message_rep], &rnd);
+                Ok(PqcSignature::MlDsa87(Box::new(sig)))
+            }
+            _ => Err(crate::error::Error::Unrecognized),
+        }
+    }
+
+    fn hash_slh_dsa_sign(&self, msg: &[u8]) -> crate::error::Result<PqcSignature> {
+        let oid = self.oid;
+        let (hash_oid_bytes, hash) = if oid == ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256
+            || oid == ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256
+        {
+            (SHA256_OID_BYTES.as_slice(), Sha256::digest(msg).to_vec())
+        } else if oid == ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512
+        {
+            (SHA512_OID_BYTES.as_slice(), Sha512::digest(msg).to_vec())
+        } else if oid == ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128
+            || oid == ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128
+        {
+            let mut hasher = sha3::Shake128::default();
+            hasher.update(msg);
+            let mut output = vec![0u8; 32];
+            hasher.finalize_xof().read(&mut output);
+            (SHAKE128_OID_BYTES.as_slice(), output)
+        } else {
+            // SHAKE-256 variants (192 and 256)
+            let mut hasher = sha3::Shake256::default();
+            hasher.update(msg);
+            let mut output = vec![0u8; 64];
+            hasher.finalize_xof().read(&mut output);
+            (SHAKE256_OID_BYTES.as_slice(), output)
+        };
+
+        let mut message_rep = vec![0x01, 0x00];
+        message_rep.extend_from_slice(hash_oid_bytes);
+        message_rep.extend_from_slice(&hash);
+
+        match &self.keypair {
+            PqcKeyPair::Sha2_128s(sk) => Ok(PqcSignature::Sha2_128s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Sha2_128f(sk) => Ok(PqcSignature::Sha2_128f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Sha2_192s(sk) => Ok(PqcSignature::Sha2_192s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Sha2_192f(sk) => Ok(PqcSignature::Sha2_192f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Sha2_256s(sk) => Ok(PqcSignature::Sha2_256s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Sha2_256f(sk) => Ok(PqcSignature::Sha2_256f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake128s(sk) => Ok(PqcSignature::Shake128s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake128f(sk) => Ok(PqcSignature::Shake128f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake192s(sk) => Ok(PqcSignature::Shake192s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake192f(sk) => Ok(PqcSignature::Shake192f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake256s(sk) => Ok(PqcSignature::Shake256s(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            PqcKeyPair::Shake256f(sk) => Ok(PqcSignature::Shake256f(Box::new(
+                sk.slh_sign_internal(&[&message_rep], None),
+            ))),
+            _ => Err(crate::error::Error::Unrecognized),
+        }
+    }
+
+    fn is_hash_ml_dsa(&self) -> bool {
+        self.oid == ID_HASH_ML_DSA_44_WITH_SHA_512
+            || self.oid == ID_HASH_ML_DSA_65_WITH_SHA_512
+            || self.oid == ID_HASH_ML_DSA_87_WITH_SHA_512
+    }
+
+    fn is_hash_slh_dsa(&self) -> bool {
+        let oid = self.oid;
+        oid == ID_HASH_SLH_DSA_SHA_2_128_S_WITH_SHA_256
+            || oid == ID_HASH_SLH_DSA_SHA_2_128_F_WITH_SHA_256
+            || oid == ID_HASH_SLH_DSA_SHA_2_192_S_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_192_F_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_256_S_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHA_2_256_F_WITH_SHA_512
+            || oid == ID_HASH_SLH_DSA_SHAKE_128_S_WITH_SHAKE_128
+            || oid == ID_HASH_SLH_DSA_SHAKE_128_F_WITH_SHAKE_128
+            || oid == ID_HASH_SLH_DSA_SHAKE_192_S_WITH_SHAKE_256
+            || oid == ID_HASH_SLH_DSA_SHAKE_192_F_WITH_SHAKE_256
+            || oid == ID_HASH_SLH_DSA_SHAKE_256_S_WITH_SHAKE_256
+            || oid == ID_HASH_SLH_DSA_SHAKE_256_F_WITH_SHAKE_256
     }
 
     pub(crate) fn sign(&self, msg: &[u8]) -> crate::error::Result<PqcSignature> {
+        if self.is_hash_ml_dsa() {
+            return self.hash_ml_dsa_sign(msg);
+        }
+        if self.is_hash_slh_dsa() {
+            return self.hash_slh_dsa_sign(msg);
+        }
+
         match &self.keypair {
             PqcKeyPair::MlDsa44(kp) => {
                 Ok(PqcSignature::MlDsa44(Box::new(kp.signing_key().sign(msg))))
@@ -652,17 +832,23 @@ impl PqcSigner {
                 )))
             }
             PqcKeyPair::Mldsa44Rsa2048PssSha256(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new(sk.1.clone());
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
+                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new_with_salt_len(sk.1.clone(), 32);
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa44Rsa2048PssSha256(Box::new((
                     mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa44Rsa2048Pkcs15Sha256(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha256>::new(sk.1.clone());
                 let rsa = rsa_sk.sign(&msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa44Rsa2048Pkcs15Sha256(Box::new((
@@ -677,34 +863,46 @@ impl PqcSigner {
                 // Ok(PqcSignature::Mldsa44Ed25519Sha512(Box::new((mldsa, ecdsa))))
             }
             PqcKeyPair::Mldsa44EcdsaP256Sha256(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa44EcdsaP256Sha256(Box::new((
                     mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa3072PssSha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new(sk.1.clone());
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
+                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new_with_salt_len(sk.1.clone(), 32);
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa3072PssSha512(Box::new((
                     mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa4096PssSha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new_with_salt_len(sk.1.clone(), 48);
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa4096PssSha512(Box::new((
                     mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa65Rsa4096Pkcs15Sha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let rsa_sk = rsa::pkcs1v15::SigningKey::<Sha384>::new(sk.1.clone());
                 let rsa = rsa_sk.sign(&msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa65Rsa4096Pkcs15Sha512(Box::new((
@@ -712,16 +910,22 @@ impl PqcSigner {
                 ))))
             }
             PqcKeyPair::Mldsa65EcdsaP256Sha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa65EcdsaP256Sha512(Box::new((
                     mldsa, ecdsa,
                 ))))
             }
             PqcKeyPair::Mldsa65EcdsaP384Sha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa65EcdsaP384Sha512(Box::new((
                     mldsa, ecdsa,
@@ -735,8 +939,11 @@ impl PqcSigner {
                 // Ok(PqcSignature::Mldsa65Ed25519Sha512(Box::new((mldsa, ecdsa))))
             }
             PqcKeyPair::Mldsa87EcdsaP384Sha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa87EcdsaP384Sha512(Box::new((
                     mldsa, ecdsa,
@@ -746,26 +953,35 @@ impl PqcSigner {
                 todo!("support signing with Mldsa87Ed448Shake256")
             }
             PqcKeyPair::Mldsa87Rsa3072PssSha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new(sk.1.clone());
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
+                let rsa_sk = rsa::pss::SigningKey::<Sha256>::new_with_salt_len(sk.1.clone(), 32);
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa87Rsa3072PssSha512(Box::new((
                     mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa87Rsa4096PssSha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
-                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new(sk.1.clone());
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
+                let rsa_sk = rsa::pss::SigningKey::<Sha384>::new_with_salt_len(sk.1.clone(), 48);
                 let rsa = rsa_sk.sign_with_rng(&mut rand::rng(), &msg_rep).to_vec();
                 Ok(PqcSignature::Mldsa87Rsa4096PssSha512(Box::new((
                     mldsa, rsa,
                 ))))
             }
             PqcKeyPair::Mldsa87EcdsaP521Sha512(sk) => {
-                let msg_rep = self.prepare_message_rep(msg)?;
-                let mldsa = sk.0.signing_key().sign(&msg_rep);
+                let (msg_rep, label) = self.prepare_message_rep(msg)?;
+                let mldsa =
+                    sk.0.signing_key()
+                        .sign_randomized(&msg_rep, &label, &mut rand::rng())
+                        .map_err(|e| crate::error::Error::MlDsa(format!("{e:?}")))?;
                 let ecdsa = sk.1.sign(&msg_rep);
                 Ok(PqcSignature::Mldsa87EcdsaP521Sha512(Box::new((
                     mldsa, ecdsa,
@@ -788,7 +1004,7 @@ impl DynSignatureAlgorithmIdentifier for PqcSigner {
 impl EncodePublicKey for PqcSigner {
     fn to_public_key_der(&self) -> Result<Document, spki::Error> {
         let spki_algorithm = AlgorithmIdentifierOwned {
-            oid: self.oid(),
+            oid: self.spki_oid(),
             parameters: None, // Params absent for Dilithium keys per draft-ietf-lamps-dilithium-certificates-02 section 7
         };
         let ca_spki = SubjectPublicKeyInfoOwned {

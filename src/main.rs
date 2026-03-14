@@ -1,6 +1,11 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
-#![warn(missing_docs, rust_2018_idioms, unused_qualifications, clippy::unwrap_used)]
+#![warn(
+    missing_docs,
+    rust_2018_idioms,
+    unused_qualifications,
+    clippy::unwrap_used
+)]
 // todo - remove various allow(dead_code) instances
 
 mod args;
@@ -224,21 +229,21 @@ async fn main() -> Result<()> {
         let seed = signer.seed.clone();
         let private_key = signer.private_key();
         let private_key_bytes = match &args.sig {
-            SigAlgorithms::MlDsa44 => {
+            SigAlgorithms::MlDsa44 | SigAlgorithms::HashMlDsa44WithSha512 => {
                 let pk = MlDsa44PrivateKey::ExpandedKey(
                     MlDsa44Expanded::new(private_key.clone())
                         .map_err(|e| Error::MlKem(format!("{e:?}")))?,
                 );
                 pk.to_der()?
             }
-            SigAlgorithms::MlDsa65 => {
+            SigAlgorithms::MlDsa65 | SigAlgorithms::HashMlDsa65WithSha512 => {
                 let pk = MlDsa65PrivateKey::ExpandedKey(
                     MlDsa65Expanded::new(private_key.clone())
                         .map_err(|e| Error::MlKem(format!("{e:?}")))?,
                 );
                 pk.to_der()?
             }
-            SigAlgorithms::MlDsa87 => {
+            SigAlgorithms::MlDsa87 | SigAlgorithms::HashMlDsa87WithSha512 => {
                 let pk = MlDsa87PrivateKey::ExpandedKey(
                     MlDsa87Expanded::new(private_key.clone())
                         .map_err(|e| Error::MlKem(format!("{e:?}")))?,
@@ -273,19 +278,19 @@ async fn main() -> Result<()> {
             let _ = ta_file.write_all(&der_oak);
 
             let private_key_bytes_seed = match args.sig {
-                SigAlgorithms::MlDsa44 => {
+                SigAlgorithms::MlDsa44 | SigAlgorithms::HashMlDsa44WithSha512 => {
                     let pk = MlDsa44PrivateKey::Seed(
                         MlDsaSeed::new(seed.clone()).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                     );
                     pk.to_der()?
                 }
-                SigAlgorithms::MlDsa65 => {
+                SigAlgorithms::MlDsa65 | SigAlgorithms::HashMlDsa65WithSha512 => {
                     let pk = MlDsa65PrivateKey::Seed(
                         MlDsaSeed::new(seed.clone()).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                     );
                     pk.to_der()?
                 }
-                SigAlgorithms::MlDsa87 => {
+                SigAlgorithms::MlDsa87 | SigAlgorithms::HashMlDsa87WithSha512 => {
                     let pk = MlDsa87PrivateKey::Seed(
                         MlDsaSeed::new(seed.clone()).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                     );
@@ -296,26 +301,33 @@ async fn main() -> Result<()> {
                 }
             };
 
-            let oak_leaf_seed = OneAsymmetricKey {
-                version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
-                private_key_alg: AlgorithmIdentifier {
-                    oid: args.sig.oid(),
-                    parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
-                },
-                private_key: PrivateKey::new(private_key_bytes_seed)?,
-                attributes: None,
-                public_key: None,
-            };
-            let der_oak_seed = oak_leaf_seed
-                .to_der()
-                .expect("Failed to encode private key as OneAsymmetricKey");
+            // Seed and both formats are only meaningful for pure/hash ML-DSA where the
+            // entire private key is derivable from the seed. Composite keys include a
+            // traditional component (RSA/ECDSA) that cannot be regenerated from the
+            // ML-DSA seed, so we skip these formats for composite algorithms.
+            if !private_key_bytes_seed.is_empty() {
+                let oak_leaf_seed = OneAsymmetricKey {
+                    version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
+                    private_key_alg: AlgorithmIdentifier {
+                        oid: args.sig.oid(),
+                        parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
+                    },
+                    private_key: PrivateKey::new(private_key_bytes_seed)?,
+                    attributes: None,
+                    public_key: None,
+                };
+                let der_oak_seed = oak_leaf_seed
+                    .to_der()
+                    .expect("Failed to encode private key as OneAsymmetricKey");
 
-            let mut ee_key_file =
-                File::create(output_folder.join(format!("{}_seed_priv.der", args.sig.filename())))?;
-            let _ = ee_key_file.write_all(&der_oak_seed);
+                let mut ee_key_file = File::create(
+                    output_folder.join(format!("{}_seed_priv.der", args.sig.filename())),
+                )?;
+                let _ = ee_key_file.write_all(&der_oak_seed);
+            }
 
             let private_key_bytes_both = match args.sig {
-                SigAlgorithms::MlDsa44 => {
+                SigAlgorithms::MlDsa44 | SigAlgorithms::HashMlDsa44WithSha512 => {
                     let pk = MlDsa44Both {
                         seed: MlDsaSeed::new(seed).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                         expanded_key: MlDsa44Expanded::new(private_key)
@@ -323,7 +335,7 @@ async fn main() -> Result<()> {
                     };
                     pk.to_der()?
                 }
-                SigAlgorithms::MlDsa65 => {
+                SigAlgorithms::MlDsa65 | SigAlgorithms::HashMlDsa65WithSha512 => {
                     let pk = MlDsa65Both {
                         seed: MlDsaSeed::new(seed).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                         expanded_key: MlDsa65Expanded::new(private_key)
@@ -331,7 +343,7 @@ async fn main() -> Result<()> {
                     };
                     pk.to_der()?
                 }
-                SigAlgorithms::MlDsa87 => {
+                SigAlgorithms::MlDsa87 | SigAlgorithms::HashMlDsa87WithSha512 => {
                     let pk = MlDsa87Both {
                         seed: MlDsaSeed::new(seed).map_err(|e| Error::MlKem(format!("{e:?}")))?,
                         expanded_key: MlDsa87Expanded::new(private_key)
@@ -344,23 +356,26 @@ async fn main() -> Result<()> {
                 }
             };
 
-            let oak_leaf_both = OneAsymmetricKey {
-                version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
-                private_key_alg: AlgorithmIdentifier {
-                    oid: args.sig.oid(),
-                    parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
-                },
-                private_key: PrivateKey::new(private_key_bytes_both)?,
-                attributes: None,
-                public_key: None,
-            };
-            let der_oak_both = oak_leaf_both
-                .to_der()
-                .expect("Failed to encode private key as OneAsymmetricKey");
+            if !private_key_bytes_both.is_empty() {
+                let oak_leaf_both = OneAsymmetricKey {
+                    version: pqckeys::oak::Version::V1, // V1 per rfc5958 section 2
+                    private_key_alg: AlgorithmIdentifier {
+                        oid: args.sig.oid(),
+                        parameters: None, // Params absent for Kyber keys per draft-ietf-lamps-mlkem-certificates-02 section 6
+                    },
+                    private_key: PrivateKey::new(private_key_bytes_both)?,
+                    attributes: None,
+                    public_key: None,
+                };
+                let der_oak_both = oak_leaf_both
+                    .to_der()
+                    .expect("Failed to encode private key as OneAsymmetricKey");
 
-            let mut ee_key_file =
-                File::create(output_folder.join(format!("{}_both_priv.der", args.sig.filename())))?;
-            let _ = ee_key_file.write_all(&der_oak_both);
+                let mut ee_key_file = File::create(
+                    output_folder.join(format!("{}_both_priv.der", args.sig.filename())),
+                )?;
+                let _ = ee_key_file.write_all(&der_oak_both);
+            }
         } else {
             let mut ta_file =
                 File::create(output_folder.join(format!("{}_priv.der", args.sig.filename())))?;
