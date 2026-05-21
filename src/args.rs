@@ -176,6 +176,25 @@ pub struct KemriToyArgs {
     )]
     pub generate_cert: bool,
 
+    /// Generate a fresh key pair and emit a signed PKCS #10 CertificationRequest
+    #[clap(
+        action,
+        long,
+        conflicts_with = "ee_cert_file",
+        conflicts_with = "kem",
+        conflicts_with = "kdf",
+        conflicts_with = "enc",
+        conflicts_with = "aead",
+        conflicts_with = "auth_env_data",
+        conflicts_with = "ukm",
+        conflicts_with = "ee_key_file",
+        conflicts_with = "generate_cert",
+        conflicts_with = "generate_signed_data",
+        conflicts_with = "pub_key_file",
+        help_heading = "Certificate Generation"
+    )]
+    pub generate_csr: bool,
+
     /// Perform consistency checks for a private key --input-file and public key from certificate from
     /// --ee-cert-file
     #[clap(
