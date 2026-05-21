@@ -13,6 +13,9 @@ mod asn1;
 #[macro_use]
 mod misc;
 mod error;
+#[cfg(target_os = "windows")]
+mod no_bold;
+
 mod pqc;
 
 use certval::PkiEnvironment;
