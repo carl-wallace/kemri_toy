@@ -36,6 +36,7 @@ use x509_cert::{
     Certificate,
     builder::{Builder, CertificateBuilder, profile::cabf::Root},
     name::Name,
+    request::{CertReq, RequestBuilder},
     serial_number::SerialNumber,
     time::{Time, Validity},
 };
@@ -51,6 +52,7 @@ use crate::misc::algs::KemAlgorithms::{
     MlKem512 as OtherMlKem512, MlKem768 as OtherMlKem768, MlKem1024 as OtherMlKem1024,
 };
 use crate::misc::algs::{KemAlgorithms, SigAlgorithms};
+use crate::pqc::signature::PqcSignature;
 use crate::pqc::signer::PqcSigner;
 use crate::{
     asn1::{
@@ -97,6 +99,16 @@ fn get_random_serial() -> crate::error::Result<SerialNumber> {
     rand::rng().fill_bytes(&mut serial);
     serial[0] = 0x01;
     Ok(SerialNumber::new(&serial)?)
+}
+
+/// Generate a fresh key pair and a signed PKCS #10 CertificationRequest for it
+pub fn generate_csr(sig: &SigAlgorithms) -> crate::error::Result<(PqcSigner, CertReq)> {
+    let signer = sig.generate_key_pair()?;
+    let dn_str = format!("cn={} EE,o=Test,c=US", sig.filename());
+    let subject = Name::from_str(&dn_str)?;
+    let builder = RequestBuilder::new(subject)?;
+    let csr = builder.build::<_, PqcSignature>(&signer)?;
+    Ok((signer, csr))
 }
 
 /// Generate a new self-signed trust anchor certificate containing an ML_DSA_44_IPD key

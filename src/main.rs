@@ -13,6 +13,9 @@ mod asn1;
 #[macro_use]
 mod misc;
 mod error;
+#[cfg(target_os = "windows")]
+mod no_bold;
+
 mod pqc;
 
 use certval::PkiEnvironment;
@@ -47,7 +50,7 @@ use crate::{
     },
     misc::{
         check_private_key::check_private_key,
-        gen_certs::{generate_ml_kem_cert, generate_pki, generate_ta},
+        gen_certs::{generate_csr, generate_ml_kem_cert, generate_pki, generate_ta},
         utils::{
             generate_auth_enveloped_data, generate_enveloped_data, get_buffer_from_file_arg,
             get_cert_from_file_arg, process_content_info,
@@ -381,6 +384,66 @@ async fn main() -> Result<()> {
                 File::create(output_folder.join(format!("{}_priv.der", args.sig.filename())))?;
             let _ = ta_file.write_all(&der_oak);
         }
+
+        return Ok(());
+    }
+
+    if args.generate_csr {
+        let (signer, csr) = match generate_csr(&args.sig) {
+            Ok((signer, csr)) => (signer, csr),
+            Err(e) => {
+                error!("Failed to generate CSR: {e:?}");
+                return Err(e);
+            }
+        };
+
+        let private_key = signer.private_key();
+        let private_key_bytes = match &args.sig {
+            SigAlgorithms::MlDsa44 | SigAlgorithms::HashMlDsa44WithSha512 => {
+                let pk = MlDsa44PrivateKey::ExpandedKey(
+                    MlDsa44Expanded::new(private_key.clone())
+                        .map_err(|e| Error::MlKem(format!("{e:?}")))?,
+                );
+                pk.to_der()?
+            }
+            SigAlgorithms::MlDsa65 | SigAlgorithms::HashMlDsa65WithSha512 => {
+                let pk = MlDsa65PrivateKey::ExpandedKey(
+                    MlDsa65Expanded::new(private_key.clone())
+                        .map_err(|e| Error::MlKem(format!("{e:?}")))?,
+                );
+                pk.to_der()?
+            }
+            SigAlgorithms::MlDsa87 | SigAlgorithms::HashMlDsa87WithSha512 => {
+                let pk = MlDsa87PrivateKey::ExpandedKey(
+                    MlDsa87Expanded::new(private_key.clone())
+                        .map_err(|e| Error::MlKem(format!("{e:?}")))?,
+                );
+                pk.to_der()?
+            }
+            _ => private_key.clone(),
+        };
+
+        let oak_leaf = OneAsymmetricKey {
+            version: pqckeys::oak::Version::V1,
+            private_key_alg: AlgorithmIdentifier {
+                oid: args.sig.oid(),
+                parameters: None,
+            },
+            private_key: PrivateKey::new(private_key_bytes)?,
+            attributes: None,
+            public_key: None,
+        };
+        let der_oak = oak_leaf
+            .to_der()
+            .expect("Failed to encode private key as OneAsymmetricKey");
+
+        let csr_path = output_folder.join(format!("{}_csr.der", args.sig.filename()));
+        let mut csr_file = File::create(&csr_path)?;
+        let _ = csr_file.write_all(&csr.to_der()?);
+
+        let key_path = output_folder.join(format!("{}_csr_priv.der", args.sig.filename()));
+        let mut key_file = File::create(&key_path)?;
+        let _ = key_file.write_all(&der_oak);
 
         return Ok(());
     }
