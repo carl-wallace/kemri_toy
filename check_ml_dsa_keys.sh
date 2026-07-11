@@ -8,7 +8,7 @@
 set -e
 
 PKITS_TARGET="${1:-$HOME/devel/redhound/pcp-rs/target}"
-KEMRI_TOY="${2:-$HOME/devel/junk/kemri_toy/target/debug/kemri_toy}"
+KEMRI_TOY="${2:-$HOME/devel/agent/carl-wallace/kemri_toy/target/debug/kemri_toy}"
 
 TMPDIR_KEYS=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_KEYS"' EXIT
