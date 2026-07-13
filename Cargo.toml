@@ -13,11 +13,11 @@ der = { version="0.8.0", features = ["alloc", "derive", "flagset", "oid"] }
 spki = { version = "0.8.0-rc.4", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.3.0-rc.4", default-features = false, features = ["hazmat", "builder"] }
 
-certval = { git = "https://github.com/carl-wallace/rust-pki.git", features = ["std", "rsa", "pqc"], branch = "composite-08"}
-pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "kemri", features = ["pem"] }
+certval = { git = "https://github.com/carl-wallace/rust-pki.git", features = ["std", "rsa", "pqc"], branch = "main"}
+pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "updates", features = ["pem"] }
 
 # cryptography-related crates
-aes = { version = "=0.9.0-rc.4" }
+aes = { version = "0.9.1" }
 aes-gcm = { version = "0.11.0-rc.3" , features = ["arrayvec"]}
 aes-kw ="0.3.0-rc.2"
 cbc = { version = "0.2.0-rc.3" }
@@ -25,15 +25,15 @@ cipher = { version = "0.5.0", features = ["alloc", "block-padding", "rand_core"]
 ecdsa = {version = "0.17.0-rc.16", default-features = false, features = ["der", "pkcs8"]}
 ed25519-dalek = { version = "3.0.0-pre.6", default-features = false, features = ["fast", "zeroize", "pkcs8", "rand_core"] }
 ed448-goldilocks = {version = "0.14.0-pre.10", default-features = false}
-elliptic-curve = {version = "0.14.0-rc.28", default-features = false, features = ["sec1", "pkcs8"]}
+elliptic-curve = {version = "0.14.0-rc.29", default-features = false, features = ["sec1", "pkcs8"]}
 hkdf = "0.13.0-rc.5"
 hmac = "0.13.0-rc.5"
 kem = { version = "0.3.0-rc.6", features = ["getrandom"] }
 ml-dsa = "0.1.0-rc.7"
 ml-kem = { version = "0.3.0-rc.0" }
-p256 = {version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "pkcs8"]}
-p384 = {version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "pkcs8"]}
-p521 = {version = "0.14.0-rc.7", default-features = false, features = ["ecdsa", "pkcs8"]}
+p256 = {version = "0.14.0-rc.8", default-features = false, features = ["ecdsa", "pkcs8"]}
+p384 = {version = "0.14.0-rc.8", default-features = false, features = ["ecdsa", "pkcs8"]}
+p521 = {version = "0.14.0-rc.8", default-features = false, features = ["ecdsa", "pkcs8"]}
 rsa = { version = "0.10.0-rc.15", features = ["sha2"] }
 sha2 = "0.11.0-rc.5"
 sha3 = "0.11.0-rc.7"
