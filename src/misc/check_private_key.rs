@@ -61,10 +61,10 @@ macro_rules! check_ml_dsa_key {
     ($dsa:ty, $oak:expr, $spki:expr, $filename:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let sk_bytes = ml_dsa::ExpandedSigningKey::<$dsa>::try_from(private_key.as_slice())
+        let sk_bytes = ml_dsa::ExpandedSigningKeyBytes::<$dsa>::try_from(private_key.as_slice())
             .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
         #[allow(deprecated)]
-        let sk = ml_dsa::SigningKey::<$dsa>::from_expanded(&sk_bytes);
+        let sk = ml_dsa::ExpandedSigningKey::<$dsa>::from_expanded(&sk_bytes);
         let sig = sk.sign("abc".as_bytes());
         let vk = ml_dsa::VerifyingKey::<$dsa>::from_public_key_der(&$spki.to_der()?)
             .map_err(|e| crate::Error::Builder(format!("{e:?}")))?;
@@ -107,10 +107,10 @@ macro_rules! check_hash_ml_dsa_key {
     ($dsa:ty, $oak:expr, $spki:expr, $filename:expr, $hash_oid_bytes:expr) => {{
         let private_key =
             extract_private_key($oak.private_key_alg.oid, $oak.private_key.as_bytes())?;
-        let sk_bytes = ml_dsa::ExpandedSigningKey::<$dsa>::try_from(private_key.as_slice())
+        let sk_bytes = ml_dsa::ExpandedSigningKeyBytes::<$dsa>::try_from(private_key.as_slice())
             .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
         #[allow(deprecated)]
-        let sk = ml_dsa::SigningKey::<$dsa>::from_expanded(&sk_bytes);
+        let sk = ml_dsa::ExpandedSigningKey::<$dsa>::from_expanded(&sk_bytes);
 
         let test_msg = b"abc";
         let hash = sha2::Sha512::digest(test_msg);
@@ -233,10 +233,10 @@ macro_rules! check_composite_mldsa {
         let mldsa_sk_bytes = &$sk_bytes[..$sk_size];
         let mldsa_vk_bytes = &$pk_bytes[..$vk_size];
 
-        let sk_expanded = ml_dsa::ExpandedSigningKey::<$dsa>::try_from(mldsa_sk_bytes)
+        let sk_expanded = ml_dsa::ExpandedSigningKeyBytes::<$dsa>::try_from(mldsa_sk_bytes)
             .map_err(|e| Error::MlDsa(format!("{e:?}")))?;
         #[allow(deprecated)]
-        let sk = ml_dsa::SigningKey::<$dsa>::from_expanded(&sk_expanded);
+        let sk = ml_dsa::ExpandedSigningKey::<$dsa>::from_expanded(&sk_expanded);
         let sig = sk.sign("abc".as_bytes());
 
         let vk_encoded = ml_dsa::EncodedVerifyingKey::<$dsa>::try_from(mldsa_vk_bytes)
