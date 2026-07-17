@@ -954,6 +954,8 @@ pub fn get_filename_from_oid(oid: ObjectIdentifier) -> String {
         ID_ML_DSA_44 => "ml-dsa-44".to_string(),
         ID_ML_DSA_65 => "ml-dsa-65".to_string(),
         ID_ML_DSA_87 => "ml-dsa-87".to_string(),
+        OQ_FALCON_PADDED_512 => "fn-dsa-512".to_string(),
+        OQ_FALCON_PADDED_1024 => "fn-dsa-1024".to_string(),
         ID_SLH_DSA_SHA_2_128_S => "slh-dsa-sha2-128s".to_string(),
         ID_SLH_DSA_SHA_2_128_F => "slh-dsa-sha2-128f".to_string(),
         ID_SLH_DSA_SHA_2_192_S => "slh-dsa-sha2-192s".to_string(),

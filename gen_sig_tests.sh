@@ -1,6 +1,8 @@
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig ml-dsa44 --generate-signed-data
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig ml-dsa65 --generate-signed-data
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig ml-dsa87 --generate-signed-data
+RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig fn-dsa512 --generate-signed-data
+RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig fn-dsa1024 --generate-signed-data
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig slh-dsa-sha2-128s --generate-signed-data
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig slh-dsa-sha2-128f --generate-signed-data
 RUST_BACKTRACE=1 ./kemri_toy -g -o output --sig slh-dsa-sha2-192s --generate-signed-data

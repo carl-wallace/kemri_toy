@@ -11,6 +11,10 @@ pub enum PqcKeyPair {
     MlDsa44(Box<MlDsaSigningKey<MlDsa44>>),
     MlDsa65(Box<MlDsaSigningKey<MlDsa65>>),
     MlDsa87(Box<MlDsaSigningKey<MlDsa87>>),
+    /// FN-DSA (Falcon) 512, storing the `fn-dsa` encoded (signing key, verifying key) bytes.
+    FnDsa512(Box<(Vec<u8>, Vec<u8>)>),
+    /// FN-DSA (Falcon) 1024, storing the `fn-dsa` encoded (signing key, verifying key) bytes.
+    FnDsa1024(Box<(Vec<u8>, Vec<u8>)>),
     Sha2_128f(Box<SigningKey<Sha2_128f>>),
     Sha2_128s(Box<SigningKey<Sha2_128s>>),
     Sha2_192f(Box<SigningKey<Sha2_192f>>),

@@ -12,6 +12,10 @@ pub enum PqcSignature {
     MlDsa44(Box<Signature<MlDsa44>>),
     MlDsa65(Box<Signature<MlDsa65>>),
     MlDsa87(Box<Signature<MlDsa87>>),
+    /// FN-DSA (Falcon) 512 signature (fixed-length "padded" encoding).
+    FnDsa512(Vec<u8>),
+    /// FN-DSA (Falcon) 1024 signature (fixed-length "padded" encoding).
+    FnDsa1024(Vec<u8>),
     Sha2_128f(Box<slh_dsa::Signature<Sha2_128f>>),
     Sha2_128s(Box<slh_dsa::Signature<Sha2_128s>>),
     Sha2_192f(Box<slh_dsa::Signature<Sha2_192f>>),
@@ -47,6 +51,8 @@ impl PqcSignature {
             PqcSignature::MlDsa44(sig) => sig.encode().as_bytes().to_vec(),
             PqcSignature::MlDsa65(sig) => sig.encode().as_bytes().to_vec(),
             PqcSignature::MlDsa87(sig) => sig.encode().as_bytes().to_vec(),
+            PqcSignature::FnDsa512(sig) => sig.clone(),
+            PqcSignature::FnDsa1024(sig) => sig.clone(),
             PqcSignature::Sha2_128f(sig) => sig.to_vec(),
             PqcSignature::Sha2_128s(sig) => sig.to_vec(),
             PqcSignature::Sha2_192f(sig) => sig.to_vec(),
