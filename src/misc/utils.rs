@@ -492,6 +492,20 @@ pub(crate) fn extract_private_key(
                 }
             }
         }
+        OQ_FALCON_512 | OQ_FALCON_PADDED_512 | OQ_FALCON_1024 | OQ_FALCON_PADDED_1024 => {
+            // Other hackathon participants (e.g., BouncyCastle, CHT) wrap Falcon private keys in
+            // the draft-uni-qsckeys FalconPrivateKey structure while kemri_toy historically wrote
+            // the fn-dsa encoded signing key directly into the privateKey field. Accept both; the
+            // two cannot be confused because an fn-dsa signing key begins with 0x59 or 0x5A, not
+            // a SEQUENCE tag.
+            match crate::misc::falcon_qsckeys::fn_dsa_sk_from_falcon_private_key(
+                oid,
+                private_key_bytes,
+            ) {
+                Ok(sk) => Ok(sk),
+                Err(_) => Ok(private_key_bytes.to_vec()),
+            }
+        }
         _ => Ok(private_key_bytes.to_vec()),
     }
 }
