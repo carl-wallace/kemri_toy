@@ -13,7 +13,7 @@ der = { version="0.8.1", features = ["alloc", "derive", "flagset", "oid"] }
 spki = { version = "0.8.0", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.3.0", default-features = false, features = ["hazmat", "builder"] }
 
-certval = { git = "https://github.com/carl-wallace/rust-pki.git", features = ["std", "rsa", "pqc"], branch = "fn-dsa"}
+certval = { git = "https://github.com/carl-wallace/rust-pki.git", features = ["std", "rsa", "pqc"], branch = "pre-release"}
 pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "main", features = ["pem"] }
 
 # cryptography-related crates
@@ -27,6 +27,9 @@ ed25519-dalek = { version = "3.0.0", default-features = false, features = ["fast
 ed448-goldilocks = {version = "0.14.0-pre.15", default-features = false}
 elliptic-curve = {version = "0.14.1", default-features = false, features = ["sec1", "pkcs8"]}
 fn-dsa = { version = "0.3.0" }
+# FN-DSA (Falcon) verify-only crate, used by misc::fndsa_verify to register a Falcon
+# signature-verification callback on certval's PkiEnvironment (pre-standard, kept out of certval).
+fn-dsa-vrfy = { version = "0.3.0" }
 hkdf = "0.13.0"
 hmac = "0.13.0"
 kem = { version = "0.3.0", features = ["getrandom"] }

@@ -7,6 +7,7 @@ mod builder_profiles;
 pub mod check_private_key;
 pub mod ecdh;
 pub(crate) mod falcon_qsckeys;
+pub(crate) mod fndsa_verify;
 pub mod logging;
 pub mod rsa;
 pub mod signed_data;
