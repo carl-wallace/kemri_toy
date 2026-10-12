@@ -1,0 +1,37 @@
+# Dependency updates, monthly, one grouped pull request.
+#
+# Updates move Cargo.lock only (lockfile-only). kemri_toy ships a binary, whose lockfile is what
+# pins what it builds against; raising the requirements in Cargo.toml is a decision for a
+# dependency round rather than routine churn.
+#
+# Ignored: the git dependencies (certval and pkiprocmacros from rust-pki's pre-release branch,
+# pqckeys, and cms and x509-ocsp taken from git through [patch.crates-io]). They move deliberately,
+# and every upstream push would otherwise produce a pull request.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+    versioning-strategy: lockfile-only
+    open-pull-requests-limit: 3
+    groups:
+      cargo:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "certval"
+      - dependency-name: "cms"
+      - dependency-name: "pkiprocmacros"
+      - dependency-name: "pqckeys"
+      - dependency-name: "x509-ocsp"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns:
+          - "*"

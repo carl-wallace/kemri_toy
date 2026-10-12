@@ -90,6 +90,11 @@ async fn main() -> Result<()> {
 
         let mut pe = PkiEnvironment::default();
         pe.populate_5280_pki_environment();
+        // FN-DSA (Falcon) is pre-standard and no longer built into certval; register kemri_toy's
+        // own verifier so Falcon-signed artifacts can be verified through the environment.
+        pe.add_verify_signature_message_callback(
+            misc::fndsa_verify::verify_signature_message_fndsa,
+        );
 
         let (_intermediate_ca_certs, leaf_cert) = get_candidate_signer_cert(&sd)?;
         for si in sd.signer_infos.0.iter() {

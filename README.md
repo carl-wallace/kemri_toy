@@ -77,7 +77,7 @@ Signing:
           Signature algorithm to use when preparing a certificate or SignedData object
           
           [default: ml-dsa44]
-          [possible values: ml-dsa44, ml-dsa65, ml-dsa87, slh-dsa-sha2-128s, slh-dsa-sha2-128f, slh-dsa-sha2-192s, slh-dsa-sha2-192f, slh-dsa-sha2-256s, slh-dsa-sha2-256f, slh-dsa-shake128s, slh-dsa-shake128f, slh-dsa-shake192s, slh-dsa-shake192f, slh-dsa-shake256s, slh-dsa-shake256f, mldsa44-rsa2048-pss-sha256, mldsa44-rsa2048-pkcs15-sha256, mldsa44-ed25519-sha512, mldsa44-ecdsa-p256-sha256, mldsa65-rsa3072-pss-sha512, mldsa65-rsa4096-pss-sha512, mldsa65-rsa4096-pkcs15-sha512, mldsa65-ecdsa-p256-sha512, mldsa65-ecdsa-p384-sha512, mldsa65-ed25519-sha512, mldsa87-ecdsa-p384-sha512, mldsa87-ed448-shake256, mldsa87-rsa3072-pss-sha512, mldsa87-rsa4096-pss-sha512, mldsa87-ecdsa-p521-sha512]
+          [possible values: ml-dsa44, ml-dsa65, ml-dsa87, fn-dsa512, fn-dsa1024, slh-dsa-sha2-128s, slh-dsa-sha2-128f, slh-dsa-sha2-192s, slh-dsa-sha2-192f, slh-dsa-sha2-256s, slh-dsa-sha2-256f, slh-dsa-shake128s, slh-dsa-shake128f, slh-dsa-shake192s, slh-dsa-shake192f, slh-dsa-shake256s, slh-dsa-shake256f, mldsa44-rsa2048-pss-sha256, mldsa44-rsa2048-pkcs15-sha256, mldsa44-ed25519-sha512, mldsa44-ecdsa-p256-sha256, mldsa65-rsa3072-pss-sha512, mldsa65-rsa4096-pss-sha512, mldsa65-rsa4096-pkcs15-sha512, mldsa65-ecdsa-p256-sha512, mldsa65-ecdsa-p384-sha512, mldsa65-ed25519-sha512, mldsa87-ecdsa-p384-sha512, mldsa87-ed448-shake256, mldsa87-rsa3072-pss-sha512, mldsa87-rsa4096-pss-sha512, mldsa87-ecdsa-p521-sha512]
 
       --generate-signed-data
           Also generate a SignedData when generating a fresh signature key pair

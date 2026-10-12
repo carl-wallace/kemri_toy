@@ -28,11 +28,13 @@ use pqckeys::pqc_oids::{
     ID_MLDSA65_ECDSA_P256_SHA512, ID_MLDSA65_ECDSA_P384_SHA512, ID_MLDSA65_RSA3072_PSS_SHA512,
     ID_MLDSA65_RSA4096_PKCS15_SHA512, ID_MLDSA65_RSA4096_PSS_SHA512, ID_MLDSA87_ECDSA_P384_SHA512,
     ID_MLDSA87_ECDSA_P521_SHA512, ID_MLDSA87_RSA3072_PSS_SHA512, ID_MLDSA87_RSA4096_PSS_SHA512,
+    OQ_FALCON_512, OQ_FALCON_1024, OQ_FALCON_PADDED_512, OQ_FALCON_PADDED_1024,
 };
 
 use crate::error::{Error, Result};
 use crate::misc::gen_certs::buffer_to_hex;
 use crate::misc::utils::extract_private_key;
+use crate::pqc::signer::FnDsaRng;
 
 macro_rules! check_ml_kem_key {
     ($ct_ty:ty, $oak:expr, $spki:expr, $filename:expr) => {{
@@ -374,6 +376,37 @@ fn check_composite_ecdsa_p521(
     }
 }
 
+/// Check an FN-DSA (Falcon) key pair by signing a test message with the private key and verifying
+/// it against the public key from the certificate. Uses DOMAIN_NONE + HASH_ID_ORIGINAL_FALCON to
+/// match kemri_toy's signing and certval's verification (round-3 Falcon semantics).
+fn check_fn_dsa_key(sign_key_bytes: &[u8], vk_bytes: &[u8], filename: &str) -> Result<bool> {
+    use fn_dsa::{SigningKey as _, VerifyingKey as _};
+    let mut sk = fn_dsa::SigningKeyStandard::decode(sign_key_bytes)
+        .ok_or_else(|| Error::Builder("Failed to decode FN-DSA signing key".to_string()))?;
+    let mut sig = vec![0u8; fn_dsa::signature_size(sk.get_logn())];
+    sk.sign(
+        &mut FnDsaRng,
+        &fn_dsa::DOMAIN_NONE,
+        &fn_dsa::HASH_ID_ORIGINAL_FALCON,
+        b"abc",
+        &mut sig,
+    );
+    let vk = fn_dsa::VerifyingKeyStandard::decode(vk_bytes)
+        .ok_or_else(|| Error::Builder("Failed to decode FN-DSA verifying key".to_string()))?;
+    if vk.verify(
+        &sig,
+        &fn_dsa::DOMAIN_NONE,
+        &fn_dsa::HASH_ID_ORIGINAL_FALCON,
+        b"abc",
+    ) {
+        println!("Consistency check passed for {filename}");
+        Ok(true)
+    } else {
+        error!("Consistency check failed for {filename}");
+        Ok(false)
+    }
+}
+
 /// Takes a buffer containing a OneAsymmetricKey and a SubjectPublicKeyInfo and performs a consistency
 /// check to affirm the two correspond, i.e., encap/decap or sign/verify.
 pub(crate) fn check_private_key(
@@ -388,6 +421,14 @@ pub(crate) fn check_private_key(
         check_ml_dsa_key!(MlDsa65, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_ML_DSA_87 {
         check_ml_dsa_key!(MlDsa87, oak, spki, filename);
+    } else if oak.private_key_alg.oid == OQ_FALCON_PADDED_512
+        || oak.private_key_alg.oid == OQ_FALCON_512
+        || oak.private_key_alg.oid == OQ_FALCON_PADDED_1024
+        || oak.private_key_alg.oid == OQ_FALCON_1024
+    {
+        // SigningKeyStandard/VerifyingKeyStandard auto-detect the degree (512 vs 1024).
+        let sk_bytes = extract_private_key(oak.private_key_alg.oid, oak.private_key.as_bytes())?;
+        check_fn_dsa_key(&sk_bytes, spki.subject_public_key.raw_bytes(), filename)
     } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_128_F {
         check_slh_dsa_key!(Sha2_128f, oak, spki, filename);
     } else if oak.private_key_alg.oid == ID_SLH_DSA_SHA_2_128_S {

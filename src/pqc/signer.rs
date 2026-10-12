@@ -30,6 +30,9 @@ use const_oid::db::fips205::{
     ID_SLH_DSA_SHAKE_192_F, ID_SLH_DSA_SHAKE_192_S, ID_SLH_DSA_SHAKE_256_F, ID_SLH_DSA_SHAKE_256_S,
 };
 use const_oid::db::rfc5912::{ID_SHA_256, ID_SHA_512};
+use fn_dsa::{
+    DOMAIN_NONE, HASH_ID_ORIGINAL_FALCON, SigningKey, SigningKeyStandard, signature_size,
+};
 use lazy_static::lazy_static;
 use pqckeys::pqc_oids::{
     ID_MLDSA44_ECDSA_P256_SHA256, ID_MLDSA44_ED25519_SHA512, ID_MLDSA44_RSA2048_PKCS15_SHA256,
@@ -37,6 +40,7 @@ use pqckeys::pqc_oids::{
     ID_MLDSA65_ED25519_SHA512, ID_MLDSA65_RSA3072_PSS_SHA512, ID_MLDSA65_RSA4096_PKCS15_SHA512,
     ID_MLDSA65_RSA4096_PSS_SHA512, ID_MLDSA87_ECDSA_P384_SHA512, ID_MLDSA87_ECDSA_P521_SHA512,
     ID_MLDSA87_ED448_SHAKE256, ID_MLDSA87_RSA3072_PSS_SHA512, ID_MLDSA87_RSA4096_PSS_SHA512,
+    OQ_FALCON_PADDED_512, OQ_FALCON_PADDED_1024,
 };
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use sha2::{Digest, Sha256, Sha384, Sha512};
@@ -66,6 +70,33 @@ lazy_static! {
     static ref PREFIX: [u8; 32] =
         hex_literal::hex!("436F6D706F73697465416C676F726974686D5369676E61747572657332303235");
 }
+
+/// Adapter that exposes the crate-wide `rand` (0.10) thread RNG through the `rand_core` 0.6
+/// [`RngCore`](fn_dsa::RngCore)/[`CryptoRng`](fn_dsa::CryptoRng) traits required by the `fn-dsa`
+/// crate for FN-DSA (Falcon) key generation and signing.
+pub(crate) struct FnDsaRng;
+
+impl fn_dsa::RngCore for FnDsaRng {
+    fn next_u32(&mut self) -> u32 {
+        let mut b = [0u8; 4];
+        <Self as fn_dsa::RngCore>::fill_bytes(self, &mut b);
+        u32::from_le_bytes(b)
+    }
+    fn next_u64(&mut self) -> u64 {
+        let mut b = [0u8; 8];
+        <Self as fn_dsa::RngCore>::fill_bytes(self, &mut b);
+        u64::from_le_bytes(b)
+    }
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        use rand::RngExt;
+        rand::rng().fill(dest);
+    }
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), fn_dsa::RngError> {
+        <Self as fn_dsa::RngCore>::fill_bytes(self, dest);
+        Ok(())
+    }
+}
+impl fn_dsa::CryptoRng for FnDsaRng {}
 
 pub fn get_hash_alg(composite_oid: ObjectIdentifier) -> crate::error::Result<ObjectIdentifier> {
     if composite_oid == ID_MLDSA44_RSA2048_PKCS15_SHA256
@@ -131,6 +162,8 @@ impl PqcSigner {
             PqcKeyPair::MlDsa44(_) => ID_ML_DSA_44,
             PqcKeyPair::MlDsa65(_) => ID_ML_DSA_65,
             PqcKeyPair::MlDsa87(_) => ID_ML_DSA_87,
+            PqcKeyPair::FnDsa512(_) => OQ_FALCON_PADDED_512,
+            PqcKeyPair::FnDsa1024(_) => OQ_FALCON_PADDED_1024,
             PqcKeyPair::Sha2_128f(_) => ID_SLH_DSA_SHA_2_128_F,
             PqcKeyPair::Sha2_128s(_) => ID_SLH_DSA_SHA_2_128_S,
             PqcKeyPair::Sha2_192f(_) => ID_SLH_DSA_SHA_2_192_F,
@@ -176,6 +209,8 @@ impl PqcSigner {
                 let vk = kp.verifying_key();
                 vk.encode().as_bytes().to_vec()
             }
+            PqcKeyPair::FnDsa512(kp) => kp.1.clone(),
+            PqcKeyPair::FnDsa1024(kp) => kp.1.clone(),
             PqcKeyPair::Sha2_128f(sk) => sk.verifying_key().to_vec(),
             PqcKeyPair::Sha2_128s(sk) => sk.verifying_key().to_vec(),
             PqcKeyPair::Sha2_192f(sk) => sk.verifying_key().to_vec(),
@@ -334,6 +369,8 @@ impl PqcSigner {
                 let sk = kp;
                 sk.to_expanded().as_bytes().to_vec()
             }
+            PqcKeyPair::FnDsa512(kp) => kp.0.clone(),
+            PqcKeyPair::FnDsa1024(kp) => kp.0.clone(),
             PqcKeyPair::Sha2_128f(sk) => sk.to_vec(),
             PqcKeyPair::Sha2_128s(sk) => sk.to_vec(),
             PqcKeyPair::Sha2_192f(sk) => sk.to_vec(),
@@ -481,6 +518,8 @@ impl PqcSigner {
             PqcKeyPair::MlDsa87(kp) => {
                 PqcVerifyingKey::MlDsa87(Box::new(kp.verifying_key().clone()))
             }
+            PqcKeyPair::FnDsa512(kp) => PqcVerifyingKey::FnDsa512(kp.1.clone()),
+            PqcKeyPair::FnDsa1024(kp) => PqcVerifyingKey::FnDsa1024(kp.1.clone()),
             PqcKeyPair::Sha2_128f(sk) => {
                 PqcVerifyingKey::Sha2_128f(Box::new(sk.verifying_key().clone()))
             }
@@ -753,6 +792,34 @@ impl PqcSigner {
             PqcKeyPair::MlDsa44(kp) => Ok(PqcSignature::MlDsa44(Box::new(kp.sign(msg)))),
             PqcKeyPair::MlDsa65(kp) => Ok(PqcSignature::MlDsa65(Box::new(kp.sign(msg)))),
             PqcKeyPair::MlDsa87(kp) => Ok(PqcSignature::MlDsa87(Box::new(kp.sign(msg)))),
+            PqcKeyPair::FnDsa512(kp) => {
+                let mut sk =
+                    SigningKeyStandard::decode(&kp.0).ok_or(crate::error::Error::Unrecognized)?;
+                let mut sig = vec![0u8; signature_size(sk.get_logn())];
+                // DOMAIN_NONE + HASH_ID_ORIGINAL_FALCON matches certval's FN-DSA verify path
+                // (round-3 Falcon semantics: SHAKE256(nonce || message), no domain separation).
+                sk.sign(
+                    &mut FnDsaRng,
+                    &DOMAIN_NONE,
+                    &HASH_ID_ORIGINAL_FALCON,
+                    msg,
+                    &mut sig,
+                );
+                Ok(PqcSignature::FnDsa512(sig))
+            }
+            PqcKeyPair::FnDsa1024(kp) => {
+                let mut sk =
+                    SigningKeyStandard::decode(&kp.0).ok_or(crate::error::Error::Unrecognized)?;
+                let mut sig = vec![0u8; signature_size(sk.get_logn())];
+                sk.sign(
+                    &mut FnDsaRng,
+                    &DOMAIN_NONE,
+                    &HASH_ID_ORIGINAL_FALCON,
+                    msg,
+                    &mut sig,
+                );
+                Ok(PqcSignature::FnDsa1024(sig))
+            }
             PqcKeyPair::Sha2_128f(sk) => {
                 let mut rng = rand::rng();
                 Ok(PqcSignature::Sha2_128f(Box::new(

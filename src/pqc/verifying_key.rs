@@ -15,6 +15,7 @@ use pqckeys::pqc_oids::{
     ID_MLDSA65_ED25519_SHA512, ID_MLDSA65_RSA3072_PSS_SHA512, ID_MLDSA65_RSA4096_PKCS15_SHA512,
     ID_MLDSA65_RSA4096_PSS_SHA512, ID_MLDSA87_ECDSA_P384_SHA512, ID_MLDSA87_ECDSA_P521_SHA512,
     ID_MLDSA87_ED448_SHAKE256, ID_MLDSA87_RSA3072_PSS_SHA512, ID_MLDSA87_RSA4096_PSS_SHA512,
+    OQ_FALCON_PADDED_512, OQ_FALCON_PADDED_1024,
 };
 use rsa::RsaPublicKey;
 use slh_dsa::{
@@ -33,6 +34,10 @@ pub enum PqcVerifyingKey {
     MlDsa44(Box<VerifyingKey<MlDsa44>>),
     MlDsa65(Box<VerifyingKey<MlDsa65>>),
     MlDsa87(Box<VerifyingKey<MlDsa87>>),
+    /// FN-DSA (Falcon) 512, storing the `fn-dsa` encoded verifying key bytes.
+    FnDsa512(Vec<u8>),
+    /// FN-DSA (Falcon) 1024, storing the `fn-dsa` encoded verifying key bytes.
+    FnDsa1024(Vec<u8>),
     Sha2_128f(Box<slh_dsa::VerifyingKey<Sha2_128f>>),
     Sha2_128s(Box<slh_dsa::VerifyingKey<Sha2_128s>>),
     Sha2_192f(Box<slh_dsa::VerifyingKey<Sha2_192f>>),
@@ -68,6 +73,8 @@ impl PqcVerifyingKey {
             PqcVerifyingKey::MlDsa44(_) => ID_ML_DSA_44,
             PqcVerifyingKey::MlDsa65(_) => ID_ML_DSA_65,
             PqcVerifyingKey::MlDsa87(_) => ID_ML_DSA_87,
+            PqcVerifyingKey::FnDsa512(_) => OQ_FALCON_PADDED_512,
+            PqcVerifyingKey::FnDsa1024(_) => OQ_FALCON_PADDED_1024,
             PqcVerifyingKey::Sha2_128f(_) => ID_SLH_DSA_SHA_2_128_F,
             PqcVerifyingKey::Sha2_128s(_) => ID_SLH_DSA_SHA_2_128_S,
             PqcVerifyingKey::Sha2_192f(_) => ID_SLH_DSA_SHA_2_192_F,
@@ -103,6 +110,8 @@ impl PqcVerifyingKey {
             PqcVerifyingKey::MlDsa44(vk) => vk.encode().as_bytes().to_vec(),
             PqcVerifyingKey::MlDsa65(vk) => vk.encode().as_bytes().to_vec(),
             PqcVerifyingKey::MlDsa87(vk) => vk.encode().as_bytes().to_vec(),
+            PqcVerifyingKey::FnDsa512(vk) => vk.clone(),
+            PqcVerifyingKey::FnDsa1024(vk) => vk.clone(),
             PqcVerifyingKey::Sha2_128f(vk) => vk.to_bytes().to_vec(),
             PqcVerifyingKey::Sha2_128s(vk) => vk.to_bytes().to_vec(),
             PqcVerifyingKey::Sha2_192f(vk) => vk.to_bytes().to_vec(),

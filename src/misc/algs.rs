@@ -43,7 +43,7 @@ use elliptic_curve::Generate;
 use pqckeys::pqc_oids::*;
 
 use crate::pqc::key_pair::PqcKeyPair;
-use crate::pqc::signer::PqcSigner;
+use crate::pqc::signer::{FnDsaRng, PqcSigner};
 use crate::{
     asn1::oids::{
         ID_ALG_HKDF_WITH_SHA256, ID_ALG_HKDF_WITH_SHA384, ID_ALG_HKDF_WITH_SHA512, ID_KMAC128,
@@ -52,6 +52,10 @@ use crate::{
     error,
     error::Error,
     misc::{gen_certs, utils::get_filename_from_oid},
+};
+use fn_dsa::{
+    FN_DSA_LOGN_512, FN_DSA_LOGN_1024, KeyPairGenerator, KeyPairGeneratorStandard, sign_key_size,
+    vrfy_key_size,
 };
 
 /// KEM algorithms available via command line argument
@@ -248,6 +252,10 @@ pub enum SigAlgorithms {
     MlDsa44,
     MlDsa65,
     MlDsa87,
+    #[value(name = "fn-dsa512")]
+    FnDsa512,
+    #[value(name = "fn-dsa1024")]
+    FnDsa1024,
     SlhDsaSha2_128s,
     SlhDsaSha2_128f,
     SlhDsaSha2_192s,
@@ -335,6 +343,8 @@ impl fmt::Display for SigAlgorithms {
             SigAlgorithms::MlDsa44 => write!(f, "ml-dsa44"),
             SigAlgorithms::MlDsa65 => write!(f, "ml-dsa65"),
             SigAlgorithms::MlDsa87 => write!(f, "ml-dsa87"),
+            SigAlgorithms::FnDsa512 => write!(f, "fn-dsa512"),
+            SigAlgorithms::FnDsa1024 => write!(f, "fn-dsa1024"),
             SigAlgorithms::SlhDsaSha2_128s => write!(f, "slh-dsa-sha2-128s"),
             SigAlgorithms::SlhDsaSha2_128f => write!(f, "slh-dsa-sha2-128f"),
             SigAlgorithms::SlhDsaSha2_192s => write!(f, "slh-dsa-sha2-192s"),
@@ -459,6 +469,31 @@ impl SigAlgorithms {
                 Ok(PqcSigner::new(
                     xi.clone().as_slice(),
                     PqcKeyPair::MlDsa87(Box::new(MlDsaSigningKey::<MlDsa87>::from_seed(&xi))),
+                ))
+            }
+            SigAlgorithms::FnDsa512 => {
+                let mut sign_key = vec![0u8; sign_key_size(FN_DSA_LOGN_512)];
+                let mut vrfy_key = vec![0u8; vrfy_key_size(FN_DSA_LOGN_512)];
+                let mut kg = KeyPairGeneratorStandard::default();
+                kg.keygen(FN_DSA_LOGN_512, &mut FnDsaRng, &mut sign_key, &mut vrfy_key);
+                Ok(PqcSigner::new(
+                    &[],
+                    PqcKeyPair::FnDsa512(Box::new((sign_key, vrfy_key))),
+                ))
+            }
+            SigAlgorithms::FnDsa1024 => {
+                let mut sign_key = vec![0u8; sign_key_size(FN_DSA_LOGN_1024)];
+                let mut vrfy_key = vec![0u8; vrfy_key_size(FN_DSA_LOGN_1024)];
+                let mut kg = KeyPairGeneratorStandard::default();
+                kg.keygen(
+                    FN_DSA_LOGN_1024,
+                    &mut FnDsaRng,
+                    &mut sign_key,
+                    &mut vrfy_key,
+                );
+                Ok(PqcSigner::new(
+                    &[],
+                    PqcKeyPair::FnDsa1024(Box::new((sign_key, vrfy_key))),
                 ))
             }
             SigAlgorithms::SlhDsaSha2_128s => Ok(PqcSigner::new(
@@ -733,6 +768,8 @@ impl SigAlgorithms {
             ID_ML_DSA_44 => Ok(SigAlgorithms::MlDsa44),
             ID_ML_DSA_65 => Ok(SigAlgorithms::MlDsa65),
             ID_ML_DSA_87 => Ok(SigAlgorithms::MlDsa87),
+            OQ_FALCON_512 | OQ_FALCON_PADDED_512 => Ok(SigAlgorithms::FnDsa512),
+            OQ_FALCON_1024 | OQ_FALCON_PADDED_1024 => Ok(SigAlgorithms::FnDsa1024),
             ID_SLH_DSA_SHA_2_128_S => Ok(SigAlgorithms::SlhDsaSha2_128s),
             ID_SLH_DSA_SHA_2_128_F => Ok(SigAlgorithms::SlhDsaSha2_128f),
             ID_SLH_DSA_SHA_2_192_S => Ok(SigAlgorithms::SlhDsaSha2_192s),
@@ -809,6 +846,8 @@ impl SigAlgorithms {
             SigAlgorithms::MlDsa44 => ID_ML_DSA_44,
             SigAlgorithms::MlDsa65 => ID_ML_DSA_65,
             SigAlgorithms::MlDsa87 => ID_ML_DSA_87,
+            SigAlgorithms::FnDsa512 => OQ_FALCON_PADDED_512,
+            SigAlgorithms::FnDsa1024 => OQ_FALCON_PADDED_1024,
             SigAlgorithms::SlhDsaSha2_128s => ID_SLH_DSA_SHA_2_128_S,
             SigAlgorithms::SlhDsaSha2_128f => ID_SLH_DSA_SHA_2_128_F,
             SigAlgorithms::SlhDsaSha2_192s => ID_SLH_DSA_SHA_2_192_S,
@@ -889,6 +928,20 @@ impl SigAlgorithms {
             }
             SigAlgorithms::MlDsa87 => {
                 format!("{}-{}", get_filename_from_oid(ID_ML_DSA_87), ID_ML_DSA_87)
+            }
+            SigAlgorithms::FnDsa512 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(OQ_FALCON_PADDED_512),
+                    OQ_FALCON_PADDED_512
+                )
+            }
+            SigAlgorithms::FnDsa1024 => {
+                format!(
+                    "{}-{}",
+                    get_filename_from_oid(OQ_FALCON_PADDED_1024),
+                    OQ_FALCON_PADDED_1024
+                )
             }
             SigAlgorithms::SlhDsaSha2_128s => {
                 format!(

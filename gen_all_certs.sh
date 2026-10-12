@@ -26,6 +26,10 @@ ALGORITHMS=(
     ml-dsa65
     ml-dsa87
 
+    # Pure FN-DSA (Falcon)
+    fn-dsa512
+    fn-dsa1024
+
     # Pure SLH-DSA SHA-2
     slh-dsa-sha2-128s
     slh-dsa-sha2-128f
