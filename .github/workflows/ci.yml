@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "pre-release" ]
+  pull_request:
+    branches: [ "main" ]
+  # Manual re-runs via `gh workflow run ci.yml` (available once this file is
+  # on the default branch).
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+# The crate has no features, so each job runs one configuration. --locked everywhere: Cargo.lock
+# is checked in, and a run that re-resolved it would test dependencies the repository does not pin.
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --locked --all-targets
+
+  doc:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo doc --locked --no-deps
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked
+
+  # The declared rust-version in Cargo.toml. The toolchain goes in `with:` rather than the action
+  # ref: as `@1.85.0` Dependabot reads it as an action version and proposes "updating" it.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+      - run: cargo check --locked --all-targets
