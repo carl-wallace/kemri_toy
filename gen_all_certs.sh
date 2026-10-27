@@ -8,6 +8,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTPUT_DIR="${1:-$SCRIPT_DIR/artifacts_certs_r5}"
 ZIP_FILE="${2:-$SCRIPT_DIR/artifacts_certs_r5.zip}"
+# The zip step runs from the output directory's parent, so a relative zip path must be resolved here
+ZIP_FILE="$(cd "$(dirname "$ZIP_FILE")" && pwd)/$(basename "$ZIP_FILE")"
 
 # Build in release mode for faster SLH-DSA key generation
 echo "Building kemri_toy (release)..."
@@ -19,16 +21,13 @@ rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 # All signature algorithms that kemri_toy can generate certificates for.
-# Excludes algorithms that use todo!() (ed25519, ed448 variants).
+# Excludes algorithms that use todo!() (ed25519, ed448 variants) and FN-DSA, which has no
+# published FIPS 206 or OID.
 ALGORITHMS=(
     # Pure ML-DSA
     ml-dsa44
     ml-dsa65
     ml-dsa87
-
-    # Pure FN-DSA (Falcon)
-    fn-dsa512
-    fn-dsa1024
 
     # Pure SLH-DSA SHA-2
     slh-dsa-sha2-128s
