@@ -747,7 +747,7 @@ impl SigAlgorithms {
                 let mldsa = MlDsaSigningKey::<MlDsa87>::from_seed(&xi);
                 Ok(PqcSigner::new(
                     xi.clone().as_slice(),
-                    PqcKeyPair::Mldsa87Rsa3072PssSha512(Box::new((mldsa, rsa))),
+                    PqcKeyPair::Mldsa87Rsa4096PssSha512(Box::new((mldsa, rsa))),
                 ))
             }
             SigAlgorithms::Mldsa87EcdsaP521Sha512 => {
