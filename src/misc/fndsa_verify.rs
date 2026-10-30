@@ -20,6 +20,7 @@
 
 use log::error;
 
+use der::asn1::BitString;
 use fn_dsa_vrfy::{
     DOMAIN_NONE, FN_DSA_LOGN_512, FN_DSA_LOGN_1024, HASH_ID_ORIGINAL_FALCON, VerifyingKey,
     VerifyingKey512, VerifyingKey1024, signature_size,
@@ -80,14 +81,16 @@ fn verify_falcon<VK: VerifyingKey>(
 pub fn verify_signature_message_fndsa(
     _pe: &PkiEnvironment,
     message_to_verify: &[u8],                 // buffer to verify
-    signature: &[u8],                         // signature
+    signature: &BitString,                    // signature
     signature_alg: &AlgorithmIdentifierOwned, // signature algorithm
     spki: &SubjectPublicKeyInfoOwned,         // public key
 ) -> certval::Result<()> {
     let spki_val = spki.subject_public_key.raw_bytes();
     if OQ_FALCON_512 == signature_alg.oid || OQ_FALCON_PADDED_512 == signature_alg.oid {
+        let signature = signature.as_bytes().ok_or(Error::ParseError)?;
         verify_falcon::<VerifyingKey512>(FN_DSA_LOGN_512, message_to_verify, spki_val, signature)
     } else if OQ_FALCON_1024 == signature_alg.oid || OQ_FALCON_PADDED_1024 == signature_alg.oid {
+        let signature = signature.as_bytes().ok_or(Error::ParseError)?;
         verify_falcon::<VerifyingKey1024>(FN_DSA_LOGN_1024, message_to_verify, spki_val, signature)
     } else {
         Err(Error::Unrecognized)
@@ -117,7 +120,7 @@ mod tests {
         verify_signature_message_fndsa(
             &pe,
             &parts.tbs_field,
-            parts.signature.raw_bytes(),
+            &parts.signature,
             &parts.signature_algorithm,
             spki,
         )
@@ -131,7 +134,7 @@ mod tests {
         pe.verify_signature_message(
             &pe,
             &parts.tbs_field,
-            parts.signature.raw_bytes(),
+            &parts.signature,
             &parts.signature_algorithm,
             spki,
         )
@@ -182,7 +185,7 @@ mod tests {
             verify_signature_message_fndsa(
                 &pe,
                 &tbs,
-                parts.signature.raw_bytes(),
+                &parts.signature,
                 &parts.signature_algorithm,
                 cert.tbs_certificate().subject_public_key_info(),
             )

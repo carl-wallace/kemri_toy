@@ -171,17 +171,16 @@ pub fn get_candidate_signer_cert(sd: &SignedData) -> Result<(Vec<Certificate>, C
 }
 
 pub(crate) fn is_ca(cert: &Certificate) -> bool {
-    if let Some(exts) = cert.tbs_certificate().extensions() {
-        if let Some(i) = exts
+    if let Some(exts) = cert.tbs_certificate().extensions()
+        && let Some(i) = exts
             .iter()
             .find(|&ext| ext.extn_id == ID_CE_BASIC_CONSTRAINTS)
-        {
-            let v = i.extn_value.as_bytes();
-            return match BasicConstraints::from_der(v) {
-                Ok(bc) => bc.ca,
-                Err(_) => false,
-            };
-        }
+    {
+        let v = i.extn_value.as_bytes();
+        return match BasicConstraints::from_der(v) {
+            Ok(bc) => bc.ca,
+            Err(_) => false,
+        };
     }
     false
 }
