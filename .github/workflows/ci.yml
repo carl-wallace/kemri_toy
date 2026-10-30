@@ -51,12 +51,12 @@ jobs:
       - run: cargo test --locked
 
   # The declared rust-version in Cargo.toml. The toolchain goes in `with:` rather than the action
-  # ref: as `@1.85.0` Dependabot reads it as an action version and proposes "updating" it.
+  # ref: as `@1.88.0` Dependabot reads it as an action version and proposes "updating" it.
   msrv:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: 1.88.0
       - run: cargo check --locked --all-targets

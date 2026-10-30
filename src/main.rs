@@ -34,7 +34,7 @@ use cms::content_info::ContentInfo;
 use cms::signed_data::SignedData;
 use log::{debug, error};
 
-use der::{Decode, DecodePem, Encode};
+use der::{Decode, DecodePem, Encode, asn1::BitString};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfoOwned};
 
 use crate::misc::logging::configure_logging;
@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
             match pe.verify_signature_message(
                 &pe,
                 &data_to_verify[..],
-                si.signature.as_bytes(),
+                &BitString::from_bytes(si.signature.as_bytes())?,
                 &si.signature_algorithm,
                 leaf_cert.tbs_certificate().subject_public_key_info(),
             ) {

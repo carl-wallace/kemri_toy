@@ -285,8 +285,9 @@ dependencies = [
 
 [[package]]
 name = "certval"
-version = "0.1.4"
-source = "git+https://github.com/carl-wallace/rust-pki.git?branch=pre-release#63c95133a2ce9380a22516412601f66cea1b3b07"
+version = "0.2.0-rc.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc6f0bddbf3de03eac84e36737d40f788805a49472d25c00f1e2c0b784757995"
 dependencies = [
  "base64ct",
  "bitvec",
@@ -299,15 +300,14 @@ dependencies = [
  "ecdsa",
  "flagset",
  "getrandom 0.4.3",
- "hex-literal",
  "log",
  "ml-dsa",
  "p256",
  "p384",
  "p521",
  "pem-rfc7468",
+ "pkcs1",
  "pkiprocmacros",
- "pqckeys",
  "readonly",
  "reqwest",
  "rsa",
@@ -319,12 +319,12 @@ dependencies = [
  "sha3",
  "signature",
  "slh-dsa",
+ "spin",
  "spki",
  "subtle-encoding",
  "walkdir",
  "webpki-roots",
  "x509-cert",
- "x509-ocsp",
 ]
 
 [[package]]
@@ -462,8 +462,8 @@ checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
 name = "cms"
-version = "0.3.0-pre.2"
-source = "git+https://github.com/RustCrypto/formats.git#6cab00aeb9832b57902cb6fd38173f69572e5a67"
+version = "0.3.0-rc.0"
+source = "git+https://github.com/RustCrypto/formats.git#47e6ffd6b420904fadee5544759b5344992fce3f"
 dependencies = [
  "aes",
  "aes-kw",
@@ -657,9 +657,9 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a"
+checksum = "6a996a108feb8b427a6e12fcf6af4aa83409b79d72c15337d7741368131ee004"
 dependencies = [
  "const-oid",
  "der_derive",
@@ -1834,7 +1834,8 @@ checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 [[package]]
 name = "pkiprocmacros"
 version = "0.1.2"
-source = "git+https://github.com/carl-wallace/rust-pki.git?branch=pre-release#63c95133a2ce9380a22516412601f66cea1b3b07"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5df93c69801978b114a3e8f84e395bc72cee6666b26794adc799cfa4d95fc07"
 dependencies = [
  "quote",
  "syn 2.0.119",
@@ -2214,9 +2215,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.15.0"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "764899a24af3980067ee14bc143654f297b22eaebfe3c7b6b211920a5a59b046"
+checksum = "2f4925028c7eb5d1fcdaf196971378ed9d2c1c4efc7dc5d011256f76c99c0a96"
 dependencies = [
  "web-time",
  "zeroize",
@@ -2541,6 +2542,12 @@ dependencies = [
  "libc",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "spin"
+version = "0.9.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 
 [[package]]
 name = "spki"
@@ -3096,9 +3103,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.9"
+version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
+checksum = "f5f280bbb2b287bc8e7de7e3852945a0ff50d1bbcb5ed42b6c7a568c546df171"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -3339,17 +3346,6 @@ dependencies = [
  "signature",
  "spki",
  "tls_codec",
-]
-
-[[package]]
-name = "x509-ocsp"
-version = "0.3.0-pre"
-source = "git+https://github.com/RustCrypto/formats.git#6cab00aeb9832b57902cb6fd38173f69572e5a67"
-dependencies = [
- "const-oid",
- "der",
- "spki",
- "x509-cert",
 ]
 
 [[package]]

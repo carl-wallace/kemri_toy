@@ -1174,20 +1174,19 @@ fn test_decrypt(key_folder: &str, artifact_folder: &str, key_type_part: &str) ->
                 || file_name.contains(".txt")
             {
                 continue;
-            } else if let Some(oid) = get_kem_oid_from_file_name(file_name) {
-                if let Some(key) = key_map.get(&oid.to_string()) {
-                    if let Ok(ci) = get_file_as_byte_vec(&path.path()) {
-                        println!("Processing {:?}", path.path());
-                        match process_content_info(&ci, key) {
-                            Ok(pt) => {
-                                assert_eq!(pt, expected_plaintext);
-                                success += 1;
-                            }
-                            Err(e) => {
-                                println!("ERROR processing {:?}: {e:?}", path.path());
-                                return Err(e);
-                            }
-                        }
+            } else if let Some(oid) = get_kem_oid_from_file_name(file_name)
+                && let Some(key) = key_map.get(&oid.to_string())
+                && let Ok(ci) = get_file_as_byte_vec(&path.path())
+            {
+                println!("Processing {:?}", path.path());
+                match process_content_info(&ci, key) {
+                    Ok(pt) => {
+                        assert_eq!(pt, expected_plaintext);
+                        success += 1;
+                    }
+                    Err(e) => {
+                        println!("ERROR processing {:?}: {e:?}", path.path());
+                        return Err(e);
                     }
                 }
             }
