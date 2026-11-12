@@ -2,7 +2,7 @@ use crate::error::Error;
 use rand_core::Rng;
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey};
-use rsa::{Oaep, RsaPrivateKey, RsaPublicKey};
+use rsa::{Oaep, PrivateKey as RsaPrivateKey, PublicKey as RsaPublicKey};
 use sha2::Sha256;
 
 pub struct RsaKem {

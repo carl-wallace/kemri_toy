@@ -17,7 +17,7 @@ use pqckeys::pqc_oids::{
     ID_MLDSA87_ED448_SHAKE256, ID_MLDSA87_RSA3072_PSS_SHA512, ID_MLDSA87_RSA4096_PSS_SHA512,
     OQ_FALCON_PADDED_512, OQ_FALCON_PADDED_1024,
 };
-use rsa::RsaPublicKey;
+use rsa::PublicKey as RsaPublicKey;
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
     Shake192f, Shake192s, Shake256f, Shake256s,

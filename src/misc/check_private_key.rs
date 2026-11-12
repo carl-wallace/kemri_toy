@@ -259,12 +259,12 @@ fn check_composite_rsa(rsa_sk_bytes: &[u8], rsa_pk_bytes: &[u8], filename: &str)
     use rsa::pkcs1::{DecodeRsaPrivateKey, DecodeRsaPublicKey};
     use rsa::pkcs1v15::{SigningKey as Pkcs15SigningKey, VerifyingKey as Pkcs15VerifyingKey};
 
-    let rsa_sk = rsa::RsaPrivateKey::from_pkcs1_der(rsa_sk_bytes)
+    let rsa_sk = rsa::PrivateKey::from_pkcs1_der(rsa_sk_bytes)
         .map_err(|e| Error::Misc(format!("Failed to parse RSA private key: {e:?}")))?;
     let rsa_pk = rsa_sk.to_public_key();
 
     // Just verify the public key from the private key matches what's in the cert
-    let rsa_pk_from_cert = rsa::RsaPublicKey::from_pkcs1_der(rsa_pk_bytes)
+    let rsa_pk_from_cert = rsa::PublicKey::from_pkcs1_der(rsa_pk_bytes)
         .map_err(|e| Error::Misc(format!("Failed to parse RSA public key: {e:?}")))?;
 
     if rsa_pk != rsa_pk_from_cert {
