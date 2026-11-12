@@ -2,7 +2,7 @@
 name = "kemri_toy"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88.0"
+rust-version = "1.89.0"
 
 [dependencies]
 # ASN.1 encoding/decoding and related support from RustCrypto community
