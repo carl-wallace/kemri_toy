@@ -13,7 +13,7 @@ der = { version="0.8.1", features = ["alloc", "derive", "flagset", "oid"] }
 spki = { version = "0.8.0", default-features = false, features = ["alloc"] }
 x509-cert = { version = "0.3.0", default-features = false, features = ["hazmat", "builder"] }
 
-certval = { version = "0.2.0-rc.1", features = ["std", "rsa", "pqc"] }
+certval = { version = "0.2.0-rc.3", features = ["std", "rsa", "pqc"] }
 pqckeys = { git = "https://github.com/carl-wallace/pqckeys", branch = "main", features = ["pem"] }
 
 # cryptography-related crates
@@ -38,7 +38,7 @@ ml-kem = { version = "0.3.2" }
 p256 = {version = "0.14.0", default-features = false, features = ["ecdsa", "pkcs8"]}
 p384 = {version = "0.14.0", default-features = false, features = ["ecdsa", "pkcs8"]}
 p521 = {version = "0.14.0", default-features = false, features = ["ecdsa", "pkcs8"]}
-rsa = { version = "0.10.0-rc.18", features = ["sha2"] }
+rsa = { version = "0.10.0", features = ["pkcs1v15"] }
 sha2 = "0.11.0"
 sha3 = "0.11.0"
 signature = { version = "3.0.0", features = ["digest", "alloc"]}
@@ -58,8 +58,4 @@ serde = { version = "1.0.228", default-features = false, features = ["derive"] }
 subtle-encoding = {version = "0.5.1", default-features = false, features = ["hex", "alloc"]}
 tokio = { version = "1.52.4", features = ["full", "time", "rt-multi-thread"]}
 zerocopy = "0.8.54"
-
-[patch.crates-io]
-cms           = { git = "https://github.com/RustCrypto/formats.git" }
-
 

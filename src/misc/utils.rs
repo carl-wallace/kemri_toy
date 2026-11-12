@@ -298,7 +298,7 @@ pub fn generate_auth_enveloped_data(
 
 pub fn process_ktri(ktri: &KeyTransRecipientInfo, ee_sk: &[u8]) -> crate::error::Result<Vec<u8>> {
     use rsa::pkcs1::DecodeRsaPrivateKey;
-    use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
+    use rsa::{Pkcs1v15Encrypt, PrivateKey as RsaPrivateKey};
 
     let recipient_private_key = match RsaPrivateKey::from_pkcs1_der(ee_sk) {
         Ok(pk) => pk,

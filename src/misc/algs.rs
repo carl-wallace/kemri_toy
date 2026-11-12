@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use ml_dsa::{ExpandedSigningKey as MlDsaSigningKey, MlDsa44, MlDsa65, MlDsa87};
 use rand_core::TryRng;
-use rsa::RsaPrivateKey;
+use rsa::PrivateKey as RsaPrivateKey;
 use slh_dsa::{
     Sha2_128f, Sha2_128s, Sha2_192f, Sha2_192s, Sha2_256f, Sha2_256s, Shake128f, Shake128s,
     Shake192f, Shake192s, Shake256f, Shake256s, SigningKey,
