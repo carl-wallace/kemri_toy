@@ -137,7 +137,6 @@ pub struct KemriToyArgs {
         conflicts_with = "auth_env_data",
         conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
-        conflicts_with = "ee_cert_file",
         conflicts_with = "ee_key_file",
         help_heading = "Signing"
     )]
@@ -152,7 +151,6 @@ pub struct KemriToyArgs {
         conflicts_with = "enc",
         conflicts_with = "aead",
         conflicts_with = "auth_env_data",
-        conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
         conflicts_with = "ee_key_file",
         help_heading = "Certificate Generation"
@@ -169,7 +167,6 @@ pub struct KemriToyArgs {
         conflicts_with = "enc",
         conflicts_with = "aead",
         conflicts_with = "auth_env_data",
-        conflicts_with = "ee_cert_file",
         conflicts_with = "ukm",
         conflicts_with = "ee_key_file",
         help_heading = "Certificate Generation"
